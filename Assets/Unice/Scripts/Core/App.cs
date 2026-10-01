@@ -52,7 +52,7 @@ namespace Unice
             kit = PlayerPrefs.HasKey("unice.kit") ? Kit.Unpack(PlayerPrefs.GetInt("unice.kit")) : Kit.Random();
             cam = Camera.main;
             if (cam == null) { cam = new GameObject("Camera").AddComponent<Camera>(); cam.tag = "MainCamera"; }
-            cam.orthographic = true; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Art.Hex("#110c12");
+            cam.orthographic = true; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
             cam.nearClipPlane = .1f; cam.farClipPlane = 50;
             if (FindAnyObjectByType<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
             if (FindAnyObjectByType<EventSystem>() == null)
@@ -65,11 +65,46 @@ namespace Unice
             ui = new Ui(this);
             backend = NetRegistry.Factory?.Invoke();
             if (backend != null) backend.Lost += RoomLost;
+            HideSystemBars();
+        }
+
+        bool keyboardWas;
+        void OnApplicationFocus(bool focus) { if (focus) HideSystemBars(); }
+
+        /// <summary>Android: hide the status and navigation bars (they come back after the keyboard or leaving the app).</summary>
+        static void HideSystemBars()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                using var player = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                var activity = player.GetStatic<AndroidJavaObject>("currentActivity");
+                activity.Call("runOnUiThread", new AndroidJavaRunnable(() =>
+                {
+                    try
+                    {
+                        using var version = new AndroidJavaClass("android.os.Build$VERSION");
+                        var window = activity.Call<AndroidJavaObject>("getWindow");
+                        if (version.GetStatic<int>("SDK_INT") >= 30)
+                        {
+                            using var types = new AndroidJavaClass("android.view.WindowInsets$Type");
+                            var ctrl = window.Call<AndroidJavaObject>("getInsetsController");
+                            ctrl.Call("hide", types.CallStatic<int>("statusBars") | types.CallStatic<int>("navigationBars"));
+                            ctrl.Call("setSystemBarsBehavior", 2);   // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        }
+                        else window.Call<AndroidJavaObject>("getDecorView").Call("setSystemUiVisibility", 5894);   // immersive sticky
+                    }
+                    catch (Exception x) { Debug.LogWarning(x); }
+                }));
+            }
+            catch (Exception x) { Debug.LogWarning(x); }
+#endif
         }
 
         // ---------- main loop ----------
         void Update()
         {
+            bool kbd = TouchScreenKeyboard.visible; if (keyboardWas && !kbd) HideSystemBars(); keyboardWas = kbd;
             ReadKeys();
             float dt = Mathf.Min(2f, Time.unscaledDeltaTime);
             acc += dt;
@@ -81,7 +116,7 @@ namespace Unice
         void Step(float dt)
         {
             if (Online) { ElectHost(); if (!G.isHost) PullSnap(); }
-            if (G.isHost && G.ph != Phase.Home && !(paused && !Online)) G.HostStep(dt, Online ? net.Peers : null, myId, d => { if (me != null) UpdatePlayer(d); });
+            if (G.isHost && G.ph != Phase.Home && !(paused && !Online)) G.HostStep(dt, Online ? net.Peers : null, myId, d => { if (me != null) UpdatePlayer(d); }, HumansNow);
             else if (!G.isHost && G.Live && me != null) UpdatePlayer(dt);
             if (G.isHost) { me = G.ents.FirstOrDefault(e => e.pid == myId); HandleEvents(); }
             if (freeze > 0) freeze -= dt;
@@ -107,7 +142,7 @@ namespace Unice
             if (inGame && hasView)
             {
                 float fl = 1 + Mathf.Sin(time * 9) * .012f + Mathf.Sin(time * 23) * .008f;
-                var dark = view.spect ? new Color(.04f, .024f, .035f, .6f) : me != null && me.hidden != null ? new Color(.02f, .012f, .02f, .985f) : new Color(.03f, .02f, .03f, .95f);
+                var dark = new Color(0, 0, 0, view.spect ? .6f : me != null && me.hidden != null ? .985f : .95f);
                 world.fog.Draw(view.x, view.y, view.r * fl, view.los, dark);
             }
             else world.fog.Hide();

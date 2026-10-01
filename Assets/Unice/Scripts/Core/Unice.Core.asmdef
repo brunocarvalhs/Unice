@@ -2,6 +2,7 @@
     "name": "Unice.Core",
     "rootNamespace": "Unice",
     "references": [
+        "Unice.Domain",
         "Unity.InputSystem",
         "UnityEngine.UI"
     ],

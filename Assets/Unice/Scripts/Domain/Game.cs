@@ -140,6 +140,16 @@ namespace Unice
 
         public struct Human { public string id, name; public int[] k; public long joinT; }
 
+        /// <summary>
+        /// Who can be drawn for the Unice or the doll: with two or more people in the room only people,
+        /// otherwise (playing alone with bots) everyone, so it is not always the same person.
+        /// </summary>
+        List<Ent> Eligible(List<Ent> from)
+        {
+            var people = from.Where(e => !e.bot).ToList();
+            return ents.Count(e => !e.bot) >= 2 && people.Count > 0 ? people : from;
+        }
+
         void AddHuman(Human h) { if (ents.Count < Rules.MaxPlayers) ents.Add(new Ent(ents.Count, h.id, h.name, h.k, false)); }
 
         /// <summary>Starts a match. <paramref name="humans"/> must list this device first, then the others by arrival.</summary>
@@ -152,8 +162,7 @@ namespace Unice
             for (int i = 0; (i < bots || ents.Count < 2) && ents.Count < Rules.MaxPlayers; i++)
                 ents.Add(new Ent(ents.Count, "b" + i, i < names.Count ? names[i] : "Robô " + (i + 1), Kit.Random(), true));
             r = 0;
-            var hs = ents.Where(e => !e.bot).ToList();
-            nextU = U.Pick(hs.Count > 0 ? hs : ents);
+            nextU = U.Pick(Eligible(ents));
             StartRound(humans);
         }
 
@@ -171,8 +180,7 @@ namespace Unice
             u.role = Role.Unice; u.turns++; unice = u;
             var hs = ents.Where(e => e != u).ToList();
             for (int i = 0; i < hs.Count; i++) { hs[i].x = hs[i].tx = 620 + i * 70; hs[i].y = hs[i].ty = 474; }
-            var hh = hs.Where(e => !e.bot).ToList();
-            doll.holder = U.Pick(hh.Count > 0 ? hh : hs); doll.giggleT = Rules.GiggleEvery; doll.hasLast = false; doll.lastSpot = null;
+            doll.holder = U.Pick(Eligible(hs)); doll.giggleT = Rules.GiggleEvery; doll.hasLast = false; doll.lastSpot = null;
             ph = Phase.Hide; tl = Rules.HideTime; t = 0; res = null;
             Ev(EvType.Start, r, u.idx, doll.holder.idx);
         }
@@ -186,8 +194,7 @@ namespace Unice
             {
                 foreach (var h in ents) if (!h.IsUnice) h.score += 2;
                 holder.score += 1;
-                var cands = ents.Where(e => e != U_).ToList(); var humans = cands.Where(e => !e.bot).ToList();
-                var pool = humans.Count > 0 ? humans : cands; int minT = pool.Min(e => e.turns);
+                var pool = Eligible(ents.Where(e => e != U_).ToList()); int minT = pool.Min(e => e.turns);
                 nextU = U.Pick(pool.Where(e => e.turns == minT).ToList());
                 res = new[] { 0, holder.idx, holder.hidden != null ? holder.hidden.si : -1, 0 };
             }
@@ -441,7 +448,7 @@ namespace Unice
         }
 
         /// <summary>Host only: one fixed step of the whole match.</summary>
-        public void HostStep(float dt, IReadOnlyList<PeerInfo> peers, string myId, Action<float> movePlayer)
+        public void HostStep(float dt, IReadOnlyList<PeerInfo> peers, string myId, Action<float> movePlayer, Func<List<Human>> humansNow)
         {
             hb += dt;
             if (peers != null) ReadInputs(peers, myId, dt);
@@ -452,7 +459,7 @@ namespace Unice
                 if (tl <= 0)
                 {
                     if (r >= rounds) { ph = Phase.Final; Ev(EvType.Final); }
-                    else StartRound(App.HumansNow());
+                    else StartRound(humansNow());
                 }
             }
         }

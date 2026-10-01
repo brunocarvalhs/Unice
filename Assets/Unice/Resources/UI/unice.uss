@@ -126,12 +126,12 @@
 .pill-in { background-color: rgba(10, 6, 9, 0.85); border-radius: 19px; padding: 4px 18px; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 22px; color: rgb(239, 115, 148); }
 .caption { position: absolute; bottom: 86px; left: 0; right: 0; align-items: center; }
 .caption-in { background-color: rgba(10, 6, 9, 0.88); border-radius: 15px; padding: 4px 16px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; }
-.blackout { background-color: rgba(10, 6, 9, 0.97); align-items: center; justify-content: center; }
+.blackout { background-color: rgba(0, 0, 0, 0.97); align-items: center; justify-content: center; }
 .count { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 200px; color: rgb(239, 115, 148); }
 .count-sub { font-size: 20px; color: rgb(173, 154, 140); }
 .wlabel { position: absolute; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 14px; color: rgb(241, 231, 216); -unity-text-align: middle-center; translate: -50% -50%; -unity-text-outline-width: 1px; -unity-text-outline-color: rgba(10, 6, 9, 0.9); }
 .fxtext { position: absolute; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); -unity-text-align: middle-center; translate: -50% -50%; -unity-text-outline-width: 1px; -unity-text-outline-color: rgba(10, 6, 9, 0.95); }
-.slat { position: absolute; left: 0; right: 0; height: 12px; background-color: rgba(12, 7, 9, 0.5); }
+.slat { position: absolute; left: 0; right: 0; height: 12px; background-color: rgba(0, 0, 0, 0.5); }
 .pause { background-color: rgba(10, 6, 9, 0.7); align-items: center; justify-content: center; }
 
 /* touch controls */

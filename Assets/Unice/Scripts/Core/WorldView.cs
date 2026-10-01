@@ -30,7 +30,7 @@ namespace Unice
         {
             Art.Load();
             root = new GameObject("House").transform; root.SetParent(parent, false);
-            var bg = Art.MakeSR("background", root, Art.White, -30000); bg.color = Art.Hex("#2a1c24");
+            var bg = Art.MakeSR("background", root, Art.White, -30000); bg.color = Art.Hex("#121212");
             bg.transform.localPosition = Art.W(14, 14); bg.transform.localScale = new Vector3((Map.WorldW - 28) / Art.PxPerUnit, (Map.WorldH - 28) / Art.PxPerUnit, 1);
             foreach (var f in Art.M.floors)
             {

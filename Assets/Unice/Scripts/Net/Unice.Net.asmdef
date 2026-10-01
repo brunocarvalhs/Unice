@@ -3,6 +3,7 @@
     "rootNamespace": "Unice",
     "references": [
         "Unice.Core",
+        "Unice.Domain",
         "Unity.Netcode.Runtime",
         "Unity.Services.Core",
         "Unity.Services.Authentication",
