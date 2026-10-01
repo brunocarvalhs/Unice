@@ -204,3 +204,21 @@
 .mbtn-go { width: auto; height: 86px; margin: 14px 0 0 0; font-size: 44px; }
 .mbtn-on { border-color: rgb(143, 203, 156); color: rgb(143, 203, 156); }
 .lobby-note { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(173, 154, 140); -unity-text-align: middle-center; white-space: normal; margin-top: 4px; flex-shrink: 0; }
+
+/* ---------- round result and final score, full screen ---------- */
+.result { background-color: rgba(9, 6, 9, 0.6); }
+.res-head { align-items: center; flex-shrink: 0; }
+.res-eyebrow { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; letter-spacing: 5px; color: rgb(240, 176, 87); }
+.res-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 66px; color: rgb(241, 231, 216); -unity-text-align: middle-center; text-shadow: 0px 0px 16px rgba(10, 6, 9, 0.9); }
+.res-win { color: rgb(143, 203, 156); }
+.res-lose { color: rgb(239, 115, 148); }
+.res-reason { font-size: 19px; color: rgb(215, 203, 187); -unity-text-align: middle-center; white-space: normal; max-width: 1000px; }
+.pcard-rank { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(240, 176, 87); }
+.pcard-pts { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 32px; color: rgb(241, 231, 216); }
+.pcard-win { border-width: 3px; border-color: rgb(143, 203, 156); }
+.res-lbl { -unity-text-align: middle-center; flex-grow: 0; margin-bottom: 4px; }
+.res-next { flex-direction: row; align-items: center; justify-content: center; margin: 4px 0; }
+.res-next-name { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 36px; color: rgb(239, 115, 148); margin-left: 10px; }
+.res-count { flex-direction: row; align-items: center; justify-content: center; margin-top: 10px; }
+.res-count-n { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 46px; color: rgb(240, 176, 87); margin: 0 10px; }
+.res-rules { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; color: rgb(173, 154, 140); white-space: normal; -unity-text-align: middle-center; margin-top: 12px; }

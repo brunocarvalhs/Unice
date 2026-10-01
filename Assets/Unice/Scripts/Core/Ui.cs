@@ -310,14 +310,21 @@ namespace Unice
             leave2.text = on ? "Sair" : "Voltar";
         }
 
-        // ---------- result / final ----------
-        VisualElement resultOv, sheet; Label nextIn; Button againBtn; Label waitHost;
+        // ---------- result / final (full screen, no scrolling) ----------
+        VisualElement resultOv, resHead, resCards, resSide; Label nextIn; Button againBtn; Label waitHost;
 
-        void BuildResult() { sheet = Sheet(root, out resultOv); }
+        void BuildResult()
+        {
+            resultOv = E(root, "lobby", "result");
+            resHead = E(resultOv, "res-head");
+            var body = E(resultOv, "lobby-body");
+            resCards = E(body, "lobby-players");
+            resSide = E(body, "mpanel", "lobby-side");
+        }
 
         void RenderResult(bool final)
         {
-            sheet.Clear(); nextIn = null; againBtn = null; waitHost = null;
+            resHead.Clear(); resCards.Clear(); resSide.Clear(); nextIn = null; againBtn = null; waitHost = null;
             var res = G.res ?? new[] { 0, -1, -1, -1 };
             bool unWin = res[0] == 1; var who = G.EntAt(res[1]); var Un = G.unice; var me = app.me; var nx = G.EntAt(res[3]);
             bool? won = me != null ? unWin == me.IsUnice : (bool?)null;
@@ -330,41 +337,40 @@ namespace Unice
                 int top = G.ents.Count > 0 ? G.ents.Max(e => e.score) : 0; var ws = G.ents.Where(e => e.score == top).ToList();
                 bool iWon = me != null && ws.Contains(me);
                 string head = iWon ? (ws.Count > 1 ? "Empate no topo!" : "Você venceu a partida!") : $"{string.Join(" e ", ws.Select(w => w.name))} {(ws.Count > 1 ? "venceram" : "venceu")}";
-                L(sheet, $"FIM DAS {G.rounds} RODADAS", "eyebrow");
-                L(sheet, head, "title", "title-md", iWon ? "title-win" : "title-red");
-                L(sheet, $"Última rodada: {title} {reason}", "muted");
-                Scores(me);
-                var foot = E(sheet, "row", "gap", "wrap");
-                againBtn = B(foot, "Nova partida", () => app.NewMatchLobby(), "btn");
-                waitHost = L(foot, "Esperando o anfitrião começar uma nova partida.", "muted");
-                B(foot, app.Online ? "Sair da sala" : "Voltar ao início", () => app.LeaveRoom(), "btn", "btn-link");
+                L(resHead, $"FIM DAS {G.rounds} RODADAS", "res-eyebrow");
+                L(resHead, head, "res-title", iWon ? "res-win" : "res-lose");
+                L(resHead, $"Última rodada: {title} {reason}", "res-reason");
+                Cards(me, ws);
+                L(resSide, "PLACAR FINAL", "mstep-l", "res-lbl");
+                againBtn = B(resSide, "NOVA PARTIDA", () => app.NewMatchLobby(), "mbtn", "mbtn-go");
+                waitHost = L(resSide, "Esperando o anfitrião começar uma nova partida.", "mnote", "lobby-status");
+                B(resSide, app.Online ? "Sair da sala" : "Voltar ao início", () => app.LeaveRoom(), "mbtn", "mbtn-back");
             }
             else
             {
-                L(sheet, $"RODADA {G.r} DE {G.rounds}", "eyebrow");
-                var t = L(sheet, title, "title", "title-md"); if (won != null) t.AddToClassList(won.Value ? "title-win" : "title-red");
-                L(sheet, reason, "lede");
-                Scores(me);
-                var nr = E(sheet, "next");
-                var d = new Doll(30); d.SetUnice(); nr.Add(d);
-                L(nr, $"Próxima Unice: {app.NameOf(nx)}", "pname");
-                L(nr, unWin ? "Quem é pego com a boneca vira a Unice." : "O time venceu, então houve sorteio.", "muted");
-                var nrow = E(sheet, "row", "wrap");
-                L(nrow, "Próxima rodada em ", "muted"); nextIn = L(nrow, "", "muted", "bold"); L(nrow, " s.", "muted");
-                L(sheet, "Unice: +3 ao achar a boneca, +1 por captura. Time: +2 cada se o tempo acabar, +1 para quem termina com a boneca.", "muted");
+                L(resHead, $"RODADA {G.r} DE {G.rounds}", "res-eyebrow");
+                var t = L(resHead, title, "res-title"); if (won != null) t.AddToClassList(won.Value ? "res-win" : "res-lose");
+                L(resHead, reason, "res-reason");
+                Cards(me, null);
+                L(resSide, "PRÓXIMA UNICE", "mstep-l", "res-lbl");
+                var nu = E(resSide, "res-next"); var d = new Doll(46); d.SetUnice(); nu.Add(d); L(nu, app.NameUp(nx), "res-next-name");
+                L(resSide, unWin ? "Quem é pego com a boneca vira a Unice." : "O time venceu, então houve sorteio.", "mnote", "lobby-status");
+                var nr = E(resSide, "res-count"); L(nr, "Próxima rodada em", "mnote"); nextIn = L(nr, "", "res-count-n"); L(nr, "s", "mnote");
+                L(resSide, "Unice: +3 ao pegar a boneca, +1 por captura.\nTime: +2 cada se o tempo acabar, +1 para quem termina com a boneca.", "res-rules");
             }
         }
 
-        void Scores(Ent me)
+        /// <summary>Score cards, best first. Winners of the match get a green border.</summary>
+        void Cards(Ent me, List<Ent> winners)
         {
             int i = 0;
             foreach (var e in G.ents.OrderByDescending(e => e.score))
             {
-                var row = E(sheet, "srow"); if (e == me) row.AddToClassList("prow-me");
-                L(row, (++i).ToString(), "srank");
-                var d = new Doll(26); d.Set(e.k); row.Add(d);
-                L(row, e.name + (e == me ? " (você)" : "") + (e.bot ? " · robô" : ""), "pname");
-                L(row, e.score.ToString(), "pts");
+                var card = E(resCards, "pcard"); if (e == me) card.AddToClassList("pcard-me"); if (winners != null && winners.Contains(e)) card.AddToClassList("pcard-win");
+                L(card, (++i) + "º", "pcard-rank");
+                var d = new Doll(50); d.Set(e.k); card.Add(d);
+                L(card, e.name + (e.bot ? " · robô" : ""), "pcard-name");
+                L(card, e.score.ToString(), "pcard-pts");
             }
         }
 
@@ -787,7 +793,7 @@ namespace Unice
             float k = root.layout.height > 0 ? root.layout.height / Screen.height : 720f / Screen.height;
             safe.style.left = sa.xMin * k; safe.style.right = (Screen.width - sa.xMax) * k;
             safe.style.top = (Screen.height - sa.yMax) * k; safe.style.bottom = sa.yMin * k;
-            foreach (var el in new[] { home, wait }) { el.style.left = safe.style.left; el.style.right = safe.style.right; el.style.top = safe.style.top; el.style.bottom = safe.style.bottom; }
+            foreach (var el in new[] { home, wait, resultOv }) { el.style.left = safe.style.left; el.style.right = safe.style.right; el.style.top = safe.style.top; el.style.bottom = safe.style.bottom; }
         }
     }
 
