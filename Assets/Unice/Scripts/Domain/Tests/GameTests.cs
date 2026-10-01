@@ -226,7 +226,7 @@ namespace Unice
             Assert.AreEqual(0, g.res[0]);
             Assert.AreEqual(holder.idx, g.res[1]);
             Assert.AreEqual(-1, g.res[2], "holder wasn't hidden when the clock ran out");
-            Assert.That(g.nextU, Is.AnyOf(new[] { holder, other }), "next Unice is drawn from the tied-lowest-turns pool");
+            Assert.Contains(g.nextU, new[] { holder, other }, "next Unice is drawn from the tied-lowest-turns pool");
             Assert.AreEqual(g.nextU.idx, g.res[3]);
         }
 
