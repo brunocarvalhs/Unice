@@ -24,7 +24,10 @@ namespace Unice
         public bool Online => net != null && net.InRoom;
         public bool NetAvailable => NetRegistry.Factory != null;
 
-        public string code = "", myId = "me", myName; public int[] kit; public bool rdy; public long joinT;
+        public string code = "", myId = "me"; public bool rdy; public long joinT;
+        ProfileStore profile;
+        public string myName { get => profile.Name; set => profile.Name = value; }
+        public int[] kit { get => profile.Kit; set => profile.Kit = value; }
         [NonSerialized] public Ent me; [NonSerialized] public ViewInfo view; public bool hasView;
         public bool paused, busy;
         public string netText = ""; public bool netErr;
@@ -48,8 +51,7 @@ namespace Unice
             if (I != null && I != this) { Destroy(gameObject); return; }
             I = this; DontDestroyOnLoad(gameObject);
             Application.targetFrameRate = 60; Screen.sleepTimeout = SleepTimeout.NeverSleep;
-            myName = U.CleanName(PlayerPrefs.GetString("unice.name", "Nova"));
-            kit = PlayerPrefs.HasKey("unice.kit") ? Kit.Unpack(PlayerPrefs.GetInt("unice.kit")) : Kit.Random();
+            profile = new ProfileStore();
             cam = Camera.main;
             if (cam == null) { cam = new GameObject("Camera").AddComponent<Camera>(); cam.tag = "MainCamera"; }
             cam.orthographic = true; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
@@ -505,8 +507,8 @@ namespace Unice
             G.isHost = true; G.ep = 1; G.ph = Phase.Lobby;
         }
 
-        public void SaveProfile() { PlayerPrefs.SetString("unice.name", myName); PlayerPrefs.SetInt("unice.kit", Kit.Pack(kit)); PlayerPrefs.Save(); }
-        public void SetKit(int[] k) { kit = Kit.Clean(k); SaveProfile(); pubT = 0; }
+        public void SaveProfile() => profile.Save();
+        public void SetKit(int[] k) { profile.SetKit(k); pubT = 0; }
 
         public struct LobbyHuman { public string id, name; public int[] k; public bool rdy, me; }
 
