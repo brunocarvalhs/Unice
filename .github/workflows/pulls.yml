@@ -1,0 +1,72 @@
+name: Pull Requests
+
+"on":
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
+  workflow_dispatch:
+
+jobs:
+  validate-pr:
+    name: Validate Unity PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: |
+            Library
+            Temp
+            obj
+          key: unity-pr-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            unity-pr-${{ runner.os }}-
+
+      - name: Run Unity tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.6.3f1
+          testMode: EditMode
+          projectPath: .
+          artifactsPath: artifacts
+          coveragePath: coverage
+          customParameters: -logFile /tmp/unity-tests.log -runTests -testPlatform EditMode -coverage
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-test-results
+          path: artifacts/**
+          if-no-files-found: ignore
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-coverage
+          path: coverage/**
+          if-no-files-found: ignore
+
+      - name: Upload Unity log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-pr-log
+          path: /tmp/unity-tests.log
+          if-no-files-found: ignore

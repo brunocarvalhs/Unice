@@ -1,0 +1,97 @@
+name: Release
+
+"on":
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create/use (example: v1.2.3)'
+        required: true
+        default: 'v1.2.3'
+
+jobs:
+  build-release:
+    name: Build release bundle and upload to store
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: |
+            Library
+            Temp
+            obj
+          key: unity-release-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            unity-release-${{ runner.os }}-
+
+      - name: Create tag when triggered manually
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -e
+          tag="${{ github.event.inputs.version }}"
+          if ! git rev-list "$tag" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+
+      - name: Build Android release AAB
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.6.3f1
+          targetPlatform: Android
+          buildName: Unice
+          buildPath: build/Release
+          androidAppBundle: true
+          androidKeystoreName: ${{ secrets.ANDROID_KEYSTORE_NAME }}
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          allowDirtyBuild: true
+          customParameters: -quit -batchmode -logFile /tmp/unity-release.log
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unice-release-aab
+          path: build/Release/**/*.aab
+          if-no-files-found: error
+
+      - name: Upload Unity log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-release-log
+          path: /tmp/unity-release.log
+          if-no-files-found: ignore
+
+      - name: Upload to Google Play
+        if: success()
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ secrets.GOOGLE_PLAY_PACKAGE_NAME }}
+          releaseFiles: build/Release/**/*.aab
+          track: production
+          status: completed

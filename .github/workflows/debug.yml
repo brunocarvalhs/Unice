@@ -1,0 +1,67 @@
+name: Debug APK
+
+"on":
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: |
+            Library
+            Temp
+            obj
+          key: unity-debug-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            unity-debug-${{ runner.os }}-
+
+      - name: Build Android debug APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.6.3f1
+          targetPlatform: Android
+          buildName: Unice
+          buildPath: build/Debug
+          androidAppBundle: false
+          allowDirtyBuild: true
+          customParameters: -quit -batchmode -logFile /tmp/unity-debug.log
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unice-debug-apk
+          path: build/Debug/**/*.apk
+          if-no-files-found: error
+
+      - name: Upload Unity log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-debug-log
+          path: /tmp/unity-debug.log
+          if-no-files-found: ignore
