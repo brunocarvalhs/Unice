@@ -5,7 +5,6 @@ name: Version
     branches:
       - main
       - master
-      - develop
   workflow_dispatch:
 
 jobs:
