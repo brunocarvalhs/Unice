@@ -17,7 +17,7 @@ namespace Unice
     public struct Presence
     {
         public string name; public int kit; public long joinT; public bool rdy; public int tp;
-        public bool hasPos; public float x, y, fx, fy; public bool sneak;
+        public bool hasPos; public float x, y, fx, fy; public bool sneak, talking;
         public int aSeq; public Act aType; public int aArg;
     }
 
@@ -416,7 +416,7 @@ namespace Unice
                 e.loud = !e.IsUnice && e.moving && !e.sneak;
             }
             foreach (var e in ents)
-                if (!e.IsUnice && !e.outOfRound && e.hidden == null && e.loud) { e.noiseT -= dt; if (e.noiseT <= 0) { e.noiseT = .42f; AiHear(e); } }
+                if (!e.IsUnice && !e.outOfRound && e.hidden == null && (e.loud || e.talking)) { e.noiseT -= dt; if (e.noiseT <= 0) { e.noiseT = .42f; AiHear(e); } }
             var U_ = unice;
             if (ph == Phase.Hunt && U_.stun <= 0 && U_.checkT <= 0)
                 foreach (var h in ents) if (!h.IsUnice && !h.outOfRound && h.hidden == null && U.Dist(U_, h) < Rules.CatchR) { Capture(U_, h); if (!Live) return; break; }
@@ -433,6 +433,7 @@ namespace Unice
                 foreach (var q in peers) if (q.id == e.pid) { p = q; break; }
                 if (p == null) { e.bot = true; e.ResetAI(); if (Live) Ev(EvType.Left, e.idx); continue; }
                 var pr = p.pres;
+                e.talking = pr.talking;
                 if (pr.aSeq > (aseq.TryGetValue(p.id, out int last) ? last : 0)) { aseq[p.id] = pr.aSeq; DoAction(e, pr.aType, pr.aArg); }
                 if (pr.hasPos && pr.tp >= e.tp && CanMoveNow(e))
                 {

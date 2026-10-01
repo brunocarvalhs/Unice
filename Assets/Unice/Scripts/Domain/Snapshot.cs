@@ -112,7 +112,7 @@ namespace Unice
             using var w = new BinaryWriter(ms);
             w.Write((byte)1); w.Write(p.name ?? ""); w.Write(p.kit); w.Write(p.joinT); w.Write(p.rdy); w.Write(p.tp);
             w.Write(p.hasPos); if (p.hasPos) { w.Write(p.x); w.Write(p.y); w.Write(p.fx); w.Write(p.fy); w.Write(p.sneak); }
-            w.Write(p.aSeq); w.Write((byte)p.aType); w.Write((short)p.aArg);
+            w.Write(p.aSeq); w.Write((byte)p.aType); w.Write((short)p.aArg); w.Write(p.talking);
             w.Flush(); return ms.ToArray();
         }
 
@@ -130,6 +130,7 @@ namespace Unice
                 if (p.hasPos) { p.x = r.ReadSingle(); p.y = r.ReadSingle(); p.fx = r.ReadSingle(); p.fy = r.ReadSingle(); p.sneak = r.ReadBoolean(); }
                 if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.fx) || float.IsNaN(p.fy)) p.hasPos = false;
                 p.aSeq = r.ReadInt32(); byte a = r.ReadByte(); p.aType = a <= (byte)Act.Catch ? (Act)a : Act.None; p.aArg = r.ReadInt16();
+                p.talking = r.ReadBoolean();
                 return true;
             }
             catch (Exception) { return false; }

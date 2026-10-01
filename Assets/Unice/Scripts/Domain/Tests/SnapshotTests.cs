@@ -151,7 +151,7 @@ namespace Unice
             var p = new Presence
             {
                 name = "Ana", kit = Kit.Pack(new[] { 1, 1, 1, 1, 1, 1, 1 }), joinT = 123456789L, rdy = true, tp = 5,
-                hasPos = true, x = 10.5f, y = 20.5f, fx = 0.6f, fy = 0.8f, sneak = true,
+                hasPos = true, x = 10.5f, y = 20.5f, fx = 0.6f, fy = 0.8f, sneak = true, talking = true,
                 aSeq = 9, aType = Act.Pass, aArg = 3
             };
 
@@ -162,6 +162,7 @@ namespace Unice
             Assert.IsTrue(p2.rdy); Assert.AreEqual(5, p2.tp);
             Assert.IsTrue(p2.hasPos); Assert.AreEqual(10.5f, p2.x); Assert.AreEqual(20.5f, p2.y); Assert.AreEqual(0.6f, p2.fx); Assert.AreEqual(0.8f, p2.fy);
             Assert.IsTrue(p2.sneak); Assert.AreEqual(9, p2.aSeq); Assert.AreEqual(Act.Pass, p2.aType); Assert.AreEqual(3, p2.aArg);
+            Assert.IsTrue(p2.talking, "voice-level noise flag round-trips over the wire like sneak does");
         }
 
         [Test]

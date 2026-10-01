@@ -49,6 +49,7 @@ namespace Unice
             touch = Ig(E(safe, "layer")); BuildTouch();
             BuildMessages();
             BuildHome(); BuildWait(); BuildResult(); BuildPause();
+            RefreshWhisperBtns();
         }
 
         // ---------- tiny builders ----------
@@ -81,7 +82,7 @@ namespace Unice
 
         // ---------- main menu (over the house map) ----------
         VisualElement home, menuMain, menuOnline, menuHelp, menuKid, kidSlot, custom; TextField nameIn, codeIn; Label netLbl;
-        Button createBtn, joinBtn, soundBtn, localBtn, onlineBtn; string page = "main";
+        Button createBtn, joinBtn, soundBtn, micBtn, whisperBtn, localBtn, onlineBtn; string page = "main";
 
         void BuildHome()
         {
@@ -131,6 +132,8 @@ namespace Unice
 
             var foot = E(home, "menu-foot");
             soundBtn = B(foot, "Som: ligado", ToggleSound, "mpill");
+            micBtn = B(foot, "Microfone: desligado", ToggleMic, "mpill");
+            whisperBtn = B(foot, "Voz: normal", ToggleWhisper, "mpill");
             B(home, "Sair", () => Application.Quit(), "mbtn", "mexit");
             Page("main");
         }
@@ -184,9 +187,29 @@ namespace Unice
             soundBtn.text = t; pauseSound.text = t;
         }
 
+        /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden.</summary>
+        void ToggleMic()
+        {
+            app.MicOn = !app.MicOn;
+            string t = app.MicOn ? "Microfone: ligado" : "Microfone: desligado";
+            micBtn.text = t; pauseMic.text = t; waitMic.text = t;
+            RefreshWhisperBtns();
+        }
+
+        /// <summary>Personal choice: "sussurro" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
+        void ToggleWhisper() { app.Whisper = !app.Whisper; RefreshWhisperBtns(); }
+
+        void RefreshWhisperBtns()
+        {
+            string t = app.Whisper ? "Voz: sussurro" : "Voz: normal";
+            whisperBtn.text = t; whisperBtn.SetEnabled(app.MicOn);
+            waitWhisper.text = t; waitWhisper.SetEnabled(app.MicOn);
+            pauseWhisper.text = t; pauseWhisper.SetEnabled(app.MicOn);
+        }
+
         // ---------- waiting room (full screen, made for a phone on its side) ----------
         VisualElement wait, wList, hostOpts, opts; Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal;
-        Button copyBtn, actBtn, leave2; Doll preview; string wSig; bool lobbyHost, waitCanGo;
+        Button copyBtn, actBtn, leave2, waitMic, waitWhisper; Doll preview; string wSig; bool lobbyHost, waitCanGo;
         static readonly int[] RoundChoices = { 3, 5, 7 };
 
         void BuildWait()
@@ -197,6 +220,8 @@ namespace Unice
             var head = E(top, "lobby-head");
             wTitle = L(head, "", "lobby-title"); wCode = L(head, "", "lobby-code");
             copyBtn = B(head, "Copiar código", CopyCode, "mpill");
+            waitMic = B(top, "Microfone: desligado", ToggleMic, "mpill");
+            waitWhisper = B(top, "Voz: normal", ToggleWhisper, "mpill");
             wCount = L(top, "", "lobby-count");
             var body = E(wait, "lobby-body");
             wList = E(body, "lobby-players");
@@ -375,7 +400,7 @@ namespace Unice
         }
 
         // ---------- pause / menu ----------
-        VisualElement pauseOv; Label pauseTitle, pauseNote; Button pauseSound, pauseLeave;
+        VisualElement pauseOv; Label pauseTitle, pauseNote; Button pauseSound, pauseMic, pauseWhisper, pauseLeave;
 
         void BuildPause()
         {
@@ -385,6 +410,8 @@ namespace Unice
             var r = E(sh, "row", "gap", "wrap");
             B(r, "Continuar", () => app.TogglePause(), "btn");
             pauseSound = B(r, "Som: ligado", ToggleSound, "btn", "btn-ghost");
+            pauseMic = B(r, "Microfone: desligado", ToggleMic, "btn", "btn-ghost");
+            pauseWhisper = B(r, "Voz: normal", ToggleWhisper, "btn", "btn-ghost");
             pauseLeave = B(r, "Sair", () => app.LeaveRoom(), "btn", "btn-link");
             Show(pauseOv, false);
         }

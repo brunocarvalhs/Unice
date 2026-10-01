@@ -237,6 +237,47 @@ namespace Unice
             Assert.AreEqual(1, unice.goal.pri);
         }
 
+        [Test]
+        public void AiHear_TalkingWithoutLoud_AlsoRedirectsTheUnice()
+        {
+            // "normal" voice level counts as noise for the AI exactly like movement noise, even while standing still.
+            var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
+            var hider = g.ents.Find(e => !e.bot);
+            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
+            unice.target = null; unice.checkT = 0; unice.goal = null;
+            hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null; hider.loud = false; hider.talking = true; hider.noiseT = 0.01f;
+            hider.x = 400; hider.y = 300; // master bedroom
+            unice.x = 650; unice.y = 300; // bath: 250 units away (within NoiseR) but behind the dividing wall (no sightline)
+            g.ph = Phase.Hunt; g.tl = 1000;
+
+            g.SimUpdate(0.02f);
+
+            Assert.IsNotNull(unice.goal);
+            Assert.AreEqual("pos", unice.goal.kind);
+            Assert.AreEqual(400, unice.goal.x); Assert.AreEqual(300, unice.goal.y);
+            Assert.AreEqual(1, unice.goal.pri);
+        }
+
+        [Test]
+        public void AiHear_NeitherLoudNorTalking_DoesNotRedirectTheUnice()
+        {
+            // "sussurro" (whisper): no movement noise and no voice noise either, so the Unice must not be pulled toward the hider.
+            var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
+            var hider = g.ents.Find(e => !e.bot);
+            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
+            unice.target = null; unice.checkT = 0; unice.goal = null;
+            hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null; hider.loud = false; hider.talking = false; hider.noiseT = 0.01f;
+            hider.x = 400; hider.y = 300;
+            unice.x = 650; unice.y = 300;
+            g.ph = Phase.Hunt; g.tl = 1000;
+
+            g.SimUpdate(0.02f);
+
+            // AiHear's signature is a "pos" goal at pri 1 placed exactly on the noise source; Patrol only ever sets pri 0.
+            bool heardTheHider = unice.goal != null && unice.goal.kind == "pos" && unice.goal.pri == 1 && unice.goal.x == 400 && unice.goal.y == 300;
+            Assert.IsFalse(heardTheHider, "with loud=false and talking=false, AiHear must not fire");
+        }
+
         // ---------- Giggle (the doll giving away a hidden holder's position) ----------
 
         [Test]

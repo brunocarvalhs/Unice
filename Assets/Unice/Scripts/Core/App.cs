@@ -24,6 +24,13 @@ namespace Unice
         public bool Online => net != null && net.InRoom;
         public bool NetAvailable => NetRegistry.Factory != null;
 
+        IVoiceChat voice;                        // proximity voice for the room above; null if Vivox isn't installed
+        public bool MicOn { get => voice != null && voice.MicOn; set { if (voice != null) voice.MicOn = value; } }
+        public bool Whisper { get; set; }        // session-only: when on, talking doesn't count as noise for the Unice, and transmits quieter
+
+        /// <summary>Real voice activity right now, gated by the whisper toggle — the same rule used locally and sent to the host.</summary>
+        bool Talking => voice != null && voice.IsSpeaking && !Whisper;
+
         public string code = "", myId = "me"; public bool rdy; public long joinT;
         ProfileStore profile;
         public string myName { get => profile.Name; set => profile.Name = value; }
@@ -67,6 +74,7 @@ namespace Unice
             ui = new Ui(this);
             backend = NetRegistry.Factory?.Invoke();
             if (backend != null) backend.Lost += RoomLost;
+            voice = VoiceRegistry.Factory?.Invoke();
             HideSystemBars();
         }
 
@@ -126,6 +134,7 @@ namespace Unice
             if (me != null || G.ph != Phase.Home) { view = Viewer(); hasView = true; }
             if (G.Live && !paused) LocalSounds(dt);
             if (Online) { pubT -= dt; if (pubT <= 0) { pubT = 1 / 15f; Publish(); } }
+            if (voice != null) voice.Tick(VoiceRule.CanSpeak(MicOn, me), me?.x ?? 0, me?.y ?? 0, me != null, Whisper);
             ui.Step(dt);
         }
 
@@ -321,7 +330,7 @@ namespace Unice
         void UpdatePlayer(float dt)
         {
             var p = me; p.moving = false;
-            if (!G.CanMoveNow(p) || freeze > 0 || paused) { p.loud = false; return; }
+            if (!G.CanMoveNow(p) || freeze > 0 || paused) { p.loud = false; p.talking = false; return; }
             p.sneak = !p.IsUnice && (kSneak || ui.SneakOn);
             var mv = MoveInput();
             if (mv != Vector2.zero)
@@ -331,6 +340,7 @@ namespace Unice
                 p.moving = U.Dist(p.x, p.y, ox, oy) > .01f;
             }
             p.loud = !p.IsUnice && p.moving && !p.sneak;
+            p.talking = Talking;
             if (p.IsUnice && G.ph == Phase.Hunt && !G.isHost && catchCd <= 0)
                 foreach (var h in G.ents)
                     if (!h.IsUnice && !h.outOfRound && h.hidden == null && U.Dist(p, h) < Rules.CatchR) { SendAction(Act.Catch, h.idx); catchCd = .3f; break; }
@@ -448,6 +458,7 @@ namespace Unice
         {
             var pr = new Presence { name = myName, kit = Kit.Pack(kit), joinT = joinT, rdy = rdy, tp = me != null ? me.tp : 0, aSeq = aSeq, aType = aType, aArg = aArg };
             if (me != null && G.CanMoveNow(me)) { pr.hasPos = true; pr.x = me.x; pr.y = me.y; pr.fx = me.fx; pr.fy = me.fy; pr.sneak = me.sneak; }
+            pr.talking = Talking;
             net.SetPresence(pr);
             if (G.isHost) net.BroadcastSnapshot(G.WriteSnapshot(), G.ep);
         }
@@ -475,6 +486,7 @@ namespace Unice
             catch (Exception x) { busy = false; SetNet(x is NetException ? x.Message : "A conexão falhou. Confira a internet e tente de novo.", true); Debug.LogWarning(x); return; }
             ResetRoomState();
             net = backend; code = backend.Code; myId = backend.MyId;
+            if (voice != null) { try { await voice.JoinRoomAsync(code); } catch (Exception x) { Debug.LogWarning(x); } }
             Publish();
             if (create) { G.isHost = true; G.ep = 1; G.ph = Phase.Lobby; }
             else
@@ -494,6 +506,7 @@ namespace Unice
         {
             var b = net; net = null;
             ResetRoomState(); myId = "me"; ui.ShowPause(false, false);
+            if (voice != null) { try { await voice.LeaveRoomAsync(); } catch (Exception x) { Debug.LogWarning(x); } }
             if (b == null) return;
             busy = true;
             try { await b.LeaveAsync(); } catch (Exception x) { Debug.LogWarning(x); }
