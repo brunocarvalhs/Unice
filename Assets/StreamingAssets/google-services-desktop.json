@@ -7,20 +7,22 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:145259385862:android:4dbfe59033437ebc3a1f87",
+        "mobilesdk_app_id": "1:145259385862:ios:fce7c46e0c84b7453a1f87",
         "android_client_info": {
           "package_name": "com.brunocarvalhs.unice"
         }
       },
-      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCxiVjkhzPrjPCGq5dUieShBjiRQjtJZII"
+          "current_key": "AIzaSyA7NMrJW08W_JZxsc3DXqO0pu9qiXjF0mI"
         }
       ],
       "services": {
+        "analytics_service": {
+          "status": 0
+        },
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "status": 1
         }
       }
     }
