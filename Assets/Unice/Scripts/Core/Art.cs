@@ -42,6 +42,10 @@ namespace Unice
         public static Vector3 W(float x, float y, float z = 0) => new Vector3(x / PxPerUnit, -y / PxPerUnit, z);
         public static int Order(float baseY, int kind) => Mathf.RoundToInt(baseY * 4) + kind;
 
+        // The project enters Play mode without a domain reload, so statics from the last session must be cleared.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() { M = null; cache.Clear(); mat = null; fogMat = null; White = null; }
+
         public static void Load()
         {
             if (M != null) return;

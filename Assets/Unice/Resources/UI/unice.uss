@@ -142,3 +142,65 @@
 .act-q { border-color: rgb(239, 115, 148); color: rgb(239, 115, 148); width: 76px; height: 76px; border-radius: 38px; }
 .act-s { width: 72px; height: 72px; border-radius: 36px; font-size: 12px; }
 .act-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
+
+/* ---------- main menu over the house map ---------- */
+.menu { position: absolute; left: 0; top: 0; right: 0; bottom: 0; align-items: center; justify-content: center; }
+.menu-page { align-items: center; justify-content: center; }
+.menu-version { position: absolute; left: 18px; top: 12px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgba(241, 231, 216, 0.75); }
+.menu-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 150px; color: rgb(241, 231, 216); -unity-text-align: middle-center; text-shadow: 0px 0px 22px rgba(239, 115, 148, 0.6); margin-bottom: -10px; }
+.menu-sub { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; letter-spacing: 5px; color: rgb(240, 176, 87); -unity-text-align: middle-center; margin-bottom: 30px; }
+.menu-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 660px; }
+.mbtn { width: 310px; height: 100px; margin: 9px; padding: 0; background-color: rgba(17, 12, 18, 0.8); border-width: 3px; border-color: rgb(241, 231, 216); border-radius: 14px; color: rgb(241, 231, 216); font-size: 54px; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); -unity-text-align: middle-center; }
+.mbtn:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
+.mbtn:active { background-color: rgba(240, 176, 87, 0.25); }
+.mbtn:disabled { opacity: 0.4; }
+.mbtn-sm { height: 66px; font-size: 32px; }
+.mbtn-wide { width: auto; height: 90px; margin: 14px 0 6px 0; font-size: 48px; }
+.mbtn-join { width: 190px; height: 70px; margin: 0 0 0 12px; font-size: 36px; }
+.mbtn-back { width: 200px; height: 56px; margin: 16px 0 0 0; font-size: 28px; align-self: center; border-width: 2px; }
+.mexit { position: absolute; left: 18px; bottom: 18px; width: 130px; height: 58px; margin: 0; font-size: 30px; border-width: 2px; }
+.menu-foot { position: absolute; left: 0; right: 0; bottom: 22px; flex-direction: row; justify-content: center; }
+.mpill { background-color: rgba(17, 12, 18, 0.8); border-width: 2px; border-color: rgba(241, 231, 216, 0.6); border-radius: 24px; color: rgb(241, 231, 216); font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 8px 20px; min-height: 46px; margin: 0 6px; }
+.mpill:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
+.mpanel { width: 700px; max-height: 640px; background-color: rgba(17, 12, 18, 0.9); border-width: 3px; border-color: rgb(241, 231, 216); border-radius: 16px; padding: 22px 30px; }
+.mpanel-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 52px; color: rgb(241, 231, 216); -unity-text-align: middle-center; margin-bottom: 6px; }
+.mnote { font-size: 18px; color: rgb(215, 203, 187); white-space: normal; }
+.mnet { margin-top: 10px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 16px; color: rgb(173, 154, 140); }
+.mnet.net-err { color: rgb(239, 115, 148); }
+.menu-or { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 14px; letter-spacing: 3px; color: rgb(173, 154, 140); -unity-text-align: middle-center; margin: 14px 0 8px 0; }
+.mfield { margin: 0; min-height: 70px; }
+.mfield .unity-base-text-field__input { background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 36px; letter-spacing: 8px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); -unity-text-align: middle-center; padding: 0 12px; }
+.mscroll { max-height: 440px; }
+.mrule { margin-bottom: 12px; }
+.mrule-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 26px; color: rgb(240, 176, 87); }
+.mrule-rose { color: rgb(239, 115, 148); }
+.mrule-moss { color: rgb(143, 203, 156); }
+.mkid { background-color: rgb(236, 226, 203); color: rgb(43, 30, 26); border-radius: 8px; padding: 14px 18px; }
+
+/* ---------- waiting room, full screen for a phone on its side ---------- */
+.lobby { position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding: 16px 22px 10px 22px; }
+.lobby-top { flex-direction: row; align-items: center; height: 84px; flex-shrink: 0; }
+.mbtn-top { width: 150px; height: 58px; margin: 0; font-size: 30px; border-width: 2px; }
+.lobby-head { flex-grow: 1; flex-direction: row; align-items: center; justify-content: center; }
+.lobby-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 46px; color: rgb(241, 231, 216); margin-right: 16px; text-shadow: 0px 0px 14px rgba(10, 6, 9, 0.9); }
+.lobby-code { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 54px; letter-spacing: 8px; color: rgb(239, 115, 148); margin-right: 18px; text-shadow: 0px 0px 16px rgba(239, 115, 148, 0.45); }
+.lobby-count { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 30px; color: rgb(240, 176, 87); width: 150px; -unity-text-align: middle-right; }
+.lobby-body { flex-grow: 1; flex-direction: row; margin-top: 8px; }
+.lobby-players { flex-grow: 1; flex-shrink: 1; flex-direction: row; flex-wrap: wrap; align-content: flex-start; justify-content: center; }
+.pcard { width: 150px; height: 190px; margin: 7px; padding: 8px 6px; background-color: rgba(17, 12, 18, 0.86); border-width: 2px; border-color: rgba(241, 231, 216, 0.35); border-radius: 14px; align-items: center; justify-content: center; }
+.pcard-me { border-width: 3px; border-color: rgb(240, 176, 87); }
+.pcard-name { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 21px; color: rgb(241, 231, 216); margin-top: 6px; -unity-text-align: middle-center; }
+.pcard-st { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; letter-spacing: 2px; color: rgb(173, 154, 140); margin-top: 2px; }
+.pcard-ok { color: rgb(143, 203, 156); }
+.pcard-bots { background-color: rgba(17, 12, 18, 0.55); border-color: rgba(241, 231, 216, 0.2); }
+.pcard-plus { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 66px; color: rgb(241, 231, 216); }
+.mpanel.lobby-side { width: 340px; max-height: none; margin: 7px 0 7px 14px; padding: 18px 20px; justify-content: center; flex-shrink: 0; }
+.mstep { flex-direction: row; align-items: center; margin-bottom: 12px; }
+.mstep-l { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 16px; letter-spacing: 3px; color: rgb(173, 154, 140); flex-grow: 1; }
+.mstep-btn { width: 54px; height: 54px; margin: 0; padding: 0; background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 32px; }
+.mstep-btn:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
+.mstep-v { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 32px; color: rgb(241, 231, 216); width: 58px; -unity-text-align: middle-center; }
+.lobby-status { margin-top: 8px; -unity-text-align: middle-center; }
+.mbtn-go { width: auto; height: 86px; margin: 14px 0 0 0; font-size: 44px; }
+.mbtn-on { border-color: rgb(143, 203, 156); color: rgb(143, 203, 156); }
+.lobby-note { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(173, 154, 140); -unity-text-align: middle-center; white-space: normal; margin-top: 4px; flex-shrink: 0; }

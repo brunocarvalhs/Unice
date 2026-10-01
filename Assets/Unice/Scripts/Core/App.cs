@@ -37,6 +37,9 @@ namespace Unice
         [NonSerialized] public Sfx sfx; [NonSerialized] public WorldView world; [NonSerialized] public Ui ui; Camera cam;
         bool kUp, kDown, kLeft, kRight, kSneak;
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => I = null;   // Play mode without domain reload
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot() { if (I == null) new GameObject("Unice").AddComponent<App>(); }
 
@@ -134,7 +137,7 @@ namespace Unice
         {
             if (ui.Typing) return;
             if (G.Live) { TogglePause(); return; }
-            if (G.ph == Phase.Home) { Application.Quit(); return; }
+            if (G.ph == Phase.Home) { if (!ui.MenuBack()) Application.Quit(); return; }
             LeaveRoom();
         }
 

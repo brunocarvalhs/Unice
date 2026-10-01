@@ -61,6 +61,8 @@ namespace Unice
             catch (Exception x)
             {
                 Debug.LogWarning(x);
+                if (x.ToString().Contains("UnityProjectNotLinkedException"))
+                    throw new NetException("O projeto ainda não está ligado ao Unity Cloud. No Unity: Edit > Project Settings > Services, escolha a organização e ligue um projeto.");
                 throw new NetException("Não consegui falar com os serviços online. Confira a internet e tente de novo.");
             }
         }

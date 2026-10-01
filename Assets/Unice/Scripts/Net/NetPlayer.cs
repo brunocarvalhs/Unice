@@ -13,6 +13,9 @@ namespace Unice
         public static readonly List<NetPlayer> All = new List<NetPlayer>();
         public readonly PeerInfo info = new PeerInfo();
 
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => All.Clear();   // Play mode without domain reload
+
         public override void OnNetworkSpawn() { info.id = OwnerClientId.ToString(); info.isMe = IsOwner; if (!All.Contains(this)) All.Add(this); }
         public override void OnNetworkDespawn() => All.Remove(this);
         public override void OnDestroy() { All.Remove(this); base.OnDestroy(); }

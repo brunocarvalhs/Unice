@@ -79,39 +79,95 @@ namespace Unice
             }
         }
 
-        // ---------- home ----------
-        VisualElement home; TextField nameIn, codeIn; Label netLbl; Button createBtn, joinBtn, soundBtn, soloBtn;
+        // ---------- main menu (over the house map) ----------
+        VisualElement home, menuMain, menuOnline, menuHelp, menuKid, kidSlot, custom; TextField nameIn, codeIn; Label netLbl;
+        Button createBtn, joinBtn, soundBtn, localBtn, onlineBtn; string page = "main";
 
         void BuildHome()
         {
-            var sh = Sheet(root, out home);
-            L(sh, "ESCONDE-ESCONDE ONLINE · 2 A 8 JOGADORES", "eyebrow");
-            L(sh, "Unice", "title");
-            L(sh, "A Unice é a velha dona da casa e morre de ciúmes da boneca e das coisas dela. Alguém vira a Unice e sai caçando quem pegou a boneca. Os outros se escondem e protegem quem está com ela. O problema é que a boneca ri.", "lede");
-            var cols = E(sh, "cols");
-            var c1 = E(cols, "col");
-            L(c1, "SEU NOME", "lbl");
-            nameIn = Field(c1, app.myName, 12);
-            nameIn.RegisterValueChangedCallback(e => app.myName = U.CleanName(e.newValue));
-            createBtn = B(c1, "Criar sala", () => app.EnterRoom(true, null), "btn"); createBtn.style.marginTop = 10;
-            L(c1, "Você recebe um código para mandar aos amigos.", "muted");
-            var c2 = E(cols, "col"); c2.style.marginRight = 0;
-            L(c2, "CÓDIGO DA SALA", "lbl");
-            var r = E(c2, "row");
-            codeIn = Field(r, "", 10, "code-field", "grow");
-            joinBtn = B(r, "Entrar", JoinFromInput, "btn"); joinBtn.style.marginLeft = 10;
-            netLbl = L(sh, "", "net");
-            var rules = E(sh, "rules");
-            void Rule(string t, string b, string cls) { var x = E(rules, "rule"); if (cls != null) x.AddToClassList(cls); L(x, t, "rule-t"); L(x, b, "rule-b"); }
-            Rule("O time vence", "se o relógio zerar e a Unice não tiver achado quem está com a boneca.", "rule-green");
-            Rule("A Unice vence", "se pegar a boneca de volta. Pegar quem não está com ela só tira a pessoa da rodada.", "rule-red");
+            home = E(root, "menu");
+            L(home, "v" + Application.version, "menu-version");
+
+            menuMain = E(home, "menu-page");
+            L(menuMain, "Unice", "menu-title");
+            L(menuMain, "ESCONDE-ESCONDE NUMA CASA ANTIGA", "menu-sub");
+            var grid = E(menuMain, "menu-grid");
+            localBtn = B(grid, "LOCAL", () => app.PlaySolo(), "mbtn");
+            onlineBtn = B(grid, "ONLINE", () => { app.SetNet(""); Page("online"); }, "mbtn");
+            B(grid, "COMO JOGAR", () => Page("help"), "mbtn", "mbtn-sm");
+            B(grid, "MINHA CRIANÇA", () => Page("kid"), "mbtn", "mbtn-sm");
+
+            // online: create a room (the code is generated for you) or join one with a code
+            var on = Panel(out menuOnline, "Online");
+            L(on, "Jogue com seus amigos. Quem cria a sala recebe um código automático para compartilhar.", "mnote");
+            createBtn = B(on, "CRIAR SALA", () => app.EnterRoom(true, null), "mbtn", "mbtn-wide");
+            L(on, "OU ENTRE COM O CÓDIGO DE UM AMIGO", "menu-or");
+            var jr = E(on, "row");
+            codeIn = new TextField { maxLength = 10 }; codeIn.AddToClassList("mfield"); codeIn.AddToClassList("grow"); jr.Add(codeIn);
+            joinBtn = B(jr, "ENTRAR", JoinFromInput, "mbtn", "mbtn-join");
+            netLbl = L(on, "", "mnote", "mnet");
+            B(on, "Voltar", () => Page("main"), "mbtn", "mbtn-back");
+
+            // how to play
+            var hp = Panel(out menuHelp, "Como jogar");
+            var sc = new ScrollView(ScrollViewMode.Vertical); sc.AddToClassList("mscroll"); hp.Add(sc);
+            void Rule(string t, string b, string cls) { var x = E(sc, "mrule"); var tl = L(x, t, "mrule-t"); if (cls != null) tl.AddToClassList(cls); L(x, b, "mnote"); }
+            Rule("A Unice", "é a velha dona da casa e morre de ciúmes da boneca e das coisas dela. Um jogador vira a Unice e caça quem pegou a boneca.", "mrule-rose");
+            Rule("O time vence", "se o relógio zerar e a Unice não tiver pegado a boneca de volta.", "mrule-moss");
+            Rule("A Unice vence", "se pegar quem está com a boneca. Pegar outra pessoa só tira ela da rodada.", "mrule-rose");
             Rule("30 segundos", "para se esconder antes de a Unice chegar em casa pela porta da frente. Escute a bengala.", null);
-            Rule("No escuro", "No esconderijo você enxerga só um pouquinho em volta, e ouve o resto: passos, rangidos e risadas.", null);
-            Rule("A boneca ri", "a cada 10 s escondida e entrega o lugar. Troque de esconderijo ou passe a boneca para alguém bem perto.", "rule-red");
+            Rule("No escuro", "No esconderijo você enxerga só um pouquinho em volta e ouve o resto: passos, rangidos e risadas.", null);
+            Rule("A boneca ri", "a cada 10 s escondida e entrega o lugar. Troque de esconderijo ou passe a boneca para alguém bem perto.", "mrule-rose");
             Rule("Rodízio", "A primeira Unice é sorteada. Quem é pego com a boneca vira a próxima.", null);
-            var foot = E(sh, "row", "gap", "wrap");
-            soloBtn = B(foot, "Jogar sozinho com robôs", () => app.PlaySolo(), "btn", "btn-ghost");
-            soundBtn = B(foot, "Som: ligado", ToggleSound, "btn", "btn-link");
+            Rule("Controles", "Joystick para andar, Devagar para não fazer barulho, Esconder/Sair e Passar a boneca. No teclado: WASD, Shift, E e Q.", null);
+            B(hp, "Voltar", () => Page("main"), "mbtn", "mbtn-back");
+
+            // my child: the same customization as in the waiting room
+            var kp = Panel(out menuKid, "Minha criança");
+            var ks = new ScrollView(ScrollViewMode.Vertical); ks.AddToClassList("mscroll"); kp.Add(ks);
+            kidSlot = E(ks, "mkid");
+            B(kp, "Pronto", () => Page("main"), "mbtn", "mbtn-back");
+            custom = BuildCustom();
+
+            var foot = E(home, "menu-foot");
+            soundBtn = B(foot, "Som: ligado", ToggleSound, "mpill");
+            B(home, "Sair", () => Application.Quit(), "mbtn", "mexit");
+            Page("main");
+        }
+
+        VisualElement Panel(out VisualElement page, string title)
+        {
+            page = E(home, "menu-page");
+            var p = E(page, "mpanel");
+            L(p, title, "mpanel-t");
+            return p;
+        }
+
+        void Page(string p)
+        {
+            page = p;
+            Show(menuMain, p == "main"); Show(menuOnline, p == "online"); Show(menuHelp, p == "help"); Show(menuKid, p == "kid");
+            if (p == "kid") { kidSlot.Add(custom); RenderOpts(); }
+        }
+
+        /// <summary>Back button on the menu: sub-pages go back to the main page. False when already there.</summary>
+        public bool MenuBack() { if (screen != "home" || page == "main") return false; Page("main"); return true; }
+
+        /// <summary>Name, preview and look options. Lives in the waiting room or in "Minha criança".</summary>
+        VisualElement BuildCustom()
+        {
+            var c = new VisualElement();
+            L(c, "SEU NOME", "lbl");
+            nameIn = Field(c, app.myName, 12);
+            nameIn.RegisterValueChangedCallback(e => { app.myName = U.CleanName(e.newValue); app.SaveProfile(); });
+            L(c, "SUA CRIANÇA", "lbl").style.marginTop = 10;
+            var pr = E(c, "row");
+            var pv = E(pr, "preview"); pv.style.alignItems = Align.Center; pv.style.justifyContent = Justify.Center;
+            preview = new Doll(100); pv.Add(preview);
+            B(pr, "Sortear visual", () => { app.SetKit(Kit.Random()); RenderOpts(); wSig = null; }, "btn", "btn-ghost");
+            opts = E(c); opts.style.marginTop = 10;
+            BuildOpts();
+            return c;
         }
 
         void JoinFromInput()
@@ -128,54 +184,44 @@ namespace Unice
             soundBtn.text = t; pauseSound.text = t;
         }
 
-        // ---------- waiting room ----------
-        VisualElement wait, wList, hostOpts, opts; Label wEyebrow, wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal;
-        Button copyBtn, readyBtn, goBtn, leave2; Doll preview; string wSig;
+        // ---------- waiting room (full screen, made for a phone on its side) ----------
+        VisualElement wait, wList, hostOpts, opts; Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal;
+        Button copyBtn, actBtn, leave2; Doll preview; string wSig; bool lobbyHost, waitCanGo;
         static readonly int[] RoundChoices = { 3, 5, 7 };
 
         void BuildWait()
         {
-            var sh = Sheet(root, out wait);
-            wEyebrow = L(sh, "", "eyebrow");
-            var tr = E(sh, "row", "wrap");
-            wTitle = L(tr, "Sala ", "title", "title-md"); wCode = L(tr, "", "title", "title-md", "code");
-            copyBtn = B(tr, "Copiar código", CopyCode, "btn", "btn-ghost"); copyBtn.style.marginLeft = 16;
-            wNote = L(sh, "", "muted");
-            var cols = E(sh, "cols", "gap");
-            var c1 = E(cols, "col");
-            var lr = E(c1, "row"); L(lr, "JOGADORES", "lbl", "grow"); wCount = L(lr, "", "lbl");
-            wList = E(c1);
-            hostOpts = E(c1, "row", "gap", "wrap");
+            wait = E(root, "lobby");
+            var top = E(wait, "lobby-top");
+            leave2 = B(top, "Voltar", () => app.LeaveRoom(), "mbtn", "mbtn-top");
+            var head = E(top, "lobby-head");
+            wTitle = L(head, "", "lobby-title"); wCode = L(head, "", "lobby-code");
+            copyBtn = B(head, "Copiar código", CopyCode, "mpill");
+            wCount = L(top, "", "lobby-count");
+            var body = E(wait, "lobby-body");
+            wList = E(body, "lobby-players");
+            var side = E(body, "mpanel", "lobby-side");
+            hostOpts = E(side);
             botsVal = Stepper(hostOpts, "ROBÔS", d => { int max = Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count); G.bots = Mathf.Clamp(Math.Min(G.bots, max) + d, 0, max); wSig = null; });
             roundsVal = Stepper(hostOpts, "RODADAS", d => { int i = Array.IndexOf(RoundChoices, G.rounds); G.rounds = RoundChoices[Mathf.Clamp((i < 0 ? 1 : i) + d, 0, RoundChoices.Length - 1)]; wSig = null; });
-            optsInfo = L(c1, "", "muted");
-            var br = E(c1, "row", "gap", "wrap");
-            readyBtn = B(br, "Estou pronto", () => { app.ToggleReady(); wSig = null; }, "btn");
-            goBtn = B(br, "Começar partida", () =>
+            optsInfo = L(side, "", "mnote");
+            wStatus = L(side, "", "mnote", "lobby-status");
+            actBtn = B(side, "", () =>
             {
-                int bots = Math.Min(G.bots, Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count));
-                app.StartMatch(bots, G.rounds);
-            }, "btn");
-            wStatus = L(c1, "", "muted"); wStatus.style.marginTop = 8;
-            leave2 = B(c1, "Sair da sala", () => app.LeaveRoom(), "btn", "btn-link");
-
-            var c2 = E(cols, "col"); c2.style.marginRight = 0;
-            L(c2, "SUA CRIANÇA", "lbl");
-            var pr = E(c2, "row");
-            var pv = E(pr, "preview"); pv.style.alignItems = Align.Center; pv.style.justifyContent = Justify.Center;
-            preview = new Doll(100); pv.Add(preview);
-            B(pr, "Sortear visual", () => { app.SetKit(Kit.Random()); RenderOpts(); wSig = null; }, "btn", "btn-ghost");
-            opts = E(c2); opts.style.marginTop = 10;
-            BuildOpts();
+                if (!lobbyHost) { app.ToggleReady(); wSig = null; return; }
+                if (!waitCanGo) return;
+                app.StartMatch(Math.Min(G.bots, Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count)), G.rounds);
+            }, "mbtn", "mbtn-go");
+            wNote = L(wait, "", "lobby-note");
         }
 
         Label Stepper(VisualElement p, string label, Action<int> change)
         {
-            var s = E(p, "stepper");
-            L(s, label, "lbl");
-            B(s, "‹", () => change(-1), "step-btn");
-            var v = L(s, "", "step-val");
-            B(s, "›", () => change(1), "step-btn");
+            var s = E(p, "mstep");
+            L(s, label, "mstep-l");
+            B(s, "‹", () => change(-1), "mstep-btn");
+            var v = L(s, "", "mstep-v");
+            B(s, "›", () => change(1), "mstep-btn");
             return v;
         }
 
@@ -237,29 +283,31 @@ namespace Unice
             string sig = string.Join("|", hs.Select(h => h.id + h.name + Kit.Pack(h.k) + h.rdy)) + hostId + G.isHost + bots + G.rounds + app.rdy + app.code;
             if (sig == wSig) return; wSig = sig;
             bool on = app.Online;
-            Txt(wCode, on ? app.code : ""); Txt(wTitle, on ? "Sala " : "Jogo sozinho"); Show(copyBtn, on);
-            Txt(wEyebrow, on ? "SALA DE ESPERA" : "VOCÊ E OS ROBÔS");
-            Txt(wNote, on ? "Mande o código para seus amigos. Eles abrem o jogo, digitam o código em \"Código da sala\" e tocam em Entrar." : "Monte sua criança e escolha quantos robôs vão jogar.");
+            Txt(wTitle, on ? "SALA" : "PARTIDA LOCAL"); Txt(wCode, on ? app.code : ""); Show(wCode, on); Show(copyBtn, on);
             Txt(wCount, $"{hs.Count + bots}/{Rules.MaxPlayers}");
+            Txt(wNote, on ? "Mande o código para seus amigos: eles tocam em Online, digitam o código e Entrar." : "Para mudar o visual da sua criança, use Minha Criança no menu inicial.");
             wList.Clear();
             foreach (var h in hs)
             {
-                var row = E(wList, "prow"); if (h.me) row.AddToClassList("prow-me");
-                var d = new Doll(34); d.Set(h.k); row.Add(d);
-                L(row, h.name + (h.me ? " (você)" : ""), "pname");
-                var st = L(row, h.id == hostId ? "ANFITRIÃO" : h.rdy ? "PRONTO" : "ESCOLHENDO", "pstate");
-                if (h.id == hostId || h.rdy) st.AddToClassList("pstate-ok");
+                var card = E(wList, "pcard"); if (h.me) card.AddToClassList("pcard-me");
+                var d = new Doll(62); d.Set(h.k); card.Add(d);
+                L(card, h.name, "pcard-name");
+                var st = L(card, h.id == hostId ? "ANFITRIÃO" : h.rdy ? "PRONTO" : "ESPERANDO", "pcard-st");
+                if (h.id == hostId || h.rdy) st.AddToClassList("pcard-ok");
             }
-            if (bots > 0) L(E(wList, "prow", "prow-bots"), $"+ {bots} robô{(bots > 1 ? "s" : "")} para completar");
+            if (bots > 0) { var bc = E(wList, "pcard", "pcard-bots"); L(bc, "+" + bots, "pcard-plus"); L(bc, bots > 1 ? "ROBÔS" : "ROBÔ", "pcard-st"); }
             Txt(botsVal, bots.ToString()); Txt(roundsVal, G.rounds.ToString());
             Show(hostOpts, G.isHost);
-            Txt(optsInfo, G.isHost ? "" : $"Robôs: {bots} · Rodadas: {G.rounds}. O anfitrião escolhe.");
-            Show(readyBtn, !G.isHost); readyBtn.text = app.rdy ? "Não estou pronto" : "Estou pronto";
-            Show(goBtn, G.isHost); goBtn.SetEnabled(allReady && hs.Count + bots >= 2);
+            Txt(optsInfo, G.isHost ? "" : $"Robôs: {bots} · Rodadas: {G.rounds}\nO anfitrião escolhe.");
+            Show(optsInfo, !G.isHost);
             int waiting = hs.Count(h => h.id != hostId && !h.rdy);
+            lobbyHost = G.isHost; waitCanGo = allReady && hs.Count + bots >= 2;
             Txt(wStatus, G.isHost ? (allReady ? (hs.Count + bots < 2 ? "Adicione pelo menos um robô." : "Todos prontos!") : $"Esperando {waiting} jogador(es) ficar pronto.")
-                                  : "O anfitrião começa a partida quando todos estiverem prontos.");
-            leave2.text = on ? "Sair da sala" : "Voltar";
+                                  : "O anfitrião começa quando todos estiverem prontos.");
+            actBtn.text = G.isHost ? "COMEÇAR" : app.rdy ? "CANCELAR" : "ESTOU PRONTO";
+            actBtn.SetEnabled(!G.isHost || waitCanGo);
+            actBtn.EnableInClassList("mbtn-on", !G.isHost && app.rdy);
+            leave2.text = on ? "Sair" : "Voltar";
         }
 
         // ---------- result / final ----------
@@ -605,8 +653,8 @@ namespace Unice
                 string was = screen; screen = want;
                 Show(home, want == "home"); Show(wait, want == "wait"); Show(resultOv, want == "result" || want == "final");
                 Show(hud, want == "game"); Show(touch, want == "game" && mobile);
-                if (want == "home") nameIn.value = app.myName;
-                if (want == "wait") { if (was == "final") app.rdy = false; wSig = null; RenderOpts(); }
+                if (want == "home") Page(app.netErr && app.netText.Length > 0 ? "online" : "main");
+                if (want == "wait") { if (was == "final") app.rdy = false; wSig = null; }
                 if (want == "result" || want == "final") RenderResult(want == "final");
                 if (want == "game") hudT = 0;
                 if (want != "game") { ShowPause(false, false); app.paused = false; SneakOn = false; actS.EnableInClassList("act-on", false); }
@@ -615,7 +663,7 @@ namespace Unice
             if (want == "home")
             {
                 bool ok = app.NetAvailable && !app.busy;
-                createBtn.SetEnabled(ok); joinBtn.SetEnabled(ok); soloBtn.SetEnabled(!app.busy);
+                createBtn.SetEnabled(ok); joinBtn.SetEnabled(ok); localBtn.SetEnabled(!app.busy); onlineBtn.SetEnabled(!app.busy);
                 Txt(netLbl, app.netText.Length > 0 ? app.netText : app.NetAvailable ? "Salas online prontas. Crie uma ou entre com um código." : "O modo online não está instalado nesta versão. Você ainda pode jogar sozinho com robôs.");
                 netLbl.EnableInClassList("net-err", app.netErr && app.netText.Length > 0);
             }
@@ -718,7 +766,7 @@ namespace Unice
             else Show(vignette, false);
             Show(slats, live && me != null && me.hidden != null);
 
-            if (screen == "wait")
+            if (screen == "home" && page == "kid")
             {
                 float t = Time.unscaledTime; var d = PrevDirs[(int)(t / 1.4f) % 4];
                 preview.Set(app.kit, d.y < -.6f, 1 + Mathf.FloorToInt(t * 13 / (Mathf.PI * 2) * 6) % 6, d.x < -.3f);
@@ -739,6 +787,7 @@ namespace Unice
             float k = root.layout.height > 0 ? root.layout.height / Screen.height : 720f / Screen.height;
             safe.style.left = sa.xMin * k; safe.style.right = (Screen.width - sa.xMax) * k;
             safe.style.top = (Screen.height - sa.yMax) * k; safe.style.bottom = sa.yMin * k;
+            foreach (var el in new[] { home, wait }) { el.style.left = safe.style.left; el.style.right = safe.style.right; el.style.top = safe.style.top; el.style.bottom = safe.style.bottom; }
         }
     }
 
