@@ -1,0 +1,144 @@
+/* Unice: candlelit game UI + aged-paper screens. Colors match the web version. */
+.root {
+    flex-grow: 1;
+    -unity-font-definition: url("../Fonts/AlegreyaSans-Regular.ttf");
+    color: rgb(241, 231, 216);
+    font-size: 18px;
+}
+.layer { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.hidden { display: none; }
+
+/* ---------- shared text ---------- */
+.display { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); }
+.type { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); }
+.bold { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); }
+
+/* ---------- paper sheets ---------- */
+.overlay { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-color: rgba(9, 6, 9, 0.88); align-items: center; justify-content: center; padding: 16px; }
+.sheet-scroll { max-width: 1100px; width: 100%; max-height: 100%; }
+.sheet { background-color: rgb(236, 226, 203); color: rgb(43, 30, 26); border-radius: 4px; border-width: 1px; border-color: rgba(80, 55, 40, 0.4); padding: 26px 32px; }
+.eyebrow { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 14px; letter-spacing: 2px; color: rgb(154, 44, 69); margin-bottom: 4px; }
+.title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 64px; color: rgb(43, 30, 26); margin-bottom: 6px; }
+.title-md { font-size: 44px; }
+.title-red { color: rgb(154, 44, 69); }
+.title-win { color: rgb(47, 107, 67); }
+.lede { font-size: 20px; white-space: normal; margin-bottom: 14px; }
+.muted { color: rgb(111, 90, 77); font-size: 16px; white-space: normal; }
+.lbl { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; letter-spacing: 1px; color: rgb(111, 90, 77); margin-bottom: 4px; }
+.row { flex-direction: row; align-items: center; }
+.wrap { flex-wrap: wrap; }
+.grow { flex-grow: 1; flex-shrink: 1; }
+.cols { flex-direction: row; }
+.col { flex-grow: 1; flex-basis: 0; margin-right: 24px; }
+.gap { margin-top: 14px; }
+
+.field { background-color: rgba(255, 255, 255, 0.4); border-width: 1px; border-color: rgba(60, 40, 30, 0.4); border-radius: 4px; color: rgb(43, 30, 26); font-size: 20px; padding: 6px 10px; min-height: 44px; margin: 0; }
+.field > .unity-text-field__input, .field .unity-base-text-field__input { background-color: rgba(0, 0, 0, 0); border-width: 0; color: rgb(43, 30, 26); font-size: 20px; padding: 0; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); }
+.code-field .unity-base-text-field__input { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); letter-spacing: 4px; font-size: 22px; }
+
+.btn { background-color: rgb(43, 30, 26); color: rgb(236, 226, 203); border-width: 0; border-radius: 4px; padding: 10px 22px; min-height: 48px; font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); letter-spacing: 1px; margin: 0 10px 0 0; }
+.btn:hover { background-color: rgb(154, 44, 69); }
+.btn:active { background-color: rgb(120, 30, 50); }
+.btn:disabled { opacity: 0.45; }
+.btn-ghost { background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); border-width: 2px; border-color: rgb(43, 30, 26); }
+.btn-ghost:hover { background-color: rgba(43, 30, 26, 0.1); }
+.btn-link { background-color: rgba(0, 0, 0, 0); color: rgb(154, 44, 69); padding: 6px 4px; min-height: 40px; }
+.btn-link:hover { background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); }
+.net { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(111, 90, 77); white-space: normal; margin-top: 10px; }
+.net-err { color: rgb(154, 44, 69); }
+
+.rules { flex-direction: row; flex-wrap: wrap; margin-top: 12px; }
+.rule { width: 32%; margin-right: 1%; margin-bottom: 10px; border-top-width: 2px; border-color: rgba(60, 40, 30, 0.35); padding-top: 6px; }
+.rule-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 20px; }
+.rule-b { font-size: 15px; white-space: normal; }
+.rule-red { border-color: rgb(154, 44, 69); }
+.rule-red .rule-t { color: rgb(154, 44, 69); }
+.rule-green { border-color: rgb(47, 107, 67); }
+.rule-green .rule-t { color: rgb(47, 107, 67); }
+
+/* waiting room */
+.code { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); color: rgb(154, 44, 69); letter-spacing: 6px; }
+.prow { flex-direction: row; align-items: center; padding: 6px 10px; margin-bottom: 6px; background-color: rgba(255, 255, 255, 0.3); border-radius: 3px; }
+.prow-me { border-width: 2px; border-color: rgb(43, 30, 26); }
+.prow-bots { background-color: rgba(0, 0, 0, 0); border-width: 1px; border-color: rgba(60, 40, 30, 0.4); color: rgb(111, 90, 77); }
+.pname { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 18px; flex-grow: 1; margin-left: 10px; }
+.pstate { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 13px; letter-spacing: 1px; color: rgb(111, 90, 77); }
+.pstate-ok { color: rgb(47, 107, 67); }
+.pts { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 20px; }
+.stepper { flex-direction: row; align-items: center; margin-right: 18px; }
+.step-btn { width: 40px; min-height: 40px; padding: 0; margin: 0 6px; background-color: rgba(255, 255, 255, 0.45); color: rgb(43, 30, 26); font-size: 22px; border-radius: 4px; border-width: 0; }
+.step-val { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 20px; min-width: 24px; -unity-text-align: middle-center; }
+.preview { width: 170px; height: 170px; border-radius: 85px; background-color: rgb(74, 50, 35); margin-right: 16px; }
+.opt { flex-direction: row; align-items: center; margin-bottom: 6px; }
+.opt-l { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 12px; color: rgb(111, 90, 77); width: 110px; }
+.cy { flex-direction: row; align-items: center; flex-grow: 1; background-color: rgba(255, 255, 255, 0.35); border-radius: 4px; }
+.cy-btn { width: 40px; min-height: 36px; padding: 0; margin: 0; background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); font-size: 22px; border-width: 0; }
+.cy-val { flex-grow: 1; -unity-text-align: middle-center; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 16px; }
+.sws { flex-direction: row; flex-wrap: wrap; flex-grow: 1; }
+.sw { width: 30px; height: 30px; border-radius: 15px; margin: 0 6px 4px 0; border-width: 2px; border-color: rgba(43, 30, 26, 0.25); padding: 0; min-height: 30px; }
+.sw-on { border-width: 3px; border-color: rgb(43, 30, 26); }
+
+/* scores */
+.srow { flex-direction: row; align-items: center; padding: 4px 10px; margin-bottom: 5px; background-color: rgba(255, 255, 255, 0.28); border-radius: 3px; }
+.srank { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); width: 26px; color: rgb(111, 90, 77); }
+.next { flex-direction: row; align-items: center; padding: 10px 12px; margin: 12px 0; border-width: 1px; border-color: rgba(60, 40, 30, 0.45); border-radius: 4px; }
+
+/* ---------- in-game HUD ---------- */
+.hud-card { background-color: rgba(26, 19, 24, 0.86); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 6px; padding: 8px 12px; }
+.hud-tl { position: absolute; left: 14px; top: 12px; min-width: 200px; }
+.hud-tr { position: absolute; right: 14px; top: 12px; width: 300px; align-items: stretch; }
+.hud-lbl { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 12px; letter-spacing: 2px; color: rgb(173, 154, 140); }
+.clock { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 44px; color: rgb(241, 231, 216); }
+.clock-low { color: rgb(226, 74, 82); }
+.phase { font-size: 15px; color: rgb(173, 154, 140); }
+.where { font-size: 15px; color: rgb(241, 231, 216); }
+.roomline { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; color: rgb(240, 176, 87); }
+.role-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 22px; }
+.role-unice .role-t { color: rgb(239, 115, 148); }
+.role-holder .role-t { color: rgb(240, 176, 87); }
+.role-out .role-t { color: rgb(173, 154, 140); }
+.role-g { font-size: 14px; white-space: normal; color: rgb(215, 203, 187); }
+.meter { height: 10px; background-color: rgb(12, 8, 11); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.meter-fill { height: 100%; width: 0; background-color: rgb(239, 115, 148); }
+.meter-noise .meter-fill { background-color: rgb(240, 176, 87); }
+.note { font-size: 13px; color: rgb(173, 154, 140); white-space: normal; margin-top: 3px; }
+.mini { height: 140px; margin-top: 6px; background-color: rgb(10, 7, 10); border-radius: 4px; }
+.hud-btn { background-color: rgba(36, 26, 33, 0.9); color: rgb(241, 231, 216); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 5px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 6px 10px; min-height: 36px; margin: 0 0 0 6px; }
+.hud-btns { position: absolute; right: 330px; top: 12px; flex-direction: row; }
+.plist { position: absolute; right: 330px; top: 56px; width: 270px; }
+.plrow { flex-direction: row; align-items: center; margin-bottom: 4px; }
+.plname { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 15px; }
+.plst { font-size: 12px; color: rgb(173, 154, 140); }
+.plout { opacity: 0.5; }
+.tag { font-size: 10px; letter-spacing: 1px; color: rgb(173, 154, 140); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 3px; padding: 0 4px; margin-left: 6px; }
+
+.banner { position: absolute; left: 0; right: 0; top: 18%; -unity-text-align: middle-center; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 40px; white-space: normal; }
+.banner-info { color: rgb(241, 231, 216); }
+.banner-rose { color: rgb(239, 115, 148); }
+.banner-blood { color: rgb(226, 74, 82); }
+.banner-moss { color: rgb(143, 203, 156); }
+.banner-candle { color: rgb(240, 176, 87); }
+.toasts { position: absolute; left: 14px; top: 190px; width: 340px; }
+.toast { background-color: rgba(17, 12, 18, 0.92); border-left-width: 3px; border-color: rgb(239, 115, 148); border-radius: 5px; padding: 6px 10px; margin-bottom: 6px; font-size: 15px; white-space: normal; }
+.prompt { position: absolute; bottom: 22px; left: 0; right: 0; align-items: center; }
+.prompt-in { background-color: rgba(17, 12, 18, 0.9); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 22px; padding: 6px 16px; font-size: 17px; }
+.pill { position: absolute; top: 14px; left: 0; right: 0; align-items: center; }
+.pill-in { background-color: rgba(10, 6, 9, 0.85); border-radius: 19px; padding: 4px 18px; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 22px; color: rgb(239, 115, 148); }
+.caption { position: absolute; bottom: 86px; left: 0; right: 0; align-items: center; }
+.caption-in { background-color: rgba(10, 6, 9, 0.88); border-radius: 15px; padding: 4px 16px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; }
+.blackout { background-color: rgba(10, 6, 9, 0.97); align-items: center; justify-content: center; }
+.count { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 200px; color: rgb(239, 115, 148); }
+.count-sub { font-size: 20px; color: rgb(173, 154, 140); }
+.wlabel { position: absolute; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 14px; color: rgb(241, 231, 216); -unity-text-align: middle-center; translate: -50% -50%; -unity-text-outline-width: 1px; -unity-text-outline-color: rgba(10, 6, 9, 0.9); }
+.fxtext { position: absolute; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); -unity-text-align: middle-center; translate: -50% -50%; -unity-text-outline-width: 1px; -unity-text-outline-color: rgba(10, 6, 9, 0.95); }
+.slat { position: absolute; left: 0; right: 0; height: 12px; background-color: rgba(12, 7, 9, 0.5); }
+.pause { background-color: rgba(10, 6, 9, 0.7); align-items: center; justify-content: center; }
+
+/* touch controls */
+.joy { position: absolute; left: 36px; bottom: 30px; width: 170px; height: 170px; border-radius: 85px; background-color: rgba(36, 26, 33, 0.55); border-width: 2px; border-color: rgba(173, 154, 140, 0.35); }
+.joy-knob { position: absolute; left: 55px; top: 55px; width: 60px; height: 60px; border-radius: 30px; background-color: rgba(241, 231, 216, 0.75); }
+.acts { position: absolute; right: 30px; bottom: 30px; flex-direction: row; align-items: flex-end; }
+.act { width: 92px; height: 92px; border-radius: 46px; background-color: rgba(36, 26, 33, 0.75); border-width: 2px; border-color: rgba(241, 231, 216, 0.4); color: rgb(241, 231, 216); font-size: 15px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); margin-left: 14px; padding: 0; white-space: normal; -unity-text-align: middle-center; }
+.act-q { border-color: rgb(239, 115, 148); color: rgb(239, 115, 148); width: 76px; height: 76px; border-radius: 38px; }
+.act-s { width: 72px; height: 72px; border-radius: 36px; font-size: 12px; }
+.act-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
