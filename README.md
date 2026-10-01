@@ -1,75 +1,43 @@
 # Unice
 
-Unice é um projeto Unity para Android, com pipeline de CI/CD configurada para automatizar build, versionamento e validações em pull requests.
+Unice é um jogo desenvolvido em Unity, com foco em experiência mobile e build para Android.
 
-## Requisitos
+## Visão geral
+
+Este projeto reúne a lógica do jogo, os assets do Unity e a estrutura de configuração da build Android.
+
+## Requisitos para desenvolvimento
 
 - Unity 6000.6.3f1
-- GitHub Actions
-- Android SDK configurado no ambiente de build
-- Secrets do GitHub para Unity e Play Store
+- Android SDK configurado
+- Git instalado
+- Visual Studio / VS Code para edição de scripts
 
-## Fluxo de CI/CD
+## Estrutura principal
 
-### Version
-Workflow: `.github/workflows/version.yml`
+- `Assets/` — conteúdo do jogo, prefabs, scenes, scripts e recursos
+- `ProjectSettings/` — configurações do projeto Unity
+- `.github/workflows/` — workflows de CI/CD para build, testes e releases
 
-- dispara em push para `main`, `master` e `develop`
-- cria uma tag de versão seguindo o padrão `vX.Y.Z`
-- pode ser disparado manualmente via `workflow_dispatch`
+## Como executar localmente
 
-### Debug
-Workflow: `.github/workflows/debug.yml`
+1. Abra o projeto no Unity.
+2. Verifique a versão do editor: `6000.6.3f1`.
+3. Abra a cena principal do jogo.
+4. Faça o build para Android pela interface do Unity ou pela pipeline do GitHub Actions.
 
-- gera APK de debug para Android
-- publica o artefato no GitHub Actions
-- útil para testes e distribuição interna simples
+## Build Android
 
-### Release
-Workflow: `.github/workflows/release.yml`
+A geração da build Android está automatizada em GitHub Actions. A documentação detalhada da pipeline está em:
 
-- gera AAB de release
-- assina o build com a keystore configurada
-- envia o pacote para o Google Play
-- pode ser disparado por tag ou manualmente
+- `.github/workflows/README.md`
 
-### Pulls
-Workflow: `.github/workflows/pulls.yml`
+## Desenvolvimento
 
-- executa testes de EditMode do Unity
-- publica resultados e artefatos de coverage
-- serve como validação obrigatória em PRs
-
-## Secrets necessários
-
-Configure os secrets abaixo no GitHub:
-
-- `UNITY_LICENSE`
-- `UNITY_EMAIL`
-- `UNITY_PASSWORD`
-- `UNITY_SERIAL`
-- `ANDROID_KEYSTORE_NAME`
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASS`
-- `ANDROID_KEYALIAS_NAME`
-- `ANDROID_KEYALIAS_PASS`
-- `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
-- `GOOGLE_PLAY_PACKAGE_NAME`
-
-## Estrutura relevante
-
-- `.github/workflows/` — pipelines do GitHub Actions
-- `Assets/` — conteúdo do projeto Unity
-- `ProjectSettings/` — configurações do projeto
-
-## Como usar
-
-1. Faça o push do projeto para o GitHub.
-2. Configure os secrets listados acima.
-3. Rode o workflow `Version` para criar tags.
-4. Use `Debug` para gerar APK de teste.
-5. Use `Release` para publicar versões de produção.
+- mantenha o projeto compatível com a versão do Unity adotada
+- valide alterações de gameplay e UI antes de gerar builds de release
+- use a pipeline para criar APKs de debug e versões de produção
 
 ## Observações
 
-Esta documentação acompanha a configuração atual da pipeline e deve ser atualizada sempre que novos workflows ou requisitos de build forem adicionados.
+Este README descreve o jogo e o projeto Unity em si. A documentação da pipeline fica no diretório de workflows do GitHub.
