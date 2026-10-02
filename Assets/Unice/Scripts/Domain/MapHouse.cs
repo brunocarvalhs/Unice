@@ -1,10 +1,9 @@
 namespace Unice
 {
     /// <summary>
-    /// The house: the original 12-room layout plus a 4th row (porão, oficina, depósito) added below.
-    /// The original 30 furniture entries keep their exact array order/coordinates — Art/manifest.json's
-    /// furn[].i indexes into Map.Furniture positionally, so reordering or inserting among them would
-    /// point existing art at the wrong piece. New furniture is appended after index 29 instead.
+    /// The house: the original 12-room layout. The original 30 furniture entries keep their exact
+    /// array order/coordinates — Art/manifest.json's furn[].i indexes into Map.Furniture positionally,
+    /// so reordering or inserting among them would point existing art at the wrong piece.
     /// Some originally-decorative pieces (dresser, dollhouse, shelves, armchair, commode, fireplace,
     /// cabinet, ktable, planters, pshelves, tank) gained a hiding side; sink/stove didn't (too small).
     /// </summary>
@@ -16,7 +15,7 @@ namespace Unice
         {
             id = Id,
             worldW = 1720,
-            worldH = 1454,   // 1180 + a 4th row (250 tall) + its gap
+            worldH = 1180,
             groundTint = "#2e2319",
             entryX = 824, entryY = 1085,
             spawnX = 620, spawnY = 474,
@@ -34,26 +33,18 @@ namespace Unice
                 new Room("entrance", 584, 924, 480, 216),
                 new Room("pantry", 1088, 924, 300, 216),
                 new Room("laundry", 1412, 924, 268, 216),
-                // 4th row, new this pass
-                new Room("cellar", 40, 1164, 540, 250),
-                new Room("workshop", 604, 1164, 520, 250),
-                new Room("storage", 1148, 1164, 532, 250),
             },
             doorsV = new[]
             {
                 new MapDoor(260, 390), new MapDoor(614, 390), new MapDoor(958, 390), new MapDoor(1436, 390),
                 new MapDoor(300, 534), new MapDoor(824, 534), new MapDoor(1384, 534),
                 new MapDoor(300, 900), new MapDoor(824, 900), new MapDoor(1238, 900), new MapDoor(1546, 900),
-                // row3 -> row4
-                new MapDoor(300, 1140), new MapDoor(824, 1140), new MapDoor(1300, 1140),
             },
             doorsH = new[]
             {
                 new MapDoor(480, 215), new MapDoor(1168, 215),
                 new MapDoor(560, 729), new MapDoor(1064, 729),
                 new MapDoor(560, 1032), new MapDoor(1064, 1032), new MapDoor(1388, 1032),
-                // within row4
-                new MapDoor(580, 1289), new MapDoor(1124, 1289),
             },
             props = new[]
             {
@@ -88,15 +79,6 @@ namespace Unice
                 new MapProp("pshelves", 1100, 1098, 280, 42, 'n'),
                 new MapProp("hamper", 1606, 1060, 66, 66, 'w'),
                 new MapProp("tank", 1600, 930, 74, 56, 'w'),
-                // --- new, 4th row (appended, indices 30+) ---
-                new MapProp("winerack", 70, 1190, 160, 80, 's'),
-                new MapProp("coalbin", 380, 1190, 140, 80, 's'),
-                new MapProp("crates", 200, 1320, 120, 70),
-                new MapProp("toolchest", 640, 1190, 160, 80, 's'),
-                new MapProp("sawhorse", 860, 1320, 140, 60),
-                new MapProp("oldtrunk", 1180, 1190, 160, 80, 's'),
-                new MapProp("boxes", 1420, 1190, 140, 90, 's'),
-                new MapProp("mirror", 1300, 1320, 100, 60),
             },
         };
     }

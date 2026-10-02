@@ -36,6 +36,8 @@ namespace Unice
         public string myName { get => profile.Name; set => profile.Name = value; }
         public int[] kit { get => profile.Kit; set => profile.Kit = value; }
         [NonSerialized] public Ent me; [NonSerialized] public ViewInfo view; public bool hasView;
+        /// <summary>While spectating, who to follow (their pid) — null means auto (the doll holder). Self-healing: a stale pid just falls back.</summary>
+        [NonSerialized] public string spectTarget;
         public bool paused, busy;
         public string netText = ""; public bool netErr;
         public float heartI, beat;
@@ -214,7 +216,9 @@ namespace Unice
             var p = me;
             if (p == null || p.outOfRound)
             {
-                var h = G.doll.holder; bool ok = h != null && h.x > 0;
+                Ent h = spectTarget != null ? G.ents.FirstOrDefault(e => e.pid == spectTarget && !e.outOfRound) : null;
+                h ??= G.doll.holder;
+                bool ok = h != null && h.x > 0;
                 return new ViewInfo { x = ok ? h.x : 860, y = ok ? h.y : 590, r = Rules.ViewSpect, los = false, spect = true };
             }
             return new ViewInfo { x = p.x, y = p.y, r = p.hidden != null ? Rules.ViewHidden : p.IsUnice ? Rules.ViewUnice : Rules.ViewHider, los = true };

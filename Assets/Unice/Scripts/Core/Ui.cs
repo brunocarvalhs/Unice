@@ -221,6 +221,8 @@ namespace Unice
         Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal, hideVal, huntVal, giggleVal, mapVal;
         Button copyBtn, actBtn, leave2, waitMic, waitWhisper; Doll preview; string wSig, sideTab = "tab.match"; bool lobbyHost, waitCanGo;
         static readonly int[] RoundChoices = { 3, 5, 7 };
+        // Quintal/praça are a work in progress (flat-tint placeholder art) — only selectable in the Editor or a dev build.
+        static readonly string[] PlayableMapIds = Debug.isDebugBuild ? Maps.AllIds : new[] { MapHouse.Id };
 
         void BuildWait()
         {
@@ -248,7 +250,7 @@ namespace Unice
             hideVal = Stepper(hostOpts, "lobby.hide_label", d => { G.hideTime = Mathf.Clamp(G.hideTime + d * 5, 15, 60); wSig = null; });
             huntVal = Stepper(hostOpts, "lobby.hunt_label", d => { G.roundTime = Mathf.Clamp(G.roundTime + d * 15, 60, 240); wSig = null; });
             giggleVal = Stepper(hostOpts, "lobby.giggle_label", d => { G.giggleEvery = Mathf.Clamp(G.giggleEvery + d * 5, 5, 20); wSig = null; });
-            mapVal = Stepper(hostOpts, "lobby.map_label", d => { int i = Array.IndexOf(Maps.AllIds, G.mapId); G.mapId = Maps.AllIds[((i < 0 ? 0 : i) + d + Maps.AllIds.Length) % Maps.AllIds.Length]; wSig = null; });
+            mapVal = Stepper(hostOpts, "lobby.map_label", d => { int i = Array.IndexOf(PlayableMapIds, G.mapId); G.mapId = PlayableMapIds[((i < 0 ? 0 : i) + d + PlayableMapIds.Length) % PlayableMapIds.Length]; wSig = null; });
             optsInfo = L(sidePartida, "", "mnote");
             var sideAparenciaSv = new ScrollView(ScrollViewMode.Vertical); sideAparenciaSv.style.flexGrow = 1; sideAparenciaSv.style.maxHeight = 320;
             sideAparenciaSv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
@@ -456,12 +458,12 @@ namespace Unice
             var sh = Sheet(root, out pauseOv);
             pauseTitle = L(sh, "", "title", "title-md");
             pauseNote = L(sh, "", "muted");
+            BB(sh, "pause.continue", () => app.TogglePause(), "btn", "gap");
             var r = E(sh, "row", "gap", "wrap");
-            BB(r, "pause.continue", () => app.TogglePause(), "btn");
             pauseSound = B(r, "", ToggleSound, "btn", "btn-ghost");
             pauseMic = B(r, "", ToggleMic, "btn", "btn-ghost");
             pauseWhisper = B(r, "", ToggleWhisper, "btn", "btn-ghost");
-            pauseLeave = B(r, "", () => app.LeaveRoom(), "btn", "btn-link");
+            pauseLeave = B(sh, "", () => app.LeaveRoom(), "btn", "btn-link", "gap");
             Show(pauseOv, false);
         }
 
@@ -548,14 +550,20 @@ namespace Unice
                 Txt(hNoiseTxt, Loc.T(me.hidden != null ? "hud.noise_hidden" : me.noise > .5f ? "hud.noise_loud" : me.moving ? "hud.noise_quiet" : "hud.noise_stopped"));
             }
             if (plist.style.display == DisplayStyle.None) return;
-            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv + Loc.Current;
+            bool spectating = me == null || me.outOfRound;
+            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv + Loc.Current + spectating + app.spectTarget;
             if (sig == plSig) return; plSig = sig;
             var hostP = app.Online ? app.FindHost() : null; string hostId = hostP != null ? hostP.id : app.Online ? null : app.myId;
             plRows.Clear();
             foreach (var e in G.ents)
             {
                 string st = Loc.T(e.IsUnice ? "hud.st_unice" : e.outOfRound ? "hud.st_out" : tv ? (e.hidden != null ? "hud.st_hidden" : e.moving ? (e.sneak ? "hud.st_sneaking" : "hud.st_running") : "hud.st_still") : "hud.st_somewhere");
-                var row = Ig(E(plRows, "plrow")); if (e.outOfRound) row.AddToClassList("plout");
+                var row = E(plRows, "plrow"); if (e.outOfRound) row.AddToClassList("plout");
+                bool canWatch = spectating && !e.outOfRound;
+                bool watching = spectating && (app.spectTarget != null ? app.spectTarget == e.pid : e == h);
+                if (canWatch) { row.AddToClassList("plrow-pick"); row.RegisterCallback<PointerDownEvent>(_ => { app.spectTarget = e.pid; plSig = null; }); }
+                else row.pickingMode = PickingMode.Ignore;
+                row.EnableInClassList("plrow-on", watching);
                 var d = new Doll(24); if (e.IsUnice && live) d.SetUnice(); else d.Set(e.k); row.Add(d);
                 var col = Ig(E(row, "grow")); col.style.marginLeft = 8;
                 var nl = Ig(E(col, "row"));

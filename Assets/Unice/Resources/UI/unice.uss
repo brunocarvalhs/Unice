@@ -109,7 +109,10 @@
 .hud-btn { background-color: rgba(36, 26, 33, 0.9); color: rgb(241, 231, 216); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 5px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 6px 10px; min-height: 36px; margin: 0 0 0 6px; }
 .hud-btns { position: absolute; right: 330px; top: 12px; flex-direction: row; }
 .plist { position: absolute; right: 330px; top: 56px; width: 270px; }
-.plrow { flex-direction: row; align-items: center; margin-bottom: 4px; }
+.plrow { flex-direction: row; align-items: center; margin-bottom: 4px; padding: 2px 4px; border-radius: 4px; }
+.plrow-pick { background-color: rgba(255, 255, 255, 0.06); }
+.plrow-pick:hover { background-color: rgba(255, 255, 255, 0.14); }
+.plrow-on { background-color: rgba(239, 115, 148, 0.22); }
 .plname { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 15px; }
 .plst { font-size: 12px; color: rgb(173, 154, 140); }
 .plout { opacity: 0.5; }
