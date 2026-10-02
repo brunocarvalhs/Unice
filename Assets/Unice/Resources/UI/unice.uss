@@ -145,6 +145,7 @@
 .act-q { border-color: rgb(239, 115, 148); color: rgb(239, 115, 148); width: 90px; height: 90px; border-radius: 45px; }
 .act-r { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); width: 86px; height: 86px; border-radius: 43px; font-size: 14px; }
 .act-s { width: 86px; height: 86px; border-radius: 43px; font-size: 13px; }
+.act-icon { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
 .act-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
 
 /* ---------- main menu over the house map ---------- */

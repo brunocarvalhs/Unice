@@ -49,6 +49,7 @@ namespace Unice
         public Phase ph = Phase.Home;
         public int ep, r, rounds = 5, bots = 3, evSeq;
         public float hb, tl, t;
+        public string mapId = MapHouse.Id;
         // host-configurable match settings (defaults match Rules); synced to peers in the snapshot
         public float hideTime = Rules.HideTime, roundTime = Rules.RoundTime, giggleEvery = Rules.GiggleEvery;
         public readonly List<Ent> ents = new List<Ent>();
@@ -166,6 +167,7 @@ namespace Unice
         /// <summary>Starts a match. <paramref name="humans"/> must list this device first, then the others by arrival.</summary>
         public void NewMatch(List<Human> humans)
         {
+            if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
             ents.Clear();
             foreach (var h in humans) AddHuman(h);
             var taken = new HashSet<string>(ents.Select(e => e.name.ToLowerInvariant()));
@@ -190,7 +192,7 @@ namespace Unice
             var u = nextU != null && ents.Contains(nextU) ? nextU : U.Pick(ents);
             u.role = Role.Unice; u.turns++; unice = u;
             var hs = ents.Where(e => e != u).ToList();
-            for (int i = 0; i < hs.Count; i++) { hs[i].x = hs[i].tx = 620 + i * 70; hs[i].y = hs[i].ty = 474; }
+            for (int i = 0; i < hs.Count; i++) { hs[i].x = hs[i].tx = Map.SpawnX + i * 70; hs[i].y = hs[i].ty = Map.SpawnY; }
             doll.holder = U.Pick(Eligible(hs)); doll.giggleT = giggleEvery; doll.hasLast = false; doll.lastSpot = null;
             ph = Phase.Hide; tl = hideTime; t = 0; res = null;
             Ev(EvType.Start, r, u.idx, doll.holder.idx);

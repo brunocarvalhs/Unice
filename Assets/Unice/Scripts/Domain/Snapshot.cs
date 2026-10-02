@@ -6,7 +6,7 @@ namespace Unice
     /// <summary>The host's view of the match, packed small enough to send ~15 times a second.</summary>
     public sealed partial class Game
     {
-        const byte SnapVersion = 3;
+        const byte SnapVersion = 4;
 
         public byte[] WriteSnapshot()
         {
@@ -14,7 +14,7 @@ namespace Unice
             using var w = new BinaryWriter(ms);
             w.Write(SnapVersion);
             w.Write(ep); w.Write(hb); w.Write((byte)ph); w.Write((byte)r); w.Write((byte)rounds); w.Write((byte)bots); w.Write(tl); w.Write(t);
-            w.Write(hideTime); w.Write(roundTime); w.Write(giggleEvery);
+            w.Write(hideTime); w.Write(roundTime); w.Write(giggleEvery); w.Write(mapId);
             w.Write((sbyte)(unice != null ? unice.idx : -1)); w.Write((sbyte)(nextU != null ? nextU.idx : -1));
             w.Write(res != null);
             if (res != null) for (int i = 0; i < 4; i++) w.Write((sbyte)res[i]);
@@ -52,6 +52,7 @@ namespace Unice
             ep = rd.ReadInt32(); hb = rd.ReadSingle(); ph = (Phase)Math.Min((int)rd.ReadByte(), (int)Phase.Final); if (ph == Phase.Home) ph = Phase.Lobby;
             r = rd.ReadByte(); rounds = rd.ReadByte(); bots = rd.ReadByte(); tl = rd.ReadSingle(); t = rd.ReadSingle();
             hideTime = rd.ReadSingle(); roundTime = rd.ReadSingle(); giggleEvery = rd.ReadSingle();
+            mapId = rd.ReadString(); if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
             int ui = rd.ReadSByte(), nx = rd.ReadSByte();
             if (rd.ReadBoolean()) { res = new int[4]; for (int i = 0; i < 4; i++) res[i] = rd.ReadSByte(); } else res = null;
             int hi = rd.ReadSByte(); float gT = rd.ReadSingle(); bool hasLast = rd.ReadBoolean();

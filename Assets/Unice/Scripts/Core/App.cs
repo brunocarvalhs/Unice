@@ -41,7 +41,8 @@ namespace Unice
         public float heartI, beat;
 
         int lastEv = -1; byte[] lastS, lastApplied;
-        float pubT, freeze, catchCd, acc, ownT, clockT, heartT, camX = 860, camY = 590;
+        float pubT, freeze, catchCd, acc, ownT, clockT, heartT, camX = 860, camY = 590, shakeT, shakeMag;
+        const float ShakeDur = .35f;
         int aSeq, aArg, tickS; Act aType;
         readonly Dictionary<int, float> stepT = new Dictionary<int, float>();
         [NonSerialized] public Sfx sfx; [NonSerialized] public WorldView world; [NonSerialized] public Ui ui; Camera cam;
@@ -129,6 +130,7 @@ namespace Unice
             if (G.isHost && G.ph != Phase.Home && !(paused && !Online)) G.HostStep(dt, Online ? net.Peers : null, myId, d => { if (me != null) UpdatePlayer(d); }, HumansNow);
             else if (!G.isHost && G.Live && me != null) UpdatePlayer(dt);
             if (G.isHost) { me = G.ents.FirstOrDefault(e => e.pid == myId); HandleEvents(); }
+            world.SyncMap();
             if (freeze > 0) freeze -= dt;
             if (catchCd > 0) catchCd -= dt;
             if (me != null || G.ph != Phase.Home) { view = Viewer(); hasView = true; }
@@ -147,6 +149,11 @@ namespace Unice
             else { camX = 860 + Mathf.Sin(time * .1f) * 520; camY = 590 + Mathf.Sin(time * .16f) * 300; }
             cam.orthographicSize = Mathf.Max(250, 350 / Mathf.Max(.5f, cam.aspect)) / Art.PxPerUnit;
             cam.transform.position = Art.W(camX, camY, -10);
+            if (shakeT > 0)
+            {
+                shakeT -= dt; float k = Mathf.Max(0, shakeT) / ShakeDur;
+                cam.transform.position += (Vector3)(UnityEngine.Random.insideUnitCircle * (shakeMag * k) / Art.PxPerUnit);
+            }
             world.SyncEntities(G, me, Seen, TeamView, time);
             world.UpdateOcclusion(me, G.Live);
             world.Tick(dt);
@@ -308,6 +315,10 @@ namespace Unice
                 {
                     var Hh = E(v.b); var Un = E(v.a); bool withDoll = v.c != 0; float x = v.d, y = v.e; if (Hh == null) break;
                     sfx.Play("sting"); ui.Fx(x, y - 26, Loc.T(withDoll ? "ev.catch.mine" : "ev.catch.gotcha"), Ui.Blood, withDoll ? 24 : 20, 1.8f, true);
+                    world.Ripple(x, y, "catch");
+                    shakeT = ShakeDur; shakeMag = withDoll ? 16f : 10f;
+                    ui.Flash(new Color(.75f, .12f, .16f, withDoll ? .4f : .22f), withDoll ? .3f : .18f);
+                    world.Hit(Hh.idx); if (Un != null) world.Hit(Un.idx);
                     if (Hh == me) ui.Banner(Loc.T(withDoll ? "ev.catch.you_doll" : "ev.catch.you_out"), "blood", 2.6f);
                     else if (Un == me && !withDoll) ui.Banner(Loc.T("ev.catch.not_holder", Hh.name), "candle", 2);
                     else if (!withDoll) ui.Toast(Loc.T("ev.catch.toast", Hh.name, Loc.RoomIn(Map.RoomOf(x, y))));

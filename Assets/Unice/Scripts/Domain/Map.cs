@@ -22,7 +22,7 @@ namespace Unice
         public RectF r; public float cx, cy; public bool vertical;
     }
 
-    /// <summary>A piece of furniture. When <see cref="spot"/> is set, a child can hide in it.</summary>
+    /// <summary>A piece of furniture. When <see cref="side"/> is non-zero, a child can hide in it.</summary>
     /// <summary>When hideable, its flavor phrase ("under the bed") lives in Core's Loc table as "spot." + type.</summary>
     public sealed class Furn
     {
@@ -37,100 +37,61 @@ namespace Unice
         public float Cy => y + h / 2;
     }
 
-    /// <summary>The house: rooms, doors, furniture, collision, line of sight and path finding (same layout as the web version).</summary>
+    /// <summary>
+    /// The current map: rooms, doors, furniture, collision, line of sight and path finding.
+    /// Built from a <see cref="MapDefinition"/> via <see cref="Load"/> — the house loads by default;
+    /// <see cref="Load"/> can swap in another map (quintal, praça) before a match starts.
+    /// </summary>
     public static class Map
     {
-        public const float R = 14, GAP = 24, DW = 64, OV = 30, WorldW = 1720, WorldH = 1180;
+        public const float R = 14, GAP = 24, DW = 64, OV = 30;
+        public static float WorldW { get; private set; }
+        public static float WorldH { get; private set; }
+        public static string Id { get; private set; }
+        public static string GroundTint { get; private set; }
+        public static float SpawnX { get; private set; }
+        public static float SpawnY { get; private set; }
 
-        public static readonly Room[] Rooms =
-        {
-            new Room("master", 40, 40, 440, 350),
-            new Room("bath", 504, 40, 220, 350),
-            new Room("kids", 748, 40, 420, 350),
-            new Room("library", 1192, 40, 488, 350),
-            new Room("hall", 40, 414, 1640, 120),
-            new Room("living", 40, 558, 520, 342),
-            new Room("dining", 584, 558, 480, 342),
-            new Room("kitchen", 1088, 558, 592, 342),
-            new Room("estufa", 40, 924, 520, 216),
-            new Room("entrance", 584, 924, 480, 216),
-            new Room("pantry", 1088, 924, 300, 216),
-            new Room("laundry", 1412, 924, 268, 216),
-        };
-
-        public static readonly float[,] DV = { { 260, 390 }, { 614, 390 }, { 958, 390 }, { 1436, 390 }, { 300, 534 }, { 824, 534 }, { 1384, 534 }, { 300, 900 }, { 824, 900 }, { 1238, 900 }, { 1546, 900 } };
-        public static readonly float[,] DH = { { 480, 215 }, { 1168, 215 }, { 560, 729 }, { 1064, 729 }, { 560, 1032 }, { 1064, 1032 }, { 1388, 1032 } };
-
-        public static readonly Door[] Doors;
-        static readonly RectF[] walk;
-        public static readonly Furn[] Furniture;
-        public static readonly Furn[] Spots;
-        public static readonly P DoorIn = new P(824, 1085);
+        public static Room[] Rooms { get; private set; }
+        public static Door[] Doors { get; private set; }
+        static RectF[] walk;
+        public static Furn[] Furniture { get; private set; }
+        public static Furn[] Spots { get; private set; }
+        public static P DoorIn { get; private set; }
 
         // navigation graph
-        public static readonly List<P> Nodes = new List<P>();
+        public static List<P> Nodes { get; private set; } = new List<P>();
         static List<(int to, float d)>[] adj;
 
-        static Map()
+        static Map() { Load(MapHouse.Build()); }
+
+        /// <summary>Rebuilds every static field from <paramref name="def"/>. Only call between matches — it wipes hiding-spot state.</summary>
+        public static void Load(MapDefinition def)
         {
+            Id = def.id; WorldW = def.worldW; WorldH = def.worldH; GroundTint = def.groundTint;
+            DoorIn = new P(def.entryX, def.entryY); SpawnX = def.spawnX; SpawnY = def.spawnY;
+            Rooms = def.zones;
+
             var doors = new List<Door>();
-            for (int i = 0; i < DV.GetLength(0); i++)
-            {
-                float x = DV[i, 0], y = DV[i, 1];
-                doors.Add(new Door { r = new RectF(x - DW / 2, y - OV, DW, GAP + 2 * OV), cx = x, cy = y + GAP / 2, vertical = true });
-            }
-            for (int i = 0; i < DH.GetLength(0); i++)
-            {
-                float x = DH[i, 0], y = DH[i, 1];
-                doors.Add(new Door { r = new RectF(x - OV, y - DW / 2, GAP + 2 * OV, DW), cx = x + GAP / 2, cy = y, vertical = false });
-            }
+            foreach (var d in def.doorsV)
+                doors.Add(new Door { r = new RectF(d.x - DW / 2, d.y - OV, DW, GAP + 2 * OV), cx = d.x, cy = d.y + GAP / 2, vertical = true });
+            foreach (var d in def.doorsH)
+                doors.Add(new Door { r = new RectF(d.x - OV, d.y - DW / 2, GAP + 2 * OV, DW), cx = d.x + GAP / 2, cy = d.y, vertical = false });
             Doors = doors.ToArray();
+
             var wl = new List<RectF>();
             foreach (var r in Rooms) wl.Add(new RectF(r.x, r.y, r.w, r.h));
             foreach (var d in Doors) wl.Add(d.r);
             walk = wl.ToArray();
 
-            object[][] F =
-            {
-                new object[] { "bed", 170, 40, 150, 175, 's' },
-                new object[] { "wardrobe", 40, 240, 58, 120, 'e' },
-                new object[] { "dresser", 390, 40, 80, 42 },
-                new object[] { "tub", 600, 40, 124, 66, 's' },
-                new object[] { "sink", 504, 56, 50, 56 },
-                new object[] { "bunk", 748, 40, 92, 175, 'e' },
-                new object[] { "chest", 990, 40, 100, 54, 's' },
-                new object[] { "dollhouse", 1060, 296, 92, 70 },
-                new object[] { "shelves", 1250, 40, 380, 40 },
-                new object[] { "desk", 1350, 180, 160, 70, 's' },
-                new object[] { "clock", 1624, 150, 56, 64, 'w' },
-                new object[] { "armchair", 1230, 300, 60, 60 },
-                new object[] { "closet", 1090, 414, 90, 34, 's' },
-                new object[] { "commode", 480, 414, 80, 30 },
-                new object[] { "sofa", 150, 650, 200, 56, 'n' },
-                new object[] { "fireplace", 40, 760, 40, 110 },
-                new object[] { "piano", 400, 790, 140, 90, 'n' },
-                new object[] { "table", 700, 680, 250, 100, 's' },
-                new object[] { "cabinet", 584, 558, 46, 100 },
-                new object[] { "sinkcab", 1150, 558, 150, 44, 's' },
-                new object[] { "stove", 1570, 558, 110, 60 },
-                new object[] { "ktable", 1340, 700, 130, 80 },
-                new object[] { "ferns", 40, 1030, 110, 110, 'e' },
-                new object[] { "planters", 380, 1090, 170, 44 },
-                new object[] { "stairs", 900, 924, 110, 76, 's' },
-                new object[] { "coats", 620, 1090, 110, 50, 'n' },
-                new object[] { "barrel", 1310, 950, 60, 60, 'w' },
-                new object[] { "pshelves", 1100, 1098, 280, 42 },
-                new object[] { "hamper", 1606, 1060, 66, 66, 'w' },
-                new object[] { "tank", 1600, 930, 74, 56 },
-            };
             var furn = new List<Furn>(); var spots = new List<Furn>();
-            for (int i = 0; i < F.Length; i++)
+            for (int i = 0; i < def.props.Length; i++)
             {
-                var a = F[i];
-                var f = new Furn { id = i, type = (string)a[0], x = Convert.ToSingle(a[1]), y = Convert.ToSingle(a[2]), w = Convert.ToSingle(a[3]), h = Convert.ToSingle(a[4]) };
-                if (a.Length > 5)
+                var p = def.props[i];
+                var f = new Furn { id = i, type = p.type, x = p.x, y = p.y, w = p.w, h = p.h };
+                if (p.side != '\0')
                 {
-                    f.side = (char)a[5];
+                    f.side = p.side;
                     const float o = 22;
                     switch (f.side)
                     {
@@ -144,6 +105,7 @@ namespace Unice
                 furn.Add(f);
             }
             Furniture = furn.ToArray(); Spots = spots.ToArray();
+            Nodes = new List<P>();
             BuildGraph();
         }
 
@@ -230,7 +192,7 @@ namespace Unice
         public static int NearestNode(float x, float y) => NearNodes(x, y)[0].i;
 
         static float[] D; static int[] Prev; static bool[] Done;
-        /// <summary>Shortest walkable route. Empty when unreachable. ponytail: O(N²) Dijkstra over ~550 nodes; use a heap if the house grows.</summary>
+        /// <summary>Shortest walkable route. Empty when unreachable. ponytail: O(N²) Dijkstra over ~550 nodes; use a heap if the house grows a lot more.</summary>
         public static List<P> FindPath(float sx, float sy, float tx, float ty)
         {
             var path = new List<P>();
