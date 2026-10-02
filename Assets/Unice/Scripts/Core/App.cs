@@ -40,15 +40,13 @@ namespace Unice
         [NonSerialized] public string spectTarget;
         public bool paused, busy;
         public string netText = ""; public bool netErr;
-        public float heartI, beat;
 
-        int lastEv = -1; byte[] lastS, lastApplied;
+        byte[] lastS, lastApplied;
         Phase lastPh = (Phase)255;
-        float pubT, freeze, catchCd, acc, ownT, clockT, heartT, camX = 860, camY = 590, shakeT, shakeMag;
-        const float ShakeDur = .35f;
-        int aSeq, aArg, tickS; Act aType;
-        readonly Dictionary<int, float> stepT = new Dictionary<int, float>();
-        [NonSerialized] public Sfx sfx; [NonSerialized] public WorldView world; [NonSerialized] public Ui ui; Camera cam;
+        float pubT, freeze, catchCd, acc;
+        int aSeq, aArg; Act aType;
+        [NonSerialized] public Sfx sfx; [NonSerialized] public WorldView world; [NonSerialized] public Ui ui;
+        [NonSerialized] internal Soundscape sound; [NonSerialized] internal EventFeed events; [NonSerialized] internal CameraRig rig;
         bool kUp, kDown, kLeft, kRight, kSneak;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -64,11 +62,7 @@ namespace Unice
             Application.targetFrameRate = 60; Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Metrics.Init();
             profile = new ProfileStore();
-            cam = Camera.main;
-            if (cam == null) { cam = new GameObject("Camera").AddComponent<Camera>(); cam.tag = "MainCamera"; }
-            cam.orthographic = true; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
-            cam.nearClipPlane = .1f; cam.farClipPlane = 50;
-            if (FindAnyObjectByType<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
+            rig = new CameraRig();
             if (FindAnyObjectByType<EventSystem>() == null)
             {
                 var es = new GameObject("EventSystem"); DontDestroyOnLoad(es);
@@ -76,6 +70,7 @@ namespace Unice
             }
             world = new WorldView(transform);
             sfx = new Sfx(transform);
+            sound = new Soundscape(this); events = new EventFeed(this);
             ui = new Ui(this);
             backend = NetRegistry.Factory?.Invoke();
             if (backend != null) backend.Lost += RoomLost;
@@ -133,13 +128,13 @@ namespace Unice
             if (Online) { ElectHost(); if (!G.isHost) PullSnap(); }
             if (G.isHost && G.ph != Phase.Home && !(paused && !Online)) G.HostStep(dt, Online ? net.Peers : null, myId, d => { if (me != null) UpdatePlayer(d); }, HumansNow);
             else if (!G.isHost && G.Live && me != null) UpdatePlayer(dt);
-            if (G.isHost) { me = G.ents.FirstOrDefault(e => e.pid == myId); HandleEvents(); }
+            if (G.isHost) { me = G.ents.FirstOrDefault(e => e.pid == myId); events.Handle(); }
             world.SyncMap();
             if (G.ph != lastPh) { lastPh = G.ph; Metrics.Screen(G.ph.ToString().ToLowerInvariant()); }
             if (freeze > 0) freeze -= dt;
             if (catchCd > 0) catchCd -= dt;
             if (me != null || G.ph != Phase.Home) { view = Viewer(); hasView = true; }
-            if (G.Live && !paused) LocalSounds(dt);
+            if (G.Live && !paused) sound.Tick(dt);
             if (Online) { pubT -= dt; if (pubT <= 0) { pubT = 1 / 15f; Publish(); } }
             if (voice != null) voice.Tick(VoiceRule.CanSpeak(MicOn, me), me?.x ?? 0, me?.y ?? 0, me != null, Whisper);
             ui.Step(dt);
@@ -150,15 +145,7 @@ namespace Unice
             float time = Time.unscaledTime;
             if (!G.isHost) foreach (var e in G.ents) if (e != me) { float k = Mathf.Min(1, dt * 14); e.x += (e.tx - e.x) * k; e.y += (e.ty - e.y) * k; }
             bool inGame = G.Live || G.ph == Phase.Result;
-            if (inGame && hasView) { float k = Mathf.Min(1, dt * 6); camX += (view.x - camX) * k; camY += (view.y - 20 - camY) * k; }
-            else { camX = 860 + Mathf.Sin(time * .1f) * 520; camY = 590 + Mathf.Sin(time * .16f) * 300; }
-            cam.orthographicSize = Mathf.Max(250, 350 / Mathf.Max(.5f, cam.aspect)) / Art.PxPerUnit;
-            cam.transform.position = Art.W(camX, camY, -10);
-            if (shakeT > 0)
-            {
-                shakeT -= dt; float k = Mathf.Max(0, shakeT) / ShakeDur;
-                cam.transform.position += (Vector3)(UnityEngine.Random.insideUnitCircle * (shakeMag * k) / Art.PxPerUnit);
-            }
+            rig.Frame(dt, inGame && hasView, view);
             world.SyncEntities(G, me, Seen, TeamView, time);
             world.UpdateOcclusion(me, G.Live);
             world.Tick(dt);
@@ -169,7 +156,7 @@ namespace Unice
                 world.fog.Draw(view.x, view.y, view.r * fl, view.los, dark);
             }
             else world.fog.Hide();
-            ui.Frame(dt, cam);
+            ui.Frame(dt, rig.Cam);
         }
 
         // ---------- input ----------
@@ -233,128 +220,9 @@ namespace Unice
             return !view.los || Map.SightLine(view.x, view.y, x, y);
         }
 
-        static string Side(float dx, float dy)
-        {
-            float ax = Mathf.Abs(dx), ay = Mathf.Abs(dy);
-            if (ax < 60 && ay < 60) return Loc.T("app.side.near");
-            string h = Loc.T(dx < 0 ? "app.side.left" : "app.side.right"), v = Loc.T(dy < 0 ? "app.side.above" : "app.side.below");
-            return ax > ay * 1.6f ? h : ay > ax * 1.6f ? v : v + ", " + h;
-        }
-
-        /// <summary>Plays a sound as heard from (x, y): quieter with distance, panned, muffled through walls. Returns the loudness.</summary>
-        float Hear(float x, float y, float radius, string label, Color col, string snd, float minG = 0)
-        {
-            if (!hasView) return 0;
-            var L = view; bool hid = me != null && me.hidden != null;
-            float r = radius * (hid ? 1.3f : 1), d = U.Dist(x, y, L.x, L.y);
-            float g = Mathf.Max(d >= r ? 0 : Mathf.Pow(1 - d / r, 2), minG);
-            if (g <= .01f) return 0;
-            sfx.Play(snd, g, Mathf.Clamp((x - L.x) / 300, -1, 1), d > 40 && !Map.SightLine(L.x, L.y, x, y));
-            if (label != null && me != null && !me.outOfRound && !Seen(x, y))
-            {
-                ui.Cue(Mathf.Atan2(y - L.y, x - L.x), g, col);
-                if (hid) ui.Caption($"{label} · {(g > .45f ? Loc.T("app.close.near") : g > .15f ? Loc.T("app.close.mid") : Loc.T("app.close.far"))} · {Side(x - L.x, y - L.y)}");
-            }
-            return g;
-        }
-
         // ---------- events → what this player sees and hears ----------
-        void HandleEvents()
-        {
-            if (lastEv < 0) { lastEv = G.evSeq; return; }
-            foreach (var e in G.evs.ToArray())
-                if (e.seq > lastEv) { lastEv = e.seq; try { OnEvent(e); } catch (Exception x) { Metrics.Error(x, "event " + e.type); } }
-            if (G.evSeq < lastEv - 50) lastEv = G.evSeq;
-        }
-
-        string MyRole => me == null ? "spectator" : me.IsUnice ? "unice" : me == G.doll.holder ? "holder" : "hider";
-
         public string NameOf(Ent e) => e == null ? Loc.T("app.someone") : e == me ? Loc.T("app.you") : e.name;
         public string NameUp(Ent e) => e == null ? Loc.T("app.someone.up") : e == me ? Loc.T("app.you.up") : e.name;
-
-        void OnEvent(GameEvent v)
-        {
-            Ent E(int i) => G.EntAt(i);
-            switch (v.type)
-            {
-                case EvType.Start:
-                {
-                    var u = E(v.b); var h = E(v.c);
-                    Metrics.Log("round_start", ("round", v.a), ("rounds", G.rounds), ("role", MyRole), ("online", Online), ("map", G.mapId));
-                    if (me == null) ui.Banner(Loc.T("ev.start.watch", v.a, NameUp(u)), "info", 3);
-                    else if (me == u) ui.Banner(Loc.T("ev.start.you_unice"), "rose", 3.2f);
-                    else if (me == h) ui.Banner(Loc.T("ev.start.you_holder"), "rose", 3.2f);
-                    else ui.Banner(Loc.T("ev.start.other", NameUp(u)), "candle", 3.2f);
-                    break;
-                }
-                case EvType.Enter:
-                    sfx.Play("boom"); Hear(Map.DoorIn.x, Map.DoorIn.y, 1400, Loc.T("ev.enter.sound"), Ui.Rose, "creak", .35f);
-                    ui.Banner(G.unice == me ? Loc.T("ev.enter.unice") : Loc.T("ev.enter.others"), "rose", 2.4f);
-                    break;
-                case EvType.Giggle:
-                {
-                    float x = v.a, y = v.b; var laugher = E(v.c); var r = Map.RoomOf(x, y);
-                    bool isHolder = laugher != null && laugher == G.doll.holder;
-                    world.Ripple(x, y, "giggle"); ui.Fx(x, y - 30, Loc.T("ev.giggle.fx"), Ui.Rose, 18, 1.8f, true);
-                    Hear(x, y, 2200, Loc.T("ev.giggle.sound"), Ui.Rose, "giggle", .3f);
-                    if (me != null && me.IsUnice && G.Live) ui.Banner(Loc.T("ev.giggle.unice", Loc.RoomIn(r)), "rose", 2);
-                    else if (laugher == me) ui.Banner(Loc.T(isHolder ? "ev.giggle.holder" : "ev.giggle.laughed"), "rose", 2.4f);
-                    else if (isHolder) ui.Toast(Loc.T("ev.giggle.toast_doll", Loc.RoomIn(r)));
-                    else ui.Toast(Loc.T("ev.giggle.toast_who", NameUp(laugher), Loc.RoomIn(r)));
-                    break;
-                }
-                case EvType.Pass:
-                {
-                    var A = E(v.a); var B = E(v.b); if (A == null || B == null) break;
-                    Hear(A.x, A.y, 220, Loc.T("ev.pass.sound"), Ui.Rose, "swish");
-                    if (TeamView || Seen(A.x, A.y)) ui.Fx((A.x + B.x) / 2, (A.y + B.y) / 2 - 26, Loc.T("ev.pass.fx"), Ui.Rose, 14, 1);
-                    if (B == me) ui.Banner(Loc.T("ev.pass.you_got"), "rose", 2);
-                    else if (A == me) ui.Banner(Loc.T("ev.pass.you_gave", B.name), "rose", 1.5f);
-                    else if (TeamView) ui.Toast(Loc.T("ev.pass.toast", A.name, B.name));
-                    break;
-                }
-                case EvType.Open:
-                {
-                    if (v.a < 0 || v.a >= Map.Spots.Length) break;
-                    var s = Map.Spots[v.a];
-                    Hear(s.Cx, s.Cy, 450, Loc.T("ev.open.sound"), Ui.Candle, "creak");
-                    if (v.b == 0 && Seen(s.Cx, s.Cy)) ui.Fx(s.ax, s.ay - 24, Loc.T("ev.open.empty"), Ui.Muted, 14, 1);
-                    break;
-                }
-                case EvType.Catch:
-                {
-                    var Hh = E(v.b); var Un = E(v.a); bool withDoll = v.c != 0; float x = v.d, y = v.e; if (Hh == null) break;
-                    if (Hh == me || Un == me) Metrics.Log("catch", ("side", Hh == me ? "caught" : "catcher"), ("with_doll", withDoll), ("time_left", (int)G.tl), ("room", Map.RoomOf(x, y).id));
-                    sfx.Play("sting"); ui.Fx(x, y - 26, Loc.T(withDoll ? "ev.catch.mine" : "ev.catch.gotcha"), Ui.Blood, withDoll ? 24 : 20, 1.8f, true);
-                    world.Ripple(x, y, "catch");
-                    shakeT = ShakeDur; shakeMag = withDoll ? 16f : 10f;
-                    ui.Flash(new Color(.75f, .12f, .16f, withDoll ? .4f : .22f), withDoll ? .3f : .18f);
-                    world.Hit(Hh.idx); if (Un != null) world.Hit(Un.idx);
-                    if (Hh == me) ui.Banner(Loc.T(withDoll ? "ev.catch.you_doll" : "ev.catch.you_out"), "blood", 2.6f);
-                    else if (Un == me && !withDoll) ui.Banner(Loc.T("ev.catch.not_holder", Hh.name), "candle", 2);
-                    else if (!withDoll) ui.Toast(Loc.T("ev.catch.toast", Hh.name, Loc.RoomIn(Map.RoomOf(x, y))));
-                    break;
-                }
-                case EvType.End:
-                {
-                    bool unWin = v.a != 0;
-                    Metrics.Log("round_end", ("round", G.r), ("unice_won", unWin), ("role", me == null ? "spectator" : me.IsUnice ? "unice" : "hider"),
-                        ("won", me != null && unWin == me.IsUnice), ("caught", me != null && me.outOfRound), ("online", Online));
-                    if (me != null) sfx.Play(unWin == me.IsUnice ? "win" : "lose");
-                    if (!unWin) ui.Banner(Loc.T("ev.end.time"), "moss", 1.6f);
-                    heartI = 0;
-                    break;
-                }
-                case EvType.Final:
-                    if (me != null) Metrics.Log("match_end", ("rounds", G.rounds), ("score", me.score), ("place", 1 + G.ents.Count(e => e.score > me.score)), ("players", G.ents.Count), ("online", Online));
-                    break;
-                case EvType.Host:
-                    if (!G.isHost || U.CleanName(v.s) != myName) ui.Toast(Loc.T("ev.host.other", U.CleanName(v.s)));
-                    else ui.Toast(Loc.T("ev.host.you"));
-                    break;
-                case EvType.Left: { var e = E(v.a); if (e != null) ui.Toast(Loc.T("ev.left", e.name)); break; }
-            }
-        }
 
         // ---------- this player: movement, actions, sounds ----------
         void UpdatePlayer(float dt)
@@ -418,49 +286,8 @@ namespace Unice
             SendAction(Act.Laugh); Metrics.Log("player_action", ("type", "laugh"));
         }
 
-        void LocalSounds(float dt)
-        {
-            foreach (var e in G.ents)
-            {
-                if (e == me || e.outOfRound || e.hidden != null || !e.moving || e.x < 0) continue;
-                stepT.TryGetValue(e.idx, out float st); st -= dt; stepT[e.idx] = st;
-                if (st > 0) continue;
-                if (e.IsUnice) { stepT[e.idx] = .45f; if (TeamView) Hear(e.x, e.y, 380, Loc.T("sound.cane"), Ui.Rose, "cane"); }
-                else if (e.loud)
-                {
-                    stepT[e.idx] = .42f;
-                    float g = Hear(e.x, e.y, Rules.NoiseR, Loc.T("sound.running"), Ui.Candle, "step");
-                    if (g > 0 && me != null && me.IsUnice) world.Ripple(e.x, e.y, "step");
-                }
-            }
-            if (me != null && me.loud) { ownT -= dt; if (ownT <= 0) { ownT = .42f; world.Ripple(me.x, me.y, "own"); } }
-            clockT -= dt; if (clockT <= 0) { clockT = 1; Hear(1652, 182, 260, null, default, "clock"); }
-            if (me != null) me.noise += ((me.loud ? 1 : 0) - me.noise) * Mathf.Min(1, dt * 6);
-            var Un = G.unice;
-            if (G.ph == Phase.Hunt && me != null && !me.IsUnice && !me.outOfRound && Un != null && Un.x > 0)
-            {
-                float d = U.Dist(me, Un); heartI = d < Rules.HeartR ? 1 - d / Rules.HeartR : 0;
-                heartT -= dt;
-                if (heartI > 0 && heartT <= 0) { heartT = .42f + (1 - heartI) * .7f; beat = 1; sfx.Play("heart"); }
-            }
-            else heartI = 0;
-            if (G.ph == Phase.Hunt) { int s = Mathf.CeilToInt(G.tl); if (s <= 10 && s > 0 && s != tickS) { tickS = s; sfx.Play("tick"); } }
-        }
-
         // ---------- rooms ----------
-        /// <summary>The host is whoever sends the freshest snapshot with the highest epoch (ties: who joined first).</summary>
-        public PeerInfo FindHost()
-        {
-            if (!Online) return null;
-            float now = Time.realtimeSinceStartup; PeerInfo h = null;
-            foreach (var p in net.Peers)
-            {
-                if (p.lastSnap == null || (!p.isMe && now - p.lastSnapAt > 4)) continue;
-                if (h == null || p.lastSnapEp > h.lastSnapEp || (p.lastSnapEp == h.lastSnapEp && Older(p, h))) h = p;
-            }
-            return h;
-        }
-        static bool Older(PeerInfo a, PeerInfo b) => a.pres.joinT < b.pres.joinT || (a.pres.joinT == b.pres.joinT && string.CompareOrdinal(a.id, b.id) < 0);
+        public PeerInfo FindHost() => Online ? HostElection.Find(net.Peers, Time.realtimeSinceStartup) : null;
 
         void ElectHost()
         {
@@ -476,8 +303,7 @@ namespace Unice
                 return;
             }
             if (h != null || lastS == null) return;
-            PeerInfo oldest = null; float now = Time.realtimeSinceStartup;
-            foreach (var p in net.Peers) if ((p.isMe || (p.pres.name != null && now - p.presAt < 4)) && (oldest == null || Older(p, oldest))) oldest = p;
+            var oldest = HostElection.Oldest(net.Peers, Time.realtimeSinceStartup);
             if (oldest != null && oldest.isMe) G.TakeOver(net.Peers, me, myName);
         }
 
@@ -488,7 +314,7 @@ namespace Unice
             lastApplied = h.lastSnap;
             try { me = G.ApplySnapshot(h.lastSnap, myId, me); lastS = h.lastSnap; }
             catch (Exception x) { Metrics.Error(x, "snapshot"); return; }
-            HandleEvents();
+            events.Handle();
         }
 
         void Publish()
@@ -502,7 +328,7 @@ namespace Unice
 
         void ResetRoomState()
         {
-            code = ""; me = null; lastEv = -1; lastS = null; lastApplied = null; aSeq = 0; aType = Act.None; aArg = -1; rdy = false; paused = false;
+            code = ""; me = null; events.Reset(); lastS = null; lastApplied = null; aSeq = 0; aType = Act.None; aArg = -1; rdy = false; paused = false;
             G.ents.Clear(); G.isHost = false; G.evs.Clear(); G.aseq.Clear(); G.evSeq = 0; G.r = 0; G.unice = null; G.doll.holder = null; G.ph = Phase.Home;
             joinT = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }

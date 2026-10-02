@@ -145,9 +145,9 @@ namespace Unice
             if (cues.Count > 0 || cuesDrawn) { cuesEl.MarkDirtyRepaint(); cuesDrawn = cues.Count > 0; }
 
             // vignette: dim attract mode, red heartbeat when the Unice is near
-            app.beat = Mathf.Max(0, app.beat - dt * 2.5f);
+            app.sound.beat = Mathf.Max(0, app.sound.beat - dt * 2.5f);
             if (!inGame) { vignette.style.unityBackgroundImageTintColor = new Color(0, 0, 0, .88f); vignette.style.backgroundColor = new Color(0, 0, 0, .3f); Show(vignette, true); }
-            else if (app.heartI > 0 && live) { vignette.style.unityBackgroundImageTintColor = new Color(.886f, .29f, .32f, .18f + .4f * app.heartI * app.beat); vignette.style.backgroundColor = Color.clear; Show(vignette, true); }
+            else if (app.sound.heartI > 0 && live) { vignette.style.unityBackgroundImageTintColor = new Color(.886f, .29f, .32f, .18f + .4f * app.sound.heartI * app.sound.beat); vignette.style.backgroundColor = Color.clear; Show(vignette, true); }
             else Show(vignette, false);
             Show(slats, live && me != null && me.hidden != null);
 
