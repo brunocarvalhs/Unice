@@ -115,6 +115,7 @@ namespace Unice
             LL(on, "menu.or_join", "menu-or");
             var jr = E(on, "row");
             codeIn = new TextField { maxLength = 10 }; codeIn.AddToClassList("mfield"); codeIn.AddToClassList("grow"); jr.Add(codeIn);
+            codeIn.RegisterValueChangedCallback(e => { var c = U.CleanCode(e.newValue); if (c != e.newValue) codeIn.SetValueWithoutNotify(c); });   // codes are A-Z/0-9: show them that way while typing
             joinBtn = BB(jr, "menu.join", JoinFromInput, "mbtn", "mbtn-join");
             netLbl = L(on, "", "mnote", "mnet");
             BB(on, "menu.back", () => Page("main"), "mbtn", "mbtn-back");
@@ -849,7 +850,7 @@ namespace Unice
         public void Frame(float dt, Camera cam)
         {
             var panel = root.panel; if (panel == null) return;
-            ApplySafeArea();
+            ApplySafeArea(); LiftForKeyboard();
             float H = root.layout.height, W = root.layout.width; if (float.IsNaN(H) || H < 1) return;
             float pxPerHouse = H / (cam.orthographicSize * 2 * Art.PxPerUnit);
             Vector2 ToPanel(float x, float y) => RuntimePanelUtils.CameraTransformWorldToPanel(panel, Art.W(x, y), cam);
@@ -929,6 +930,20 @@ namespace Unice
         }
         bool cuesDrawn;
         static readonly Vector2[] PrevDirs = { new Vector2(.01f, 1), new Vector2(1, .2f), new Vector2(.01f, -1), new Vector2(-1, .2f) };
+
+        /// <summary>Mobile: the on-screen keyboard covers the lower half of the menu, so slide it up until the field being typed in is visible.</summary>
+        void LiftForKeyboard()
+        {
+            float lift = 0;
+            if (Typing && TouchScreenKeyboard.visible && root.panel.focusController.focusedElement is VisualElement f && Screen.height > 0)
+            {
+                float k = root.layout.height / Screen.height, kb = TouchScreenKeyboard.area.height;
+                if (kb < 1) kb = Screen.height * .5f;   // some Android keyboards don't report their size
+                float kbTop = root.layout.height - kb * k - 16, fieldBottom = f.worldBound.yMax - home.resolvedStyle.translate.y;
+                lift = Mathf.Max(0, fieldBottom - kbTop);
+            }
+            if (home.resolvedStyle.translate.y != -lift) home.style.translate = new Translate(0, -lift);
+        }
 
         void ApplySafeArea()
         {
