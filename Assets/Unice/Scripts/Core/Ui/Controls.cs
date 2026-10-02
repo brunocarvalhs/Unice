@@ -1,21 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Unice.UiKit;
 
 namespace Unice
 {
-    public sealed partial class Ui
+    /// <summary>Touch controls (joystick on the left, round action buttons on the right) and the key hints prompt for the current situation.</summary>
+    sealed class Controls : UiPart
     {
-        // ---------- touch ----------
+        public readonly VisualElement Root;
         VisualElement joyZone, joyBase, joyKnob, actE, actQ, actS, actR;
         public Vector2 Joy { get; private set; }
         public bool SneakOn { get; private set; }
         int joyPointer = -1; Vector2 joyCenter;
 
-        void BuildTouch()
+        public Controls(Ui ui) : base(ui)
         {
+            Root = Ig(E(ui.safe, "layer"));
+            var touch = Root;
             joyZone = E(touch); joyZone.style.position = Position.Absolute; joyZone.style.left = 0; joyZone.style.bottom = 0;
             joyZone.style.width = Length.Percent(45); joyZone.style.height = Length.Percent(70);
             joyBase = Ig(E(joyZone, "joy")); joyKnob = Ig(E(joyBase, "joy-knob"));
@@ -41,6 +44,44 @@ namespace Unice
             actEIcon = actE.Q(className: "act-icon");
             actEIcon.generateVisualContent = mgc => DrawIcon(mgc, actEIconKind, actE.resolvedStyle.color);
             ResetJoy();
+        }
+
+        public void ResetSneak() { SneakOn = false; actS.EnableInClassList("act-on", false); }
+
+        public void UpdatePrompt()
+        {
+            var p = app.me; var parts = new List<string>(); string eLbl = null; bool qShow = false, qOk = false, rShow = false, rOk = false;
+            string K(string key) => ui.mobile ? "" : $"<b>{key}</b> ";
+            bool active = p != null && G.Live && !p.outOfRound;
+            if (active)
+            {
+                if (p.IsUnice) { if (G.ph == Phase.Hunt && p.stun <= 0) { var s = Game.NearSpotFurn(p); if (s != null) { parts.Add($"{K("E")}{Loc.T("prompt.look", Loc.Spot(s))}"); eLbl = "prompt.look_short"; } } }
+                else
+                {
+                    if (p.hidden != null) { parts.Add($"{K("E")}{Loc.T("prompt.exit_hide")}"); eLbl = "prompt.exit_short"; }
+                    else
+                    {
+                        var s = Game.NearSpotFurn(p);
+                        if (s != null) { if (s.occ != null) parts.Add(Loc.T("prompt.occupied", s.occ.name, Loc.Spot(s))); else { parts.Add($"{K("E")}{Loc.T("prompt.hide", Loc.Spot(s))}"); eLbl = "prompt.hide_short"; } }
+                    }
+                    if (G.doll.holder == p)
+                    {
+                        qShow = true; var m = G.PassTarget(p);
+                        if (m != null) { qOk = p.passCd <= 0; parts.Add(p.passCd > 0 ? Loc.T("prompt.pass_in", Mathf.CeilToInt(p.passCd)) : $"{K("Q")}{Loc.T("prompt.pass_to", m.name)}"); }
+                    }
+                    rShow = true; rOk = p.laughCd <= 0;
+                    parts.Add(p.laughCd > 0 ? Loc.T("prompt.laugh_in", Mathf.CeilToInt(p.laughCd)) : $"{K("R")}{Loc.T("prompt.laugh")}");
+                }
+            }
+            string txt = string.Join("    ", parts);
+            ui.overlay.SetPrompt(txt);
+            if (!ui.mobile) return;
+            Show(actE, active); Show(actQ, qShow); Show(actR, rShow); Show(actS, active && !p.IsUnice);
+            if (active)
+            {
+                SetActEIcon(p.IsUnice ? "eye" : "door");
+                actE.style.opacity = eLbl != null ? 1 : .45f; actQ.style.opacity = qOk ? 1 : .45f; actR.style.opacity = rOk ? 1 : .45f;
+            }
         }
 
         /// <summary>A round touch button drawn as a simple vector icon (language-neutral) instead of text.</summary>

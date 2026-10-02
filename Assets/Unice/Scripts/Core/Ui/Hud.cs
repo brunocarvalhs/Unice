@@ -3,18 +3,26 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Unice.UiKit;
 
 namespace Unice
 {
-    public sealed partial class Ui
+    /// <summary>In-game HUD: round/clock card, role card with the doll's giggle meter and noise, the house plan and player list.</summary>
+    sealed class Hud : UiPart
     {
-        // ---------- HUD ----------
+        public readonly VisualElement Root;
+
+        /// <summary>Every 0.2 s while playing.</summary>
+        public void Tick() { UpdateHud(); mini.MarkDirtyRepaint(); }
+        public void Invalidate() => plSig = null;
+
         Label hRound, hClock, hPhase, hWhere, hRoom, hRole, hGoal, hDollWho, hDollNote, hNoiseTxt;
         VisualElement roleCard, gigWrap, gigFill, noiseBox, noiseFill, plist, plRows, mini;
         string plSig;
 
-        void BuildHud()
+        public Hud(Ui ui) : base(ui)
         {
+            Root = Ig(E(ui.safe, "layer")); var hud = Root;
             var tl = E(hud, "hud-card", "hud-tl"); Ig(tl);
             var rr = E(tl, "row"); LL(rr, "hud.round", "hud-lbl"); hRound = L(rr, "", "hud-lbl");
             hClock = L(tl, "0:30", "clock"); hPhase = L(tl, "", "phase"); hWhere = L(tl, "", "where"); hRoom = L(tl, "", "roomline");
@@ -131,19 +139,19 @@ namespace Unice
             foreach (var f in Map.Furniture) Box(f.x, f.y, f.w, f.h, new Color32(109, 74, 51, 255));
             if (!G.Live) return;
             var me = app.me; float t = Time.unscaledTime;
-            if (me != null && me.IsUnice) { if (G.doll.hasLast && G.t - G.doll.lastT < 14) Dot(G.doll.lastX, G.doll.lastY, 40 + Mathf.Sin(t * 6) * 10, null, Rose); }
+            if (me != null && me.IsUnice) { if (G.doll.hasLast && G.t - G.doll.lastT < 14) Dot(G.doll.lastX, G.doll.lastY, 40 + Mathf.Sin(t * 6) * 10, null, Ui.Rose); }
             else if (me == null || me.outOfRound || me.hidden == null)
                 foreach (var e in G.ents)
                 {
                     if (e.IsUnice || e.outOfRound || e == me || e.x <= 0) continue;
                     var kc = Art.Hex(Kit.OutfitColor(e.k));
                     Dot(e.x, e.y, 22, e.hidden != null ? (Color?)null : kc, e.hidden != null ? kc : (Color?)null);
-                    if (e == G.doll.holder) Dot(e.x, e.y, 42, null, Rose);
+                    if (e == G.doll.holder) Dot(e.x, e.y, 42, null, Ui.Rose);
                 }
             if (me != null && !me.outOfRound && me.x > 0)
             {
-                Dot(me.x, me.y, 28, me.IsUnice ? (Color)new Color32(221, 214, 223, 255) : Color.white, me.IsUnice ? Rose : Art.Hex(Kit.OutfitColor(me.k)));
-                if (!me.IsUnice && G.doll.holder == me) Dot(me.x, me.y, 46, null, Rose);
+                Dot(me.x, me.y, 28, me.IsUnice ? (Color)new Color32(221, 214, 223, 255) : Color.white, me.IsUnice ? Ui.Rose : Art.Hex(Kit.OutfitColor(me.k)));
+                if (!me.IsUnice && G.doll.holder == me) Dot(me.x, me.y, 46, null, Ui.Rose);
             }
         }
     }

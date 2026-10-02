@@ -1,26 +1,34 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Unice.UiKit;
 
 namespace Unice
 {
-    public sealed partial class Ui
+    /// <summary>End of a round and end of the match: full screen, no scrolling.</summary>
+    sealed class ResultScreen : UiPart
     {
-        // ---------- result / final (full screen, no scrolling) ----------
-        VisualElement resultOv, resHead, resCards, resSide; Label nextIn; Button againBtn; Label waitHost;
+        public readonly VisualElement Root;
+        readonly VisualElement resHead, resCards, resSide; Label nextIn; Button againBtn; Label waitHost;
 
-        void BuildResult()
+        public ResultScreen(Ui ui) : base(ui)
         {
-            resultOv = E(root, "lobby", "result");
-            resHead = E(resultOv, "res-head");
-            var body = E(resultOv, "lobby-body");
+            Root = E(ui.root, "lobby", "result");
+            resHead = E(Root, "res-head");
+            var body = E(Root, "lobby-body");
             resCards = E(body, "lobby-players");
             resSide = E(body, "mpanel", "lobby-side");
         }
 
-        void RenderResult(bool final)
+        /// <summary>Per step: the countdown to the next round, or who can start a new match.</summary>
+        public void Sync(bool final)
+        {
+            if (!final && nextIn != null) Txt(nextIn, Mathf.Max(0, Mathf.CeilToInt(G.tl)).ToString());
+            if (final && againBtn != null) { Show(againBtn, G.isHost); Show(waitHost, !G.isHost); }
+        }
+
+        public void Render(bool final)
         {
             resHead.Clear(); resCards.Clear(); resSide.Clear(); nextIn = null; againBtn = null; waitHost = null;
             var res = G.res ?? new[] { 0, -1, -1, -1 };
@@ -70,31 +78,6 @@ namespace Unice
                 L(card, e.name + (e.bot ? Loc.T("res.bot_tag") : ""), "pcard-name");
                 L(card, e.score.ToString(), "pcard-pts");
             }
-        }
-
-        // ---------- pause / menu ----------
-        VisualElement pauseOv; Label pauseTitle, pauseNote; Button pauseSound, pauseMic, pauseWhisper, pauseLeave;
-
-        void BuildPause()
-        {
-            var sh = Sheet(root, out pauseOv);
-            pauseTitle = L(sh, "", "title", "title-md");
-            pauseNote = L(sh, "", "muted");
-            BB(sh, "pause.continue", () => app.TogglePause(), "btn", "gap");
-            var r = E(sh, "row", "gap", "wrap");
-            pauseSound = B(r, "", ToggleSound, "btn", "btn-ghost");
-            pauseMic = B(r, "", ToggleMic, "btn", "btn-ghost");
-            pauseWhisper = B(r, "", ToggleWhisper, "btn", "btn-ghost");
-            pauseLeave = B(sh, "", () => app.LeaveRoom(), "btn", "btn-link", "gap");
-            Show(pauseOv, false);
-        }
-
-        public void ShowPause(bool on, bool online)
-        {
-            Show(pauseOv, on);
-            pauseTitle.text = Loc.T(online ? "pause.online_title" : "pause.title");
-            pauseNote.text = Loc.T(online ? "pause.note_online" : "pause.note_local");
-            pauseLeave.text = Loc.T(online ? "res.leave_room" : "pause.leave_match");
         }
     }
 }

@@ -3,31 +3,33 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Unice.UiKit;
 
 namespace Unice
 {
-    public sealed partial class Ui
+    /// <summary>The waiting room (full screen, made for a phone on its side): players, match options for the host, appearance.</summary>
+    sealed class LobbyScreen : UiPart
     {
-        // ---------- waiting room (full screen, made for a phone on its side) ----------
-        VisualElement wait, wList, hostOpts, opts, sidePartida, sideAparencia; VisualElement sideTabPartida, sideTabAparencia;
+        public readonly VisualElement Root;
+        VisualElement wList, hostOpts, sidePartida, sideAparencia, sideTabPartida, sideTabAparencia;
         Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal, hideVal, huntVal, giggleVal, mapVal;
-        Button copyBtn, actBtn, leave2, waitMic, waitWhisper; Doll preview; string wSig, sideTab = "tab.match"; bool lobbyHost, waitCanGo;
+        Button copyBtn, actBtn, leave2; string wSig, sideTab = "tab.match"; bool lobbyHost, waitCanGo;
         static readonly int[] RoundChoices = { 3, 5, 7 };
         // Quintal/praça are a work in progress (flat-tint placeholder art) — only selectable in the Editor or a dev build.
         static readonly string[] PlayableMapIds = Debug.isDebugBuild ? Maps.AllIds : new[] { MapHouse.Id };
 
-        void BuildWait()
+        public LobbyScreen(Ui ui) : base(ui)
         {
-            wait = E(root, "lobby");
-            var top = E(wait, "lobby-top");
+            Root = E(ui.root, "lobby");
+            var top = E(Root, "lobby-top");
             leave2 = B(top, "", () => app.LeaveRoom(), "mbtn", "mbtn-top");
             var head = E(top, "lobby-head");
             wTitle = L(head, "", "lobby-title"); wCode = L(head, "", "lobby-code");
             copyBtn = BB(head, "lobby.copy_code", CopyCode, "mpill");
-            waitMic = B(top, "", ToggleMic, "mpill");
-            waitWhisper = B(top, "", ToggleWhisper, "mpill");
+            ui.MicBtn(top, "mpill");
+            ui.WhisperBtn(top, "mpill");
             wCount = L(top, "", "lobby-count");
-            var body = E(wait, "lobby-body");
+            var body = E(Root, "lobby-body");
             wList = E(body, "lobby-players");
             var side = E(body, "mpanel", "lobby-side");
             var sideTabs = E(side, "tabbar");
@@ -54,16 +56,21 @@ namespace Unice
                 if (!waitCanGo) return;
                 app.StartMatch(Math.Min(G.bots, Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count)), G.rounds);
             }, "mbtn", "mbtn-go");
-            wNote = L(wait, "", "lobby-note");
+            wNote = L(Root, "", "lobby-note");
             RefreshSideTab();
         }
+
+        /// <summary>Forces the next <see cref="Render"/> to rebuild (it skips when nothing it shows changed).</summary>
+        public void Invalidate() => wSig = null;
+
+        public void OnShow(string was) { if (was == "final") app.rdy = false; wSig = null; }
 
         void RefreshSideTab()
         {
             Show(sidePartida, sideTab == "tab.match"); Show(sideAparencia, sideTab == "tab.appearance");
             sideTabPartida.EnableInClassList("tabbtn-on", sideTab == "tab.match");
             sideTabAparencia.EnableInClassList("tabbtn-on", sideTab == "tab.appearance");
-            if (sideTab == "tab.appearance" && custom.parent != sideAparencia) { sideAparencia.Add(custom); RenderOpts(); }
+            if (sideTab == "tab.appearance") ui.kid.ShowIn(sideAparencia);
         }
 
         Label Stepper(VisualElement p, string labelKey, Action<int> change)
@@ -83,66 +90,7 @@ namespace Unice
             copyBtn.schedule.Execute(() => copyBtn.text = Loc.T("lobby.copy_code")).ExecuteLater(1800);
         }
 
-        static readonly (string labelKey, int slot, string[] list, bool color, string tabKey)[] OptRows =
-        {
-            ("opt.skin", 0, Kit.Skins, true, "tab.color"), ("opt.haircolor", 2, Kit.HairColors, true, "tab.color"), ("opt.outfitcolor", 4, Kit.OutfitColors, true, "tab.color"),
-            ("opt.hair", 1, Kit.Hairs, false, "tab.hair"), ("opt.outfit", 3, Kit.Outfits, false, "tab.outfit"),
-            ("opt.hat", 5, Kit.Hats, false, "tab.hat"), ("opt.accessory", 6, Kit.Accessories, false, "tab.accessory")
-        };
-        static readonly string[] OptTabs = { "tab.color", "tab.hair", "tab.outfit", "tab.hat", "tab.accessory" };
-        readonly List<(int slot, int v, VisualElement el)> swatches = new List<(int, int, VisualElement)>();
-        readonly Dictionary<int, Label> cycleVals = new Dictionary<int, Label>();
-        readonly List<(string tab, VisualElement el)> optRowEls = new List<(string, VisualElement)>();
-        readonly Dictionary<string, VisualElement> optTabBtns = new Dictionary<string, VisualElement>();
-        string optTab = OptTabs[0];
-
-        void BuildOpts()
-        {
-            var tabBar = E(opts, "tabbar");
-            foreach (var tk in OptTabs)
-            {
-                var btn = B(tabBar, "", () => { optTab = tk; RenderOpts(); }, "tabbtn");
-                relocalize.Add(() => btn.text = Loc.T(tk).ToUpperInvariant());
-                optTabBtns[tk] = btn;
-            }
-            var rows = E(opts);
-            foreach (var (labelKey, slot, list, color, tab) in OptRows)
-            {
-                var row = E(rows, "opt");
-                LL(row, labelKey, "opt-l");
-                if (color)
-                {
-                    var sws = E(row, "sws");
-                    for (int j = 0; j < list.Length; j++)
-                    {
-                        int v = j;
-                        var b = B(sws, "", () => { var k = (int[])app.kit.Clone(); k[slot] = v; app.SetKit(k); RenderOpts(); wSig = null; }, "sw");
-                        b.style.backgroundColor = Art.Hex(list[j]);
-                        swatches.Add((slot, j, b));
-                    }
-                }
-                else
-                {
-                    var cy = E(row, "cy");
-                    void Cycle(int d) { var k = (int[])app.kit.Clone(); k[slot] = (k[slot] + d + Kit.Max[slot]) % Kit.Max[slot]; app.SetKit(k); RenderOpts(); wSig = null; }
-                    B(cy, "‹", () => Cycle(-1), "cy-btn");
-                    cycleVals[slot] = L(cy, "", "cy-val");
-                    B(cy, "›", () => Cycle(1), "cy-btn");
-                }
-                optRowEls.Add((tab, row));
-            }
-            RenderOpts();
-        }
-
-        void RenderOpts()
-        {
-            foreach (var (slot, v, el) in swatches) el.EnableInClassList("sw-on", app.kit[slot] == v);
-            foreach (var (labelKey, slot, list, color, tab) in OptRows) if (!color) cycleVals[slot].text = Loc.KitOpt(slot, app.kit[slot]);
-            foreach (var (tab, el) in optRowEls) Show(el, tab == optTab);
-            foreach (var kv in optTabBtns) kv.Value.EnableInClassList("tabbtn-on", kv.Key == optTab);
-        }
-
-        void RenderWait()
+        public void Render()
         {
             var hs = app.LobbyHumans(); var host = app.Online ? app.FindHost() : null; string hostId = host != null ? host.id : app.Online ? null : app.myId;
             int maxBots = Math.Max(0, Rules.MaxPlayers - hs.Count), bots = Math.Min(G.bots, maxBots);

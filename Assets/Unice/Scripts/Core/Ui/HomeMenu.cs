@@ -3,18 +3,20 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
+using static Unice.UiKit;
 
 namespace Unice
 {
-    public sealed partial class Ui
+    /// <summary>The main menu over the house map: main page, online (create/join a room), how to play, my child.</summary>
+    sealed class HomeMenu : UiPart
     {
-        // ---------- main menu (over the house map) ----------
-        VisualElement home, menuMain, menuOnline, menuHelp, menuKid, kidSlot, custom; TextField nameIn, codeIn; Label netLbl;
-        Button createBtn, joinBtn, soundBtn, micBtn, whisperBtn, langBtn, localBtn, onlineBtn; string page = "main";
+        public readonly VisualElement Root;
+        readonly VisualElement home, menuMain, menuOnline, menuHelp, menuKid, kidSlot; readonly TextField codeIn; readonly Label netLbl;
+        readonly Button createBtn, joinBtn, localBtn, onlineBtn; string page = "main";
 
-        void BuildHome()
+        public HomeMenu(Ui ui) : base(ui)
         {
-            home = E(root, "menu");
+            Root = home = E(ui.root, "menu");
             L(home, "v" + Application.version, "menu-version");
 
             menuMain = E(home, "menu-page");
@@ -58,16 +60,26 @@ namespace Unice
             var ks = new ScrollView(ScrollViewMode.Vertical); ks.AddToClassList("mscroll"); kp.Add(ks);
             kidSlot = E(ks, "mkid");
             BB(kp, "menu.ready", () => Page("main"), "mbtn", "mbtn-back");
-            custom = BuildCustom();
-
+            
             var foot = E(home, "menu-foot");
-            soundBtn = B(foot, "", ToggleSound, "mpill");
-            micBtn = B(foot, "", ToggleMic, "mpill");
-            whisperBtn = B(foot, "", ToggleWhisper, "mpill");
-            langBtn = B(foot, "", CycleLang, "mpill");
+            ui.SoundBtn(foot, "mpill"); ui.MicBtn(foot, "mpill"); ui.WhisperBtn(foot, "mpill"); ui.LangBtn(foot, "mpill");
             BB(home, "menu.quit", () => Application.Quit(), "mbtn", "mexit");
             Page("main");
         }
+
+        /// <summary>Each time home appears: back to the main page, or to "online" if there's a connection error to read.</summary>
+        public void OnShow() => Page(app.netErr && app.netText.Length > 0 ? "online" : "main");
+
+        /// <summary>Per step: buttons follow the connection state.</summary>
+        public void Sync()
+        {
+            bool ok = app.NetAvailable && !app.busy;
+            createBtn.SetEnabled(ok); joinBtn.SetEnabled(ok); localBtn.SetEnabled(!app.busy); onlineBtn.SetEnabled(!app.busy);
+            Txt(netLbl, app.netText.Length > 0 ? app.netText : Loc.T(app.NetAvailable ? "menu.net_ready" : "menu.net_unavailable"));
+            netLbl.EnableInClassList("net-err", app.netErr && app.netText.Length > 0);
+        }
+
+        public void Frame() { if (page == "kid") ui.kid.AnimatePreview(); }
 
         VisualElement Panel(out VisualElement page, string titleKey)
         {
@@ -81,28 +93,11 @@ namespace Unice
         {
             page = p;
             Show(menuMain, p == "main"); Show(menuOnline, p == "online"); Show(menuHelp, p == "help"); Show(menuKid, p == "kid");
-            if (p == "kid") { kidSlot.Add(custom); RenderOpts(); }
+            if (p == "kid") ui.kid.ShowIn(kidSlot);
         }
 
         /// <summary>Back button on the menu: sub-pages go back to the main page. False when already there.</summary>
-        public bool MenuBack() { if (screen != "home" || page == "main") return false; Page("main"); return true; }
-
-        /// <summary>Name, preview and look options. Lives in the waiting room or in "Minha criança".</summary>
-        VisualElement BuildCustom()
-        {
-            var c = new VisualElement();
-            LL(c, "lbl.name", "lbl");
-            nameIn = Field(c, app.myName, 12);
-            nameIn.RegisterValueChangedCallback(e => { app.myName = U.CleanName(e.newValue); app.SaveProfile(); });
-            LL(c, "lbl.kid", "lbl").style.marginTop = 10;
-            var pr = E(c, "row");
-            var pv = E(pr, "preview"); pv.style.alignItems = Align.Center; pv.style.justifyContent = Justify.Center;
-            preview = new Doll(100); pv.Add(preview);
-            BB(pr, "menu.randomize", () => { app.SetKit(Kit.Random()); RenderOpts(); wSig = null; }, "btn", "btn-ghost");
-            opts = E(c); opts.style.marginTop = 10;
-            BuildOpts();
-            return c;
-        }
+        public bool Back() { if (ui.screen != "home" || page == "main") return false; Page("main"); return true; }
 
         void JoinFromInput()
         {
@@ -111,28 +106,18 @@ namespace Unice
             app.EnterRoom(false, c);
         }
 
-        void ToggleSound() { app.sfx.On = !app.sfx.On; RefreshToggleBtns(); }
-
-        /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden.</summary>
-        void ToggleMic() { app.MicOn = !app.MicOn; RefreshToggleBtns(); }
-
-        /// <summary>Personal choice: "whisper" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
-        void ToggleWhisper() { app.Whisper = !app.Whisper; RefreshToggleBtns(); }
-
-        void CycleLang() { Loc.Set((Lang)(((int)Loc.Current + 1) % 3)); Relocalize(); }
-
-        /// <summary>Re-applies every toggle/language button's text, in every screen it appears, from current state.</summary>
-        void RefreshToggleBtns()
+        /// <summary>Mobile: the on-screen keyboard covers the lower half of the menu, so slide it up until the field being typed in is visible.</summary>
+        public void LiftForKeyboard()
         {
-            string snd = Loc.T(app.sfx.On ? "menu.sound_on" : "menu.sound_off");
-            soundBtn.text = snd; pauseSound.text = snd;
-            string mic = Loc.T(app.MicOn ? "menu.mic_on" : "menu.mic_off");
-            micBtn.text = mic; pauseMic.text = mic; waitMic.text = mic;
-            string t = Loc.T(app.Whisper ? "menu.voice_whisper" : "menu.voice_normal");
-            whisperBtn.text = t; whisperBtn.SetEnabled(app.MicOn);
-            waitWhisper.text = t; waitWhisper.SetEnabled(app.MicOn);
-            pauseWhisper.text = t; pauseWhisper.SetEnabled(app.MicOn);
-            langBtn.text = $"{Loc.T("menu.lang_prefix")}: {Loc.Current.ToString().ToUpperInvariant()}";
+            float lift = 0;
+            if (ui.Typing && TouchScreenKeyboard.visible && ui.root.panel.focusController.focusedElement is VisualElement f && Screen.height > 0)
+            {
+                float k = ui.root.layout.height / Screen.height, kb = TouchScreenKeyboard.area.height;
+                if (kb < 1) kb = Screen.height * .5f;   // some Android keyboards don't report their size
+                float kbTop = ui.root.layout.height - kb * k - 16, fieldBottom = f.worldBound.yMax - home.resolvedStyle.translate.y;
+                lift = Mathf.Max(0, fieldBottom - kbTop);
+            }
+            if (home.resolvedStyle.translate.y != -lift) home.style.translate = new Translate(0, -lift);
         }
     }
 }
