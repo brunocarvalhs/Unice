@@ -1,14 +1,24 @@
 # Spec: Unice (projeto)
 
 ## Objective
-Jogo mobile multiplayer de "esconde-esconde" (host-autoritativo): até 8 jogadores entram numa sala, metade se esconde e um deles é sorteado "Unice" (o caçador) na fase de caça. Fluxo: Home → Lobby → Hide → Hunt → Result → Final, repetindo por `rounds` rodadas. Port 1:1 da versão web — mesmas regras, mesmo ritmo (`Game.cs` é comentado como "straight port of the web version so both play the same").
+Jogo mobile multiplayer de "esconde-esconde" (host-autoritativo): até 8 jogadores (humanos e bots) entram numa sala; um deles é sorteado "Unice" (a caçadora) e os outros se escondem, com uma boneca amaldiçoada que dá risadinhas e entrega quem a carrega. Fluxo: Home → Lobby → Hide → Hunt → Result → Final, repetindo por `totalRounds` rodadas. Port 1:1 da versão web — mesmas regras, mesmo ritmo (`Domain/Match/Game.cs`).
+
+### Regras principais
+Valores em `Domain/Match/Rules.cs` (o host pode mudar tempo de esconder, de caça e intervalo da risadinha na sala de espera).
+- **Rodada:** fase de esconder (30 s, a Unice espera do lado de fora de olhos fechados) e fase de caça (120 s, a Unice entra pela porta da frente).
+- **Boneca:** sorteada para um escondido no início da rodada. Na fase de caça, enquanto quem a carrega está escondido, ela dá uma risadinha a cada 10 s e a Unice ouve onde foi. Quem a carrega pode passá-la para outro escondido a até 60 px (espera de 5 s entre passes).
+- **Rir de propósito (R):** qualquer escondido pode rir, **com ou sem a boneca** — mas nem sempre: só durante a rodada, nunca a Unice nem quem já foi pego, e com 5 s de espera entre uma risada e outra. A Unice ouve a risada igual à risadinha da boneca (entrega a posição); se quem riu está com a boneca, o contador da próxima risadinha recomeça.
+- **Captura:** a Unice pega quem ela encosta (30 px) ou abre o esconderijo onde a pessoa está. Pegou quem tinha a boneca → a Unice vence a rodada (+3). Pegou outra pessoa → ela sai da rodada (Unice +1) e a Unice fica 2,5 s parada.
+- **Tempo esgotado:** o time vence — cada escondido +2, quem terminou com a boneca +1.
+- **Próxima Unice:** quem foi pego com a boneca; se o tempo acabou, quem foi Unice menos vezes. Com 2+ pessoas na sala, só pessoas são sorteadas (bots não).
 
 Sucesso = paridade de regras com a versão web, build Android estável via CI, e baixa latência percebida no sync de posição/estado entre host e peers.
 
 ## Tech Stack
 - Unity **6000.6.3f1**, C#, Universal Render Pipeline 17.6.0
 - Netcode for GameObjects 2.13.3 + Unity Services Multiplayer 2.3.3 (transporte/relay)
-- Firebase (Crashlytics, Analytics, App Check) — integração em andamento (ver `git status`: dependências Android ainda não commitadas)
+- Firebase 13.17: Analytics (GA4) e Crashlytics integrados via `Core/Analytics/Metrics.cs` (catálogo de eventos em `docs/ANALYTICS.md`); App Check instalado, não usado no código
+- Vivox (Unity Services) para voz por proximidade — opcional, o jogo funciona sem
 - Unity Input System 1.20.0
 - Plataforma alvo: Android (prioridade); demais plataformas não configuradas no CI hoje
 
@@ -20,7 +30,7 @@ Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos rea
 - **Release (Google Play):** `.github/workflows/release.yml`
 - **Versionamento (tags):** `.github/workflows/version.yml`
 - **Local:** abrir o projeto no Unity Editor `6000.6.3f1`, abrir a cena principal, Play ou `File > Build Settings` para Android.
-- **Testes:** nenhum automatizado hoje — ver Testing Strategy.
+- **Testes:** `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml` (ou Test Runner no Editor). No CI, rodam no `pulls.yml` com cobertura — ver Testing Strategy.
 
 ## Project Structure
 ```
@@ -83,17 +93,18 @@ Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda)
 - UI, rede e áudio não têm teste automatizado: verificar manualmente (Home→Lobby→Hide→Hunt→Result→Final; sala online com dois aparelhos).
 
 ## Boundaries
-- **Sempre fazer:** manter paridade com a versão web ao tocar em `Game.cs`/`Rules`; validar build Android (CI) antes de merge; manter convenção de nomes compactos do Core.
+- **Sempre fazer:** manter paridade com a versão web ao tocar em `Game.cs`/`Rules`/`Bots`; validar build Android (CI) antes de merge; seguir as convenções de Code Style (nomes descritivos, uma responsabilidade por classe, comentários); rodar os testes Edit Mode; atualizar `docs/ANALYTICS.md` ao mudar eventos e `docs/ARCHITECTURE_AUDIT.md`/Project Structure ao mudar a estrutura.
 - **Perguntar antes:** mudar versão do Unity ou de pacotes em `Packages/manifest.json`; alterar `ProjectSettings/` (ex.: `GvhProjectSettings.xml`, `ProjectSettings.asset`) fora do escopo pedido; mudar workflows de CI/CD; adicionar nova plataforma de build; mudar o backend de rede (`NgoBackend`/Unity Services Multiplayer).
-- **Nunca fazer:** commitar segredos/chaves do Firebase ou assinatura Android; editar `Library/`, `Temp/`, pastas geradas pelo Unity; remover testes (quando existirem) sem aprovação; quebrar o "straight port" das regras sem alinhar com a versão web primeiro.
+- **Nunca fazer:** commitar segredos/chaves do Firebase ou assinatura Android; editar `Library/`, `Temp/`, pastas geradas pelo Unity; remover testes sem aprovação; quebrar o "straight port" das regras sem alinhar com a versão web primeiro; mudar o formato do snapshot/presença sem subir a versão (`Game.SnapshotVersion` / `PresenceCodec.Version`).
 
 ## Success Criteria
 - Build Android gerado com sucesso pelos workflows `debug.yml`/`pulls.yml`/`release.yml`.
 - Fluxo completo de partida (Home→Lobby→Hide→Hunt→Result→Final) funcional em host e peers via `NgoBackend`.
-- Integração Firebase (Crashlytics/Analytics/App Check) ativa sem bloquear build Android.
+- Analytics e Crashlytics enviando dados de builds em aparelho, sem bloquear o jogo se o Firebase falhar.
+- Testes Edit Mode passando e cobertura do `Unice.Domain` ≥ 85%.
 - Nenhuma regressão de paridade de regras em relação à versão web.
 
 ## Open Questions
-1. O trabalho não commitado (Firebase Android deps, `app_BackUpThisFolder_ButDontShipItWithYourGame/`) faz parte do escopo deste spec ou é um módulo/spec separado?
-2. Vale investir em testes automatizados para `Game.cs`/`Rules` (lógica pura, fácil de testar) agora ou isso é deliberadamente fora de escopo por ora?
-3. Há plano para iOS, ou Android continua sendo a única plataforma alvo?
+1. Há plano para iOS, ou Android continua sendo a única plataforma alvo?
+2. O Firebase App Check (instalado) deve ser ativado?
+3. Vale investir num `INetBackend` falso para testar a troca de host em Edit Mode (hoje só manual)? Ver `docs/ARCHITECTURE_AUDIT.md`.

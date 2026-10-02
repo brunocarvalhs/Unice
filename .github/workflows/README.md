@@ -25,8 +25,8 @@ Este diretório reúne os workflows de CI/CD do projeto Unity.
 ### `pulls.yml`
 
 - roda em pull requests
-- executa testes do Unity em EditMode
-- publica artefatos de resultado e coverage
+- executa os testes do Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
+- publica artefatos de resultado e coverage (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
 
 ## Secrets necessários
 
