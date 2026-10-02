@@ -131,7 +131,7 @@ namespace Unice
                 var f = fx[i]; f.t += dt;
                 if (f.t >= f.life) { f.l.RemoveFromHierarchy(); fx.RemoveAt(i); continue; }
                 fx[i] = f;
-                bool vis = inGame && (f.global || app.Seen(f.x, f.y + 24));
+                bool vis = inGame && (f.global || app.pov.Seen(f.x, f.y + 24));
                 Show(f.l, vis); if (!vis) continue;
                 float k = f.t / f.life, sc = k < .15f ? .6f + k / .15f * .5f : 1.1f - .1f * Mathf.Min(1, (k - .15f) / .2f);
                 var pp = ToPanel(f.x, f.y - k * 24); f.l.style.left = pp.x; f.l.style.top = pp.y;
@@ -141,7 +141,7 @@ namespace Unice
 
             // sound cues around the player
             for (int i = cues.Count - 1; i >= 0; i--) { var q = cues[i]; q.t += dt; if (q.t >= q.life) cues.RemoveAt(i); else cues[i] = q; }
-            if (app.hasView) { cueCenter = ToPanel(app.view.x, app.view.y - 18); cueR = Mathf.Min(W, H) * .44f; }
+            if (app.pov.hasView) { cueCenter = ToPanel(app.pov.view.x, app.pov.view.y - 18); cueR = Mathf.Min(W, H) * .44f; }
             if (cues.Count > 0 || cuesDrawn) { cuesEl.MarkDirtyRepaint(); cuesDrawn = cues.Count > 0; }
 
             // vignette: dim attract mode, red heartbeat when the Unice is near

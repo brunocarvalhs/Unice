@@ -24,22 +24,29 @@ Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos rea
 
 ## Project Structure
 ```
-Assets/Unice/Scripts/Core/   → lógica central (gameplay, regras, UI, mapa, entidades)
-  App.cs        → orquestrador MonoBehaviour: dono do loop de device, input, câmera, som, tela
-  Game.cs       → estado e regras da partida, autoritativo quando host; fases/eventos/regras em Rules
-  Map.cs        → tilemap/geometria do mapa, spots de esconderijo (Furn)
-  Ui.cs         → telas e widgets de UI
-  WorldView.cs  → representação visual das entidades no mundo
-  Ent.cs        → entidade (jogador/bot) em jogo
-  FogView.cs    → fog of war / visão
-  Snapshot.cs   → serialização de estado para sync host→peers
-  Art.cs, Sfx.cs, Kit.cs, Util.cs → assets visuais, som, cosméticos, helpers
-Assets/Unice/Scripts/Net/    → camada de rede
-  Net.cs, NetPlayer.cs, NgoBackend.cs → abstração INetBackend sobre Netcode for GameObjects
-Assets/Unice/Scripts/Editor/ → utilitários de editor (incl. Net/Editor)
-Assets/Unice/Resources/      → UI (USS/uxml), Art, Fonts, config de rede
-ProjectSettings/, Packages/  → configuração Unity e dependências
-.github/workflows/           → CI/CD (debug, pulls, release, version) — doc em .github/workflows/README.md
+Assets/Unice/Scripts/Domain/  → regras puras, sem UnityEngine (assembly Unice.Domain, testado em Edit Mode)
+  Match/    → Game (regras; .Ai = bots; .Snapshot = estado serializado host→peers), Rules, GameEvent, Ent, Kit
+  Maps/     → Map (geometria, linha de visão), MapParts (Room/Door/Furn), definições de cada mapa
+  Online/   → portas de rede/voz (INetBackend, IVoiceChat), Presence/PeerInfo, HostElection
+  Common/   → Util (U, P)
+  Tests/    → testes Edit Mode do domínio
+Assets/Unice/Scripts/Core/    → adapters Unity (assembly Unice.Core)
+  App/          → App (MonoBehaviour: monta as peças e roda o loop), Perspective (o que o jogador vê), ProfileStore, SystemBars
+  Gameplay/     → PlayerControl (input e ações do jogador), EventFeed (eventos → banners/sons/efeitos)
+  Online/       → RoomSession (criar/entrar/sair de sala, eleição de host, presença e snapshots)
+  World/        → WorldView, FogView, CameraRig, Art
+  Audio/        → Sfx (síntese), Soundscape (o que o jogador ouve)
+  Localization/ → Loc (lógica) e Loc.Strings (tabela pt/en/es)
+  Analytics/    → Metrics (Google Analytics + Crashlytics via Firebase)
+  Ui/           → Ui (troca de telas e o que é compartilhado), UiKit/UiPart (base), Doll
+    Screens/    → HomeMenu, KidCustomizer, LobbyScreen, ResultScreen, PauseMenu
+    InGame/     → Hud, Overlay (mensagens e textos no mundo), Controls (toque e dicas de teclas)
+  Tests/        → testes Edit Mode do Core
+Assets/Unice/Scripts/Net/     → implementações Unity Services: NgoBackend (Netcode), VivoxVoice, NetPlayer
+Assets/Unice/Scripts/Editor/  → utilitários de editor (incl. Net/Editor)
+Assets/Unice/Resources/       → UI (USS/uxml), Art, Fonts, config de rede
+ProjectSettings/, Packages/   → configuração Unity e dependências
+.github/workflows/            → CI/CD (debug, pulls, release, version) — doc em .github/workflows/README.md
 ```
 
 ## Code Style

@@ -38,10 +38,10 @@ namespace Unice
                 {
                     var u = E(v.b); var h = E(v.c);
                     Metrics.Log("round_start", ("round", v.a), ("rounds", G.rounds), ("role", MyRole), ("online", app.Online), ("map", G.mapId));
-                    if (me == null) ui.Banner(Loc.T("ev.start.watch", v.a, app.NameUp(u)), "info", 3);
+                    if (me == null) ui.Banner(Loc.T("ev.start.watch", v.a, app.pov.NameUp(u)), "info", 3);
                     else if (me == u) ui.Banner(Loc.T("ev.start.you_unice"), "rose", 3.2f);
                     else if (me == h) ui.Banner(Loc.T("ev.start.you_holder"), "rose", 3.2f);
-                    else ui.Banner(Loc.T("ev.start.other", app.NameUp(u)), "candle", 3.2f);
+                    else ui.Banner(Loc.T("ev.start.other", app.pov.NameUp(u)), "candle", 3.2f);
                     break;
                 }
                 case EvType.Enter:
@@ -57,17 +57,17 @@ namespace Unice
                     if (me != null && me.IsUnice && G.Live) ui.Banner(Loc.T("ev.giggle.unice", Loc.RoomIn(r)), "rose", 2);
                     else if (laugher == me) ui.Banner(Loc.T(isHolder ? "ev.giggle.holder" : "ev.giggle.laughed"), "rose", 2.4f);
                     else if (isHolder) ui.Toast(Loc.T("ev.giggle.toast_doll", Loc.RoomIn(r)));
-                    else ui.Toast(Loc.T("ev.giggle.toast_who", app.NameUp(laugher), Loc.RoomIn(r)));
+                    else ui.Toast(Loc.T("ev.giggle.toast_who", app.pov.NameUp(laugher), Loc.RoomIn(r)));
                     break;
                 }
                 case EvType.Pass:
                 {
                     var A = E(v.a); var B = E(v.b); if (A == null || B == null) break;
                     app.sound.Hear(A.x, A.y, 220, Loc.T("ev.pass.sound"), Ui.Rose, "swish");
-                    if (app.TeamView || app.Seen(A.x, A.y)) ui.Fx((A.x + B.x) / 2, (A.y + B.y) / 2 - 26, Loc.T("ev.pass.fx"), Ui.Rose, 14, 1);
+                    if (app.pov.TeamView || app.pov.Seen(A.x, A.y)) ui.Fx((A.x + B.x) / 2, (A.y + B.y) / 2 - 26, Loc.T("ev.pass.fx"), Ui.Rose, 14, 1);
                     if (B == me) ui.Banner(Loc.T("ev.pass.you_got"), "rose", 2);
                     else if (A == me) ui.Banner(Loc.T("ev.pass.you_gave", B.name), "rose", 1.5f);
-                    else if (app.TeamView) ui.Toast(Loc.T("ev.pass.toast", A.name, B.name));
+                    else if (app.pov.TeamView) ui.Toast(Loc.T("ev.pass.toast", A.name, B.name));
                     break;
                 }
                 case EvType.Open:
@@ -75,7 +75,7 @@ namespace Unice
                     if (v.a < 0 || v.a >= Map.Spots.Length) break;
                     var s = Map.Spots[v.a];
                     app.sound.Hear(s.Cx, s.Cy, 450, Loc.T("ev.open.sound"), Ui.Candle, "creak");
-                    if (v.b == 0 && app.Seen(s.Cx, s.Cy)) ui.Fx(s.ax, s.ay - 24, Loc.T("ev.open.empty"), Ui.Muted, 14, 1);
+                    if (v.b == 0 && app.pov.Seen(s.Cx, s.Cy)) ui.Fx(s.ax, s.ay - 24, Loc.T("ev.open.empty"), Ui.Muted, 14, 1);
                     break;
                 }
                 case EvType.Catch:

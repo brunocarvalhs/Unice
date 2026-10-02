@@ -36,8 +36,8 @@ namespace Unice
             bool? won = me != null ? unWin == me.IsUnice : (bool?)null;
             string title = Loc.T(unWin ? (Un == me ? "res.doll_back_you" : "res.doll_back_unice") : (Un == me ? "res.timeout_unice" : "res.team_won"));
             var spot = res[2] >= 0 && res[2] < Map.Spots.Length ? Map.Spots[res[2]] : null;
-            string reason = who == null ? "" : unWin ? Loc.T("res.reason_won", app.NameUp(Un), app.NameOf(who), Loc.RoomIn(Map.RoomOf(who.x, who.y)))
-                                                     : Loc.T("res.reason_lost", app.NameOf(who), spot != null ? " " + Loc.Spot(spot) : "");
+            string reason = who == null ? "" : unWin ? Loc.T("res.reason_won", app.pov.NameUp(Un), app.pov.NameOf(who), Loc.RoomIn(Map.RoomOf(who.x, who.y)))
+                                                     : Loc.T("res.reason_lost", app.pov.NameOf(who), spot != null ? " " + Loc.Spot(spot) : "");
             if (final)
             {
                 int top = G.ents.Count > 0 ? G.ents.Max(e => e.score) : 0; var ws = G.ents.Where(e => e.score == top).ToList();
@@ -59,7 +59,7 @@ namespace Unice
                 L(resHead, reason, "res-reason");
                 Cards(me, null);
                 L(resSide, Loc.T("res.next_unice"), "mstep-l", "res-lbl");
-                var nu = E(resSide, "res-next"); var d = new Doll(46); d.SetUnice(); nu.Add(d); L(nu, app.NameUp(nx), "res-next-name");
+                var nu = E(resSide, "res-next"); var d = new Doll(46); d.SetUnice(); nu.Add(d); L(nu, app.pov.NameUp(nx), "res-next-name");
                 L(resSide, Loc.T(unWin ? "res.next_rule_won" : "res.next_rule_timeout"), "mnote", "lobby-status");
                 var nr = E(resSide, "res-count"); L(nr, Loc.T("res.next_in"), "mnote"); nextIn = L(nr, "", "res-count-n"); L(nr, Loc.T("res.seconds_suffix"), "mnote");
                 L(resSide, Loc.T("res.scoring_rules"), "res-rules");

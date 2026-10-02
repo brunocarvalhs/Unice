@@ -29,13 +29,13 @@ namespace Unice
         /// <summary>Plays a sound as heard from (x, y): quieter with distance, panned, muffled through walls. Returns the loudness.</summary>
         public float Hear(float x, float y, float radius, string label, Color col, string snd, float minG = 0)
         {
-            if (!app.hasView) return 0;
-            var me = app.me; var L = app.view; bool hid = me != null && me.hidden != null;
+            if (!app.pov.hasView) return 0;
+            var me = app.me; var L = app.pov.view; bool hid = me != null && me.hidden != null;
             float r = radius * (hid ? 1.3f : 1), d = U.Dist(x, y, L.x, L.y);
             float g = Mathf.Max(d >= r ? 0 : Mathf.Pow(1 - d / r, 2), minG);
             if (g <= .01f) return 0;
             app.sfx.Play(snd, g, Mathf.Clamp((x - L.x) / 300, -1, 1), d > 40 && !Map.SightLine(L.x, L.y, x, y));
-            if (label != null && me != null && !me.outOfRound && !app.Seen(x, y))
+            if (label != null && me != null && !me.outOfRound && !app.pov.Seen(x, y))
             {
                 app.ui.Cue(Mathf.Atan2(y - L.y, x - L.x), g, col);
                 if (hid) app.ui.Caption($"{label} · {(g > .45f ? Loc.T("app.close.near") : g > .15f ? Loc.T("app.close.mid") : Loc.T("app.close.far"))} · {Side(x - L.x, y - L.y)}");
@@ -52,7 +52,7 @@ namespace Unice
                 if (e == me || e.outOfRound || e.hidden != null || !e.moving || e.x < 0) continue;
                 stepT.TryGetValue(e.idx, out float st); st -= dt; stepT[e.idx] = st;
                 if (st > 0) continue;
-                if (e.IsUnice) { stepT[e.idx] = .45f; if (app.TeamView) Hear(e.x, e.y, 380, Loc.T("sound.cane"), Ui.Rose, "cane"); }
+                if (e.IsUnice) { stepT[e.idx] = .45f; if (app.pov.TeamView) Hear(e.x, e.y, 380, Loc.T("sound.cane"), Ui.Rose, "cane"); }
                 else if (e.loud)
                 {
                     stepT[e.idx] = .42f;

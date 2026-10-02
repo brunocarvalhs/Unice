@@ -51,7 +51,7 @@ namespace Unice
 
         void UpdateHud()
         {
-            var me = app.me; var Un = G.unice; var h = G.doll.holder; bool tv = app.TeamView, live = G.Live;
+            var me = app.me; var Un = G.unice; var h = G.doll.holder; bool tv = app.pov.TeamView, live = G.Live;
             Txt(hRound, $"{G.r}/{G.rounds}");
             Txt(hClock, U.Mmss(live ? G.tl : 0));
             hClock.EnableInClassList("clock-low", G.ph == Phase.Hunt && G.tl <= 15);
@@ -92,7 +92,7 @@ namespace Unice
             }
             if (plist.style.display == DisplayStyle.None) return;
             bool spectating = me == null || me.outOfRound;
-            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv + Loc.Current + spectating + app.spectTarget;
+            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv + Loc.Current + spectating + app.pov.spectTarget;
             if (sig == plSig) return; plSig = sig;
             var hostP = app.Online ? app.FindHost() : null; string hostId = hostP != null ? hostP.id : app.Online ? null : app.myId;
             plRows.Clear();
@@ -101,8 +101,8 @@ namespace Unice
                 string st = Loc.T(e.IsUnice ? "hud.st_unice" : e.outOfRound ? "hud.st_out" : tv ? (e.hidden != null ? "hud.st_hidden" : e.moving ? (e.sneak ? "hud.st_sneaking" : "hud.st_running") : "hud.st_still") : "hud.st_somewhere");
                 var row = E(plRows, "plrow"); if (e.outOfRound) row.AddToClassList("plout");
                 bool canWatch = spectating && !e.outOfRound;
-                bool watching = spectating && (app.spectTarget != null ? app.spectTarget == e.pid : e == h);
-                if (canWatch) { row.AddToClassList("plrow-pick"); row.RegisterCallback<PointerDownEvent>(_ => { app.spectTarget = e.pid; plSig = null; }); }
+                bool watching = spectating && (app.pov.spectTarget != null ? app.pov.spectTarget == e.pid : e == h);
+                if (canWatch) { row.AddToClassList("plrow-pick"); row.RegisterCallback<PointerDownEvent>(_ => { app.pov.spectTarget = e.pid; plSig = null; }); }
                 else row.pickingMode = PickingMode.Ignore;
                 row.EnableInClassList("plrow-on", watching);
                 var d = new Doll(24); if (e.IsUnice && live) d.SetUnice(); else d.Set(e.k); row.Add(d);
