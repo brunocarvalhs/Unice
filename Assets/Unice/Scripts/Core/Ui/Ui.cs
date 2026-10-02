@@ -6,163 +6,195 @@ using static Unice.UiKit;
 
 namespace Unice
 {
+    /// <summary>Which full screen is showing; follows <see cref="Game.phase"/>.</summary>
+    enum UiScreen { None, Home, Lobby, Game, Result, Final }
+
     /// <summary>
     /// Every screen and the in-game HUD, built in code with UI Toolkit (styles in Resources/UI/unice.uss).
     /// Same screens and texts as the web version, plus touch controls.
     /// This class only assembles the parts, switches screens and owns what several screens share
-    /// (sound/mic/whisper/language buttons, localization); each screen lives in its own class.
+    /// (localized text, the setting buttons); each screen and overlay lives in its own class.
     /// </summary>
     public sealed class Ui
     {
         public static readonly Color Rose = new Color32(239, 115, 148, 255), Candle = new Color32(240, 176, 87, 255), Muted = new Color32(173, 154, 140, 255),
             Blood = new Color32(226, 74, 82, 255), Moss = new Color32(143, 203, 156, 255), Ink = new Color32(241, 231, 216, 255);
 
-        internal readonly App app;
-        Game G => app.G;
-        internal readonly VisualElement root, safe;
-        internal readonly bool mobile = Application.isMobilePlatform;
-        internal string screen = "";
-        float hudT;
-        Rect lastSafe;
+        const float HudRefreshSeconds = .2f;
 
-        internal readonly Overlay overlay;
-        internal readonly KidCustomizer kid;
+        internal readonly App app;
+        Game game => app.game;
+        internal readonly VisualElement root;
+        /// <summary>The part of the screen not covered by notches and system bars; HUD and messages live inside it.</summary>
+        internal readonly VisualElement safeArea;
+        internal readonly bool isMobile = Application.isMobilePlatform;
+        internal UiScreen currentScreen = UiScreen.None;
+        float hudRefreshTimer;
+        Rect lastSafeRect;
+
+        internal readonly Messages messages;
+        internal readonly KidCustomizer kidCustomizer;
+        internal readonly SettingToggles settings;
+        readonly ScreenEffects screenEffects;
+        readonly WorldLabels worldLabels;
+        readonly SoundCues soundCues;
         readonly Hud hud;
-        readonly Controls controls;
-        readonly HomeMenu home;
-        readonly LobbyScreen lobby;
-        readonly ResultScreen result;
-        readonly PauseMenu pause;
+        readonly TouchControls controls;
+        readonly HomeMenu homeMenu;
+        readonly LobbyScreen lobbyScreen;
+        readonly ResultScreen resultScreen;
+        readonly PauseMenu pauseMenu;
+        readonly KeyboardLift keyboardLift;
 
         public Ui(App app)
         {
             this.app = app;
             // The panel asset made by Unice > Configurar projeto keeps the UI shaders in the build; the fallback is for the editor.
-            var ps = Resources.Load<PanelSettings>("UI/UnicePanel");
-            if (ps == null) ps = ScriptableObject.CreateInstance<PanelSettings>();
-            ps.scaleMode = PanelScaleMode.ScaleWithScreenSize; ps.referenceResolution = new Vector2Int(1280, 720);
-            ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; ps.match = 1;
-            ps.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/UniceTheme");
-            var go = new GameObject("UI"); go.SetActive(false); go.transform.SetParent(app.transform, false);
-            var doc = go.AddComponent<UIDocument>(); doc.panelSettings = ps; go.SetActive(true);
-            root = doc.rootVisualElement;
+            var panelSettings = Resources.Load<PanelSettings>("UI/UnicePanel");
+            if (panelSettings == null) panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = new Vector2Int(1280, 720);
+            panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; panelSettings.match = 1;
+            panelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/UniceTheme");
+            var uiObject = new GameObject("UI"); uiObject.SetActive(false); uiObject.transform.SetParent(app.transform, false);
+            var document = uiObject.AddComponent<UIDocument>(); document.panelSettings = panelSettings; uiObject.SetActive(true);
+            root = document.rootVisualElement;
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/unice"));
             root.AddToClassList("root"); root.pickingMode = PickingMode.Ignore;
 
-            // creation order = drawing order
-            overlay = new Overlay(this);          // world layers: vignette, slats, flash, labels, cues
-            safe = Ig(E(root, "layer"));
+            // creation order = drawing order (later parts are drawn on top)
+            screenEffects = new ScreenEffects(this);
+            worldLabels = new WorldLabels(this);
+            soundCues = new SoundCues(this);
+            safeArea = IgnorePointer(AddElement(root, "layer"));
             hud = new Hud(this);
-            controls = new Controls(this);
-            overlay.BuildMessages();              // countdown, captions, prompt, toasts, banner — above HUD and touch
-            kid = new KidCustomizer(this);
-            home = new HomeMenu(this); lobby = new LobbyScreen(this); result = new ResultScreen(this); pause = new PauseMenu(this);
-            RefreshToggleBtns();
+            controls = new TouchControls(this);
+            messages = new Messages(this);
+            settings = new SettingToggles(this, Relocalize);
+            kidCustomizer = new KidCustomizer(this);
+            homeMenu = new HomeMenu(this); lobbyScreen = new LobbyScreen(this); resultScreen = new ResultScreen(this); pauseMenu = new PauseMenu(this);
+            keyboardLift = new KeyboardLift(this, homeMenu.Root);   // the only screen with text fields
+            settings.Refresh();
         }
 
-        // ---------- what App calls ----------
+        // ---------- what App and the gameplay code call ----------
+        /// <summary>A text field has focus: keyboard keys type instead of controlling the game.</summary>
         public bool Typing
         {
             get
             {
-                var f = root.panel?.focusController?.focusedElement as VisualElement;
-                return f != null && (f is TextField || f.GetFirstAncestorOfType<TextField>() != null);
+                var focused = root.panel?.focusController?.focusedElement as VisualElement;
+                return focused != null && (focused is TextField || focused.GetFirstAncestorOfType<TextField>() != null);
             }
         }
-        public Vector2 Joy => controls.Joy;
-        public bool SneakOn => controls.SneakOn;
-        public bool MenuBack() => home.Back();
-        public void ShowPause(bool on, bool online) => pause.Show(on, online);
-        public void Banner(string text, string kind, float dur) => overlay.Banner(text, kind, dur);
-        public void Toast(string text) => overlay.Toast(text);
-        public void Caption(string text) => overlay.Caption(text);
-        public void Flash(Color color, float dur) => overlay.Flash(color, dur);
-        public void Cue(float ang, float g, Color col) => overlay.Cue(ang, g, col);
-        public void Fx(float x, float y, string text, Color color, float size, float life, bool global = false) => overlay.Fx(x, y, text, color, size, life, global);
+        public Vector2 JoystickDirection => controls.JoystickDirection;
+        public bool SneakToggled => controls.SneakToggled;
+        /// <summary>Back button on the menu: returns false when already on the main page.</summary>
+        public bool MenuBack() => homeMenu.Back();
+        public void ShowPause(bool visible, bool online) => pauseMenu.Show(visible, online);
+        public void Banner(string text, BannerStyle style, float seconds) => messages.Banner(text, style, seconds);
+        public void Toast(string text) => messages.Toast(text);
+        public void Caption(string text) => messages.Caption(text);
+        public void Flash(Color color, float seconds) => screenEffects.Flash(color, seconds);
+        public void ShowSoundCue(float angle, float loudness, Color color) => soundCues.ShowSoundCue(angle, loudness, color);
+        public void ShowWorldText(float x, float y, string text, Color color, float size, float lifetime, bool alwaysVisible = false) =>
+            worldLabels.ShowWorldText(x, y, text, color, size, lifetime, alwaysVisible);
 
         // ---------- localized text built once (menus, rules, static labels) ----------
-        // Most text is re-applied every tick from Render*/Update* via Loc.T(...) and already follows a language
+        // Most text is re-applied every step from the Render/Refresh methods via Localization.Get(...) and follows a language
         // change automatically. These two are for text built ONCE: they remember the key so a language switch
         // can re-apply it later via Relocalize().
-        internal readonly List<Action> relocalize = new List<Action>();
-        internal Label LL(VisualElement p, string key, params string[] cls) { var l = L(p, Loc.T(key), cls); relocalize.Add(() => l.text = Loc.T(key)); return l; }
-        internal Button BB(VisualElement p, string key, Action click, params string[] cls) { var b = B(p, Loc.T(key), click, cls); relocalize.Add(() => b.text = Loc.T(key)); return b; }
-        void Relocalize() { foreach (var a in relocalize) a(); RefreshToggleBtns(); lobby.Invalidate(); hud.Invalidate(); }
+        internal readonly List<Action> relocalizers = new List<Action>();
+        internal Label LocalizedLabel(VisualElement parent, string key, params string[] classes)
+        {
+            var label = AddLabel(parent, Localization.Get(key), classes);
+            relocalizers.Add(() => label.text = Localization.Get(key));
+            return label;
+        }
+        internal Button LocalizedButton(VisualElement parent, string key, Action onClick, params string[] classes)
+        {
+            var button = AddButton(parent, Localization.Get(key), onClick, classes);
+            relocalizers.Add(() => button.text = Localization.Get(key));
+            return button;
+        }
+        void Relocalize()
+        {
+            foreach (var relocalize in relocalizers) relocalize();
+            settings.Refresh(); lobbyScreen.Invalidate(); hud.Invalidate();
+        }
 
         /// <summary>The look changed (name/kit): the waiting room shows it.</summary>
-        internal void KitChanged() => lobby.Invalidate();
-
-        // ---------- sound / mic / whisper / language: the same buttons on several screens ----------
-        readonly List<Button> soundBtns = new List<Button>(), micBtns = new List<Button>(), whisperBtns = new List<Button>(), langBtns = new List<Button>();
-        internal Button SoundBtn(VisualElement p, params string[] cls) { var b = B(p, "", ToggleSound, cls); soundBtns.Add(b); return b; }
-        /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden.</summary>
-        internal Button MicBtn(VisualElement p, params string[] cls) { var b = B(p, "", ToggleMic, cls); micBtns.Add(b); return b; }
-        /// <summary>Personal choice: "whisper" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
-        internal Button WhisperBtn(VisualElement p, params string[] cls) { var b = B(p, "", ToggleWhisper, cls); whisperBtns.Add(b); return b; }
-        internal Button LangBtn(VisualElement p, params string[] cls) { var b = B(p, "", CycleLang, cls); langBtns.Add(b); return b; }
-
-        void ToggleSound() { app.sfx.On = !app.sfx.On; RefreshToggleBtns(); }
-        void ToggleMic() { app.MicOn = !app.MicOn; RefreshToggleBtns(); }
-        void ToggleWhisper() { app.Whisper = !app.Whisper; RefreshToggleBtns(); }
-        void CycleLang() { Loc.Set((Lang)(((int)Loc.Current + 1) % 3)); Relocalize(); }
-
-        /// <summary>Re-applies every toggle/language button's text, in every screen it appears, from current state.</summary>
-        void RefreshToggleBtns()
-        {
-            string snd = Loc.T(app.sfx.On ? "menu.sound_on" : "menu.sound_off"), mic = Loc.T(app.MicOn ? "menu.mic_on" : "menu.mic_off"),
-                   wh = Loc.T(app.Whisper ? "menu.voice_whisper" : "menu.voice_normal"), lang = $"{Loc.T("menu.lang_prefix")}: {Loc.Current.ToString().ToUpperInvariant()}";
-            foreach (var b in soundBtns) b.text = snd;
-            foreach (var b in micBtns) b.text = mic;
-            foreach (var b in whisperBtns) { b.text = wh; b.SetEnabled(app.MicOn); }
-            foreach (var b in langBtns) b.text = lang;
-        }
+        internal void OnKitChanged() => lobbyScreen.Invalidate();
 
         // ---------- per step (20/s): screens, HUD, prompt ----------
         public void Step(float dt)
         {
             SyncScreens();
-            hudT -= dt; if (hudT <= 0 && screen == "game") { hudT = .2f; hud.Tick(); }
-            controls.UpdatePrompt();
+            hudRefreshTimer -= dt;
+            if (hudRefreshTimer <= 0 && currentScreen == UiScreen.Game) { hudRefreshTimer = HudRefreshSeconds; hud.Tick(); }
+            var hints = ActionHints.For(game, app.myCharacter, showKeys: !isMobile);
+            messages.SetPrompt(hints.text);
+            if (isMobile) controls.ShowAvailable(hints);
         }
 
+        static UiScreen ScreenFor(Phase phase) => phase switch
+        {
+            Phase.Home => UiScreen.Home,
+            Phase.Lobby => UiScreen.Lobby,
+            Phase.Result => UiScreen.Result,
+            Phase.Final => UiScreen.Final,
+            _ => UiScreen.Game,
+        };
+
+        /// <summary>Shows the screen for the current phase (running each screen's on-show step once), then refreshes it.</summary>
         void SyncScreens()
         {
-            var ph = G.ph;
-            string want = ph == Phase.Home ? "home" : ph == Phase.Lobby ? "wait" : ph == Phase.Result ? "result" : ph == Phase.Final ? "final" : "game";
-            if (want != screen)
+            var wanted = ScreenFor(game.phase);
+            bool resultLike = wanted == UiScreen.Result || wanted == UiScreen.Final;
+            if (wanted != currentScreen)
             {
-                string was = screen; screen = want;
-                Show(home.Root, want == "home"); Show(lobby.Root, want == "wait"); Show(result.Root, want == "result" || want == "final");
-                Show(hud.Root, want == "game"); Show(controls.Root, want == "game" && mobile);
-                if (want == "home") home.OnShow();
-                if (want == "wait") lobby.OnShow(was);
-                if (want == "result" || want == "final") result.Render(want == "final");
-                if (want == "game") hudT = 0;
-                if (want != "game") { pause.Show(false, false); app.paused = false; controls.ResetSneak(); }
+                var previous = currentScreen; currentScreen = wanted;
+                Show(homeMenu.Root, wanted == UiScreen.Home); Show(lobbyScreen.Root, wanted == UiScreen.Lobby); Show(resultScreen.Root, resultLike);
+                Show(hud.Root, wanted == UiScreen.Game); Show(controls.Root, wanted == UiScreen.Game && isMobile);
+                if (wanted == UiScreen.Home) homeMenu.OnShow();
+                if (wanted == UiScreen.Lobby) lobbyScreen.OnShow(cameFromFinal: previous == UiScreen.Final);
+                if (resultLike) resultScreen.Render(wanted == UiScreen.Final);
+                if (wanted == UiScreen.Game) hudRefreshTimer = 0;
+                if (wanted != UiScreen.Game) { pauseMenu.Show(false, false); app.paused = false; controls.ResetSneak(); }
                 hud.Invalidate();
             }
-            if (want == "home") home.Sync();
-            if (want == "wait") lobby.Render();
-            if (want == "result" || want == "final") result.Sync(want == "final");
+            if (wanted == UiScreen.Home) homeMenu.Refresh();
+            if (wanted == UiScreen.Lobby) lobbyScreen.Render();
+            if (resultLike) resultScreen.Refresh(wanted == UiScreen.Final);
         }
 
         // ---------- per frame: world text, cues, overlays ----------
-        public void Frame(float dt, Camera cam)
+        public void Frame(float dt, Camera camera)
         {
             if (root.panel == null) return;
-            ApplySafeArea(); home.LiftForKeyboard();
-            float H = root.layout.height; if (float.IsNaN(H) || H < 1) return;
-            overlay.Frame(dt, cam);
-            if (screen == "home") home.Frame();
+            ApplySafeArea(); keyboardLift.Update();
+            float panelHeight = root.layout.height;
+            if (float.IsNaN(panelHeight) || panelHeight < 1) return;   // no layout yet
+            messages.Frame(dt);
+            worldLabels.Frame(dt, camera);
+            soundCues.Frame(dt, camera);
+            screenEffects.Frame(dt);
+            if (currentScreen == UiScreen.Home) homeMenu.Frame();
         }
 
+        /// <summary>Keeps the HUD and the full screens inside Screen.safeArea (notches, rounded corners, system bars).</summary>
         void ApplySafeArea()
         {
-            var sa = Screen.safeArea; if (sa == lastSafe || Screen.height < 1) return; lastSafe = sa;
-            float k = root.layout.height > 0 ? root.layout.height / Screen.height : 720f / Screen.height;
-            safe.style.left = sa.xMin * k; safe.style.right = (Screen.width - sa.xMax) * k;
-            safe.style.top = (Screen.height - sa.yMax) * k; safe.style.bottom = sa.yMin * k;
-            foreach (var el in new[] { home.Root, lobby.Root, result.Root }) { el.style.left = safe.style.left; el.style.right = safe.style.right; el.style.top = safe.style.top; el.style.bottom = safe.style.bottom; }
+            var safeRect = Screen.safeArea;
+            if (safeRect == lastSafeRect || Screen.height < 1) return;
+            lastSafeRect = safeRect;
+            float pixelsToPanel = root.layout.height > 0 ? root.layout.height / Screen.height : 720f / Screen.height;
+            safeArea.style.left = safeRect.xMin * pixelsToPanel; safeArea.style.right = (Screen.width - safeRect.xMax) * pixelsToPanel;
+            safeArea.style.top = (Screen.height - safeRect.yMax) * pixelsToPanel; safeArea.style.bottom = safeRect.yMin * pixelsToPanel;
+            foreach (var screen in new[] { homeMenu.Root, lobbyScreen.Root, resultScreen.Root })
+            {
+                screen.style.left = safeArea.style.left; screen.style.right = safeArea.style.right;
+                screen.style.top = safeArea.style.top; screen.style.bottom = safeArea.style.bottom;
+            }
         }
     }
 }

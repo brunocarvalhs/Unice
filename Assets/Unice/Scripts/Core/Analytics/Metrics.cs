@@ -20,61 +20,73 @@ namespace Unice
 
         public static void Init()
         {
-            FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(t =>
+            FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(check =>
             {
-                if (t.IsFaulted || t.Result != DependencyStatus.Available) { failed = true; lock (pending) pending.Clear(); Debug.LogWarning("firebase: " + (t.Exception?.Message ?? t.Result.ToString())); return; }
+                if (check.IsFaulted || check.Result != DependencyStatus.Available)
+                {
+                    failed = true; lock (pending) pending.Clear();
+                    Debug.LogWarning("firebase: " + (check.Exception?.Message ?? check.Result.ToString()));
+                    return;
+                }
                 _ = FirebaseApp.DefaultInstance;   // Crashlytics starts with the default app
                 Crashlytics.IsCrashlyticsCollectionEnabled = !Application.isEditor;
                 Crashlytics.ReportUncaughtExceptionsAsFatal = true;
                 FirebaseAnalytics.SetAnalyticsCollectionEnabled(!Application.isEditor);
                 ready = true;
-                SetLang();
-                lock (pending) { foreach (var a in pending) Run(a); pending.Clear(); }
+                SetLanguageProperty();
+                lock (pending) { foreach (var action in pending) RunWhenReady(action); pending.Clear(); }
             }, System.Threading.Tasks.TaskScheduler.FromCurrentSynchronizationContext());
         }
 
-        public static void Log(string name, params (string k, object v)[] args)
+        /// <summary>
+        /// An analytics event, e.g. <c>Log("round_end", ("won", true))</c>. GA4 rules: names and keys are snake_case
+        /// letters, digits and underscores only (no dots or spaces), at most 40 characters.
+        /// </summary>
+        public static void Log(string name, params (string key, object value)[] args)
         {
-            var ps = new Parameter[args.Length];
-            for (int i = 0; i < args.Length; i++) ps[i] = P(args[i].k, args[i].v);
-            string crumb = args.Length == 0 ? name : name + " " + string.Join(" ", args.Select(a => a.k + "=" + a.v));
-            Run(() => { FirebaseAnalytics.LogEvent(name, ps); Crashlytics.Log(crumb); });
+            var parameters = new Parameter[args.Length];
+            for (int i = 0; i < args.Length; i++) parameters[i] = ToParameter(args[i].key, args[i].value);
+            string breadcrumb = args.Length == 0 ? name : name + " " + string.Join(" ", args.Select(arg => arg.key + "=" + arg.value));
+            RunWhenReady(() => { FirebaseAnalytics.LogEvent(name, parameters); Crashlytics.Log(breadcrumb); });
         }
 
+        /// <summary>A screen view (GA's "screen_view"), and the current screen as a Crashlytics key.</summary>
         public static void Screen(string name)
         {
             Log(FirebaseAnalytics.EventScreenView, (FirebaseAnalytics.ParameterScreenName, name), (FirebaseAnalytics.ParameterScreenClass, name));
-            Run(() => Crashlytics.SetCustomKey("phase", name));
+            RunWhenReady(() => Crashlytics.SetCustomKey("phase", name));
         }
 
         /// <summary>A handled exception: logged locally and sent to Crashlytics as non-fatal, so it shows up in Firebase without crashing the game.</summary>
-        public static void Error(Exception x, string where = null)
+        public static void Error(Exception error, string where = null)
         {
-            Debug.LogWarning(where == null ? x.ToString() : where + ": " + x);
-            Run(() => { if (where != null) Crashlytics.Log("error in " + where); Crashlytics.LogException(x); });
+            Debug.LogWarning(where == null ? error.ToString() : where + ": " + error);
+            RunWhenReady(() => { if (where != null) Crashlytics.Log("error in " + where); Crashlytics.LogException(error); });
         }
 
         /// <summary>The in-game language as a GA user property (GA already knows the device's).</summary>
-        public static void SetLang()
+        public static void SetLanguageProperty()
         {
-            if (ready) FirebaseAnalytics.SetUserProperty("game_lang", Loc.Current.ToString().ToLowerInvariant());
+            if (ready) FirebaseAnalytics.SetUserProperty("game_lang", Localization.Current.ToString().ToLowerInvariant());
         }
 
-        static void Run(Action a)
+        /// <summary>Runs now if Firebase is ready, queues it if it is still starting, drops it if Firebase failed.</summary>
+        static void RunWhenReady(Action action)
         {
             if (failed) return;
-            if (!ready) { lock (pending) if (!ready) { pending.Add(a); return; } }   // Error() may come from the Android UI thread
-            try { a(); } catch (Exception x) { Debug.LogWarning(x); }
+            if (!ready) { lock (pending) if (!ready) { pending.Add(action); return; } }   // Error() may come from the Android UI thread
+            try { action(); } catch (Exception error) { Debug.LogWarning(error); }
         }
 
-        static Parameter P(string k, object v) => v switch
+        /// <summary>GA4 parameters are numbers or text; booleans go as 1/0.</summary>
+        static Parameter ToParameter(string key, object value) => value switch
         {
-            bool b => new Parameter(k, b ? 1L : 0L),
-            int i => new Parameter(k, i),
-            long l => new Parameter(k, l),
-            float f => new Parameter(k, f),
-            double d => new Parameter(k, d),
-            _ => new Parameter(k, v?.ToString() ?? ""),
+            bool flag => new Parameter(key, flag ? 1L : 0L),
+            int number => new Parameter(key, number),
+            long number => new Parameter(key, number),
+            float number => new Parameter(key, number),
+            double number => new Parameter(key, number),
+            _ => new Parameter(key, value?.ToString() ?? ""),
         };
     }
 }

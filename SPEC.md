@@ -25,22 +25,25 @@ Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos rea
 ## Project Structure
 ```
 Assets/Unice/Scripts/Domain/  → regras puras, sem UnityEngine (assembly Unice.Domain, testado em Edit Mode)
-  Match/    → Game (regras; .Ai = bots; .Snapshot = estado serializado host→peers), Rules, GameEvent, Ent, Kit
-  Maps/     → Map (geometria, linha de visão), MapParts (Room/Door/Furn), definições de cada mapa
-  Online/   → portas de rede/voz (INetBackend, IVoiceChat), Presence/PeerInfo, HostElection
-  Common/   → Util (U, P)
+  Match/    → Game (regras e partida; Game.Snapshot = estado enviado host→convidados), Character, Rules, Kit,
+              GameEvent, RoundResult, DollState, Phase, PlayerAction
+    Bots/   → HiderBot, UniceBot (IA dos bots), BotBrain (memória do bot), BotGoal, BotPath (andar pelo caminho)
+  Maps/     → Map (geometria, colisão, linha de visão), Navigation (busca de caminho), MapParts, definições dos mapas
+  Online/   → portas de rede/voz (INetBackend, IVoiceChat), Presence/PeerInfo, PresenceCodec, HostElection
+  Common/   → Point, Geometry, GameRandom, TextFormat
   Tests/    → testes Edit Mode do domínio
 Assets/Unice/Scripts/Core/    → adapters Unity (assembly Unice.Core)
-  App/          → App (MonoBehaviour: monta as peças e roda o loop), Perspective (o que o jogador vê), ProfileStore, SystemBars
+  App/          → App (monta as peças e roda o loop), Perspective (o que o jogador vê), ProfileStore, SystemBars
   Gameplay/     → PlayerControl (input e ações do jogador), EventFeed (eventos → banners/sons/efeitos)
-  Online/       → RoomSession (criar/entrar/sair de sala, eleição de host, presença e snapshots)
-  World/        → WorldView, FogView, CameraRig, Art
-  Audio/        → Sfx (síntese), Soundscape (o que o jogador ouve)
-  Localization/ → Loc (lógica) e Loc.Strings (tabela pt/en/es)
+  Online/       → RoomSession (criar/entrar/sair, lobby), RoomSync (eleição de host, snapshots, presença)
+  World/        → WorldView, MapScenery, CharacterView, KidSprites, RippleEffects, FogView, CameraRig, Art, ArtManifest
+  Audio/        → Sfx (tocar), ToneSynth (sintetizar), Soundscape (sons ouvidos), Heartbeat
+  Localization/ → Localization (lógica) e Localization.Strings (tabela pt/en/es)
   Analytics/    → Metrics (Google Analytics + Crashlytics via Firebase)
-  Ui/           → Ui (troca de telas e o que é compartilhado), UiKit/UiPart (base), Doll
-    Screens/    → HomeMenu, KidCustomizer, LobbyScreen, ResultScreen, PauseMenu
-    InGame/     → Hud, Overlay (mensagens e textos no mundo), Controls (toque e dicas de teclas)
+  Ui/           → Ui (troca de telas), UiKit/UiPart (base), SettingToggles, KeyboardLift, CharacterPortrait
+    Screens/    → HomeMenu, KidCustomizer, KitOptionPicker, LobbyScreen, MatchOptions, ResultScreen, PauseMenu
+    InGame/     → Hud, MatchCard, RoleCard, PlayerListPanel, MiniMap, Messages, WorldLabels, SoundCues,
+                  ScreenEffects, TouchControls, Joystick, ActionIcons, ActionHints
   Tests/        → testes Edit Mode do Core
 Assets/Unice/Scripts/Net/     → implementações Unity Services: NgoBackend (Netcode), VivoxVoice, NetPlayer
 Assets/Unice/Scripts/Editor/  → utilitários de editor (incl. Net/Editor)
@@ -50,28 +53,33 @@ ProjectSettings/, Packages/   → configuração Unity e dependências
 ```
 
 ## Code Style
-Exemplo real do estilo adotado (`Game.cs`):
+Exemplo real do estilo adotado (`Domain/Match/Rules.cs`):
 ```csharp
+/// <summary>The tuning numbers of the game: times in seconds, distances and speeds in house pixels. Same as the web version.</summary>
 public static class Rules
 {
-    public const float RoundTime = 120, HideTime = 30, ResultTime = 9, GiggleEvery = 10, PassCd = 5, PassR = 60, CatchR = 30, Stun = 2.5f;
-    public const int MaxPlayers = 8;
-    public static readonly string[] BotNames = { "Bia", "Tito", "Maru", "Zeca", "Nina", "Otto", "Lia", "Caio" };
+    /// <summary>The doll giggles this often while its holder is hidden.</summary>
+    public const float GiggleInterval = 10;
+    /// <summary>The Unice catches whoever it gets this close to.</summary>
+    public const float CatchRange = 30;
 }
 ```
-Convenções observadas:
-- Nomes curtos e densos (`ph`, `ep`, `r`, `tl`, `hb`) — estilo compacto, consistente em todo o Core; não introduzir nomes verbosos isolados.
-- Campos/const agrupados numa linha quando relacionados (ex.: `Rules`).
-- `sealed class`/`sealed partial class` para tipos que não serão herdados.
-- Comentário de bloco (`/// <summary>`) só nos tipos/classes principais explicando o "porquê" (ex.: "host autoritativo, demais mirrorам"), não em cada membro.
-- Sem uso de regions, sem over-abstraction (sem interfaces para tipos com uma única implementação, exceto `INetBackend` que já tem 2+ implementações reais: NGO e stub).
+Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda):
+- **Nomes descritivos em inglês** para classes, métodos, campos, parâmetros e variáveis (`timeLeft`, `hidingSpot`, `PassTarget`). Nada de abreviações (`tl`, `ph`, `r`, `e`); exceções aceitas: `x`/`y`, `dt`, `i`/`j` em laços, `id`, `me` (o personagem deste aparelho) e `ax, ay, bx, by` para pontos A e B.
+- **Uma responsabilidade por classe**, em pastas por assunto (ver Project Structure). Quando uma classe começa a fazer duas coisas, ela é dividida — ex.: `Hud` só monta `MatchCard`, `RoleCard`, `PlayerListPanel`.
+- **Comentários `/// <summary>`** em toda classe e em todo membro cujo propósito não seja óbvio pelo nome; explicam o *porquê* e as unidades (segundos, house pixels).
+- **Números mágicos viram constantes nomeadas** (`const float StunTime = 2.5f`), com comentário quando a unidade ou o motivo não é óbvio.
+- **Strings de estado viram enums** (`Phase`, `GameEventType`, `HiderMode`, `BannerStyle`, `RippleKind`, `UiScreen`).
+- `sealed class` para tipos que não serão herdados; `partial` só quando a divisão em arquivos não pode virar classes (ex.: `Game` e `Game.Snapshot`).
+- Sem regions, sem interfaces com uma implementação só (exceto as portas `INetBackend`/`IVoiceChat`, que existem para o jogo compilar sem os pacotes de rede).
+- **Nunca renomear** os campos de `ArtManifest.cs` (o `JsonUtility` casa pelo nome com `manifest.json`), as chaves de `PlayerPrefs` (`unice.name`, `unice.kit`, `unice.lang`) nem as chaves de `Localization.Strings`.
+- Mudou o formato de bytes do snapshot ou da presença? Suba `Game.SnapshotVersion` / `PresenceCodec.Version`.
 
 ## Testing Strategy
-**Estado atual: sem testes automatizados** (`com.unity.test-framework` está no manifest mas não há pasta de testes no repo).
-
-- Framework disponível: Unity Test Framework 1.8.0 (Edit Mode / Play Mode), já como dependência.
-- Lacuna conhecida: lógica de `Game.cs`/`Rules` é pura (sem dependência de `MonoBehaviour`) e testável em Edit Mode sem precisar rodar a cena — candidata natural a primeiros testes caso o time decida investir.
-- Até decisão em contrário, verificação é manual: rodar no Editor, validar fluxo Home→Lobby→Hide→Hunt→Result, e builds Android via workflow `pulls.yml` antes de merge.
+- Testes Edit Mode (NUnit, Unity Test Framework) em `Domain/Tests` (regras, IA dos bots, snapshot, eleição de host, mapas) e `Core/Tests` (perfil).
+- Rodar: `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml` (ou o Test Runner no Editor).
+- Os testes do `Game` são de caracterização: fixam o comportamento atual (paridade com a versão web). Se um falhar depois de uma mudança em `Game.cs`, a regra mudou — confirme se era a intenção.
+- UI, rede e áudio não têm teste automatizado: verificar manualmente (Home→Lobby→Hide→Hunt→Result→Final; sala online com dois aparelhos).
 
 ## Boundaries
 - **Sempre fazer:** manter paridade com a versão web ao tocar em `Game.cs`/`Rules`; validar build Android (CI) antes de merge; manter convenção de nomes compactos do Core.

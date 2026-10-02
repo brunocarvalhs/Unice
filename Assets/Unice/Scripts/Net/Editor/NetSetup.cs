@@ -20,11 +20,11 @@ namespace Unice
         {
             if (!force && File.Exists(PlayerPath)) return;
             Directory.CreateDirectory(Dir);
-            var go = new GameObject("NetPlayer");
-            go.AddComponent<NetworkObject>();
-            go.AddComponent<NetPlayer>();
-            PrefabUtility.SaveAsPrefabAsset(go, PlayerPath);
-            Object.DestroyImmediate(go);
+            var playerObject = new GameObject("NetPlayer");
+            playerObject.AddComponent<NetworkObject>();
+            playerObject.AddComponent<NetPlayer>();
+            PrefabUtility.SaveAsPrefabAsset(playerObject, PlayerPath);
+            Object.DestroyImmediate(playerObject);
             AssetDatabase.SaveAssets();
             Debug.Log("[Unice] Objeto de rede do jogador criado em " + PlayerPath);
         }

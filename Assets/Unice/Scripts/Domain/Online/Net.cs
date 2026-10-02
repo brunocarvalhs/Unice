@@ -10,22 +10,28 @@ namespace Unice
     /// </summary>
     public interface INetBackend
     {
+        /// <summary>Signs in to the online services (once per app run).</summary>
         Task InitAsync();
+        /// <summary>Creates a room; returns its code.</summary>
         Task<string> CreateAsync();
-        Task JoinAsync(string code);
+        Task JoinAsync(string roomCode);
         Task LeaveAsync();
         bool InRoom { get; }
         string Code { get; }
-        string MyId { get; }
+        /// <summary>This device's id in the room.</summary>
+        string LocalId { get; }
         /// <summary>Everyone connected to the room, this device included.</summary>
         IReadOnlyList<PeerInfo> Peers { get; }
-        void SetPresence(Presence p);
-        void BroadcastSnapshot(byte[] data, int ep);
-        /// <summary>Raised when the connection to the room is lost for good. The text explains why.</summary>
+        /// <summary>What this device tells the others about its player (sent right away).</summary>
+        void SetPresence(Presence presence);
+        /// <summary>Host only: sends the match snapshot to everyone.</summary>
+        void BroadcastSnapshot(byte[] snapshot, int epoch);
+        /// <summary>Raised when the connection to the room is lost for good. The text explains why, for the player.</summary>
         event Action<string> Lost;
     }
 
-    public class NetException : Exception { public NetException(string msg) : base(msg) { } }
+    /// <summary>A room operation failed; the message is written for the player.</summary>
+    public class NetException : Exception { public NetException(string message) : base(message) { } }
 
     public static class NetRegistry
     {

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -7,123 +5,148 @@ using static Unice.UiKit;
 
 namespace Unice
 {
-    /// <summary>The waiting room (full screen, made for a phone on its side): players, match options for the host, appearance.</summary>
+    /// <summary>
+    /// The waiting room (full screen, made for a phone on its side): the room code, the players, and a side panel with
+    /// two tabs — match options and the player's appearance — plus the ready / start button.
+    /// </summary>
     sealed class LobbyScreen : UiPart
     {
+        enum SideTab { Match, Appearance }
+
+        const float SidePanelMaxHeight = 320;
+        const int CopiedFeedbackMs = 1800;
+
         public readonly VisualElement Root;
-        VisualElement wList, hostOpts, sidePartida, sideAparencia, sideTabPartida, sideTabAparencia;
-        Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal, hideVal, huntVal, giggleVal, mapVal;
-        Button copyBtn, actBtn, leave2; string wSig, sideTab = "tab.match"; bool lobbyHost, waitCanGo;
-        static readonly int[] RoundChoices = { 3, 5, 7 };
-        // Quintal/praça are a work in progress (flat-tint placeholder art) — only selectable in the Editor or a dev build.
-        static readonly string[] PlayableMapIds = Debug.isDebugBuild ? Maps.AllIds : new[] { MapHouse.Id };
+        readonly VisualElement playerCards, matchTab, appearanceTab, matchTabButton, appearanceTabButton;
+        readonly Label titleLabel, codeLabel, noteLabel, countLabel, statusLabel;
+        readonly Button copyCodeButton, readyOrStartButton, leaveButton;
+        readonly MatchOptions matchOptions;
+        SideTab currentSideTab = SideTab.Match;
+        /// <summary>Everything the screen shows, as text: it is only rebuilt when this changes.</summary>
+        string renderedSignature;
+        bool canStart;
 
         public LobbyScreen(Ui ui) : base(ui)
         {
-            Root = E(ui.root, "lobby");
-            var top = E(Root, "lobby-top");
-            leave2 = B(top, "", () => app.LeaveRoom(), "mbtn", "mbtn-top");
-            var head = E(top, "lobby-head");
-            wTitle = L(head, "", "lobby-title"); wCode = L(head, "", "lobby-code");
-            copyBtn = BB(head, "lobby.copy_code", CopyCode, "mpill");
-            ui.MicBtn(top, "mpill");
-            ui.WhisperBtn(top, "mpill");
-            wCount = L(top, "", "lobby-count");
-            var body = E(Root, "lobby-body");
-            wList = E(body, "lobby-players");
-            var side = E(body, "mpanel", "lobby-side");
-            var sideTabs = E(side, "tabbar");
-            sideTabPartida = BB(sideTabs, "tab.match", () => { sideTab = "tab.match"; RefreshSideTab(); }, "tabbtn");
-            sideTabAparencia = BB(sideTabs, "tab.appearance", () => { sideTab = "tab.appearance"; RefreshSideTab(); }, "tabbtn");
-            var sidePartidaSv = new ScrollView(ScrollViewMode.Vertical); sidePartidaSv.style.flexGrow = 1; sidePartidaSv.style.maxHeight = 320;
-            sidePartidaSv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
-            side.Add(sidePartidaSv); sidePartida = sidePartidaSv;
-            hostOpts = E(sidePartida);
-            botsVal = Stepper(hostOpts, "lobby.bots_plural", d => { int max = Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count); G.bots = Mathf.Clamp(Math.Min(G.bots, max) + d, 0, max); wSig = null; });
-            roundsVal = Stepper(hostOpts, "lobby.rounds_label", d => { int i = Array.IndexOf(RoundChoices, G.rounds); G.rounds = RoundChoices[Mathf.Clamp((i < 0 ? 1 : i) + d, 0, RoundChoices.Length - 1)]; wSig = null; });
-            hideVal = Stepper(hostOpts, "lobby.hide_label", d => { G.hideTime = Mathf.Clamp(G.hideTime + d * 5, 15, 60); wSig = null; });
-            huntVal = Stepper(hostOpts, "lobby.hunt_label", d => { G.roundTime = Mathf.Clamp(G.roundTime + d * 15, 60, 240); wSig = null; });
-            giggleVal = Stepper(hostOpts, "lobby.giggle_label", d => { G.giggleEvery = Mathf.Clamp(G.giggleEvery + d * 5, 5, 20); wSig = null; });
-            mapVal = Stepper(hostOpts, "lobby.map_label", d => { int i = Array.IndexOf(PlayableMapIds, G.mapId); G.mapId = PlayableMapIds[((i < 0 ? 0 : i) + d + PlayableMapIds.Length) % PlayableMapIds.Length]; wSig = null; });
-            optsInfo = L(sidePartida, "", "mnote");
-            var sideAparenciaSv = new ScrollView(ScrollViewMode.Vertical); sideAparenciaSv.style.flexGrow = 1; sideAparenciaSv.style.maxHeight = 320;
-            sideAparenciaSv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
-            side.Add(sideAparenciaSv); sideAparencia = sideAparenciaSv;
-            wStatus = L(side, "", "mnote", "lobby-status");
-            actBtn = B(side, "", () =>
-            {
-                if (!lobbyHost) { app.ToggleReady(); wSig = null; return; }
-                if (!waitCanGo) return;
-                app.StartMatch(Math.Min(G.bots, Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count)), G.rounds);
-            }, "mbtn", "mbtn-go");
-            wNote = L(Root, "", "lobby-note");
-            RefreshSideTab();
+            Root = AddElement(ui.root, "lobby");
+
+            // top bar: leave, room code, voice buttons, player count
+            var top = AddElement(Root, "lobby-top");
+            leaveButton = AddButton(top, "", () => app.LeaveRoom(), "mbtn", "mbtn-top");
+            var header = AddElement(top, "lobby-head");
+            titleLabel = AddLabel(header, "", "lobby-title"); codeLabel = AddLabel(header, "", "lobby-code");
+            copyCodeButton = LocalizedButton(header, "lobby.copy_code", CopyCode, "mpill");
+            ui.settings.AddMicButton(top, "mpill");
+            ui.settings.AddWhisperButton(top, "mpill");
+            countLabel = AddLabel(top, "", "lobby-count");
+
+            // body: player cards, and the side panel
+            var body = AddElement(Root, "lobby-body");
+            playerCards = AddElement(body, "lobby-players");
+            var side = AddElement(body, "mpanel", "lobby-side");
+            var tabBar = AddElement(side, "tabbar");
+            matchTabButton = LocalizedButton(tabBar, "tab.match", () => ShowSideTab(SideTab.Match), "tabbtn");
+            appearanceTabButton = LocalizedButton(tabBar, "tab.appearance", () => ShowSideTab(SideTab.Appearance), "tabbtn");
+            matchTab = AddScrollTab(side);
+            matchOptions = new MatchOptions(ui, matchTab, Invalidate);
+            appearanceTab = AddScrollTab(side);
+            statusLabel = AddLabel(side, "", "mnote", "lobby-status");
+            readyOrStartButton = AddButton(side, "", OnReadyOrStart, "mbtn", "mbtn-go");
+
+            noteLabel = AddLabel(Root, "", "lobby-note");
+            ShowSideTab(SideTab.Match);
+        }
+
+        static ScrollView AddScrollTab(VisualElement parent)
+        {
+            var scroll = new ScrollView(ScrollViewMode.Vertical) { horizontalScrollerVisibility = ScrollerVisibility.Hidden };
+            scroll.style.flexGrow = 1; scroll.style.maxHeight = SidePanelMaxHeight;
+            parent.Add(scroll);
+            return scroll;
         }
 
         /// <summary>Forces the next <see cref="Render"/> to rebuild (it skips when nothing it shows changed).</summary>
-        public void Invalidate() => wSig = null;
+        public void Invalidate() => renderedSignature = null;
 
-        public void OnShow(string was) { if (was == "final") app.rdy = false; wSig = null; }
-
-        void RefreshSideTab()
+        /// <summary>Each time the waiting room appears. After a match ends, everyone has to say they're ready again.</summary>
+        public void OnShow(bool cameFromFinal)
         {
-            Show(sidePartida, sideTab == "tab.match"); Show(sideAparencia, sideTab == "tab.appearance");
-            sideTabPartida.EnableInClassList("tabbtn-on", sideTab == "tab.match");
-            sideTabAparencia.EnableInClassList("tabbtn-on", sideTab == "tab.appearance");
-            if (sideTab == "tab.appearance") ui.kid.ShowIn(sideAparencia);
+            if (cameFromFinal) app.ready = false;
+            renderedSignature = null;
         }
 
-        Label Stepper(VisualElement p, string labelKey, Action<int> change)
+        void ShowSideTab(SideTab tab)
         {
-            var s = E(p, "mstep");
-            LL(s, labelKey, "mstep-l");
-            B(s, "‹", () => change(-1), "mstep-btn");
-            var v = L(s, "", "mstep-v");
-            B(s, "›", () => change(1), "mstep-btn");
-            return v;
+            currentSideTab = tab;
+            Show(matchTab, tab == SideTab.Match); Show(appearanceTab, tab == SideTab.Appearance);
+            matchTabButton.EnableInClassList("tabbtn-on", tab == SideTab.Match);
+            appearanceTabButton.EnableInClassList("tabbtn-on", tab == SideTab.Appearance);
+            if (tab == SideTab.Appearance) ui.kidCustomizer.ShowIn(appearanceTab);
+        }
+
+        /// <summary>Guests toggle "ready"; the host starts the match once there are at least two characters.</summary>
+        void OnReadyOrStart()
+        {
+            if (!game.isHost) { app.ToggleReady(); Invalidate(); return; }
+            if (!canStart) return;
+            app.StartMatch(matchOptions.BotsInMatch, game.totalRounds);
         }
 
         void CopyCode()
         {
-            GUIUtility.systemCopyBuffer = app.code;
-            copyBtn.text = Loc.T("lobby.copied");
-            copyBtn.schedule.Execute(() => copyBtn.text = Loc.T("lobby.copy_code")).ExecuteLater(1800);
+            GUIUtility.systemCopyBuffer = app.roomCode;
+            copyCodeButton.text = Localization.Get("lobby.copied");
+            copyCodeButton.schedule.Execute(() => copyCodeButton.text = Localization.Get("lobby.copy_code")).ExecuteLater(CopiedFeedbackMs);
         }
 
+        /// <summary>Per step while showing; rebuilds only when something it shows changed.</summary>
         public void Render()
         {
-            var hs = app.LobbyHumans(); var host = app.Online ? app.FindHost() : null; string hostId = host != null ? host.id : app.Online ? null : app.myId;
-            int maxBots = Math.Max(0, Rules.MaxPlayers - hs.Count), bots = Math.Min(G.bots, maxBots);
-            string sig = string.Join("|", hs.Select(h => h.id + h.name + Kit.Pack(h.k) + h.rdy)) + hostId + G.isHost + bots + G.rounds + G.hideTime + G.roundTime + G.giggleEvery + G.mapId + app.rdy + app.code;
-            if (sig == wSig) return; wSig = sig;
-            bool on = app.Online;
-            Txt(wTitle, Loc.T(on ? "lobby.room" : "lobby.local")); Txt(wCode, on ? app.code : ""); Show(wCode, on); Show(copyBtn, on);
-            Txt(wCount, $"{hs.Count + bots}/{Rules.MaxPlayers}");
-            Txt(wNote, Loc.T(on ? "lobby.note_online" : "lobby.note_local"));
-            wList.Clear();
-            foreach (var h in hs)
+            var players = app.LobbyPlayers();
+            var host = app.IsOnline ? app.FindHost() : null;
+            string hostId = host != null ? host.id : app.IsOnline ? null : app.myPlayerId;
+            int bots = matchOptions.BotsInMatch;
+            string signature = string.Join("|", players.Select(player => player.id + player.name + Kit.Pack(player.kit) + player.ready))
+                             + hostId + game.isHost + bots + game.totalRounds + game.hideTime + game.huntTime + game.giggleInterval + game.mapId + app.ready + app.roomCode;
+            if (signature == renderedSignature) return;
+            renderedSignature = signature;
+
+            bool online = app.IsOnline;
+            SetText(titleLabel, Localization.Get(online ? "lobby.room" : "lobby.local"));
+            SetText(codeLabel, online ? app.roomCode : ""); Show(codeLabel, online); Show(copyCodeButton, online);
+            SetText(countLabel, $"{players.Count + bots}/{Rules.MaxPlayers}");
+            SetText(noteLabel, Localization.Get(online ? "lobby.note_online" : "lobby.note_local"));
+
+            playerCards.Clear();
+            foreach (var player in players)
             {
-                var card = E(wList, "pcard"); if (h.me) card.AddToClassList("pcard-me");
-                var d = new Doll(62); d.Set(h.k); card.Add(d);
-                L(card, h.name, "pcard-name");
-                var st = L(card, Loc.T(h.id == hostId ? "lobby.host" : h.rdy ? "lobby.ready" : "lobby.waiting"), "pcard-st");
-                if (h.id == hostId || h.rdy) st.AddToClassList("pcard-ok");
+                var card = AddElement(playerCards, "pcard"); if (player.isMe) card.AddToClassList("pcard-me");
+                var portrait = new CharacterPortrait(62); portrait.ShowKit(player.kit); card.Add(portrait);
+                AddLabel(card, player.name, "pcard-name");
+                bool isHost = player.id == hostId;
+                var stateLabel = AddLabel(card, Localization.Get(isHost ? "lobby.host" : player.ready ? "lobby.ready" : "lobby.waiting"), "pcard-st");
+                if (isHost || player.ready) stateLabel.AddToClassList("pcard-ok");
             }
-            if (bots > 0) { var bc = E(wList, "pcard", "pcard-bots"); L(bc, "+" + bots, "pcard-plus"); L(bc, Loc.T(bots > 1 ? "lobby.bots_plural" : "lobby.bot_singular"), "pcard-st"); }
-            Txt(botsVal, bots.ToString()); Txt(roundsVal, G.rounds.ToString());
-            Txt(hideVal, $"{G.hideTime:0}s"); Txt(huntVal, $"{G.roundTime:0}s"); Txt(giggleVal, $"{G.giggleEvery:0}s");
-            Txt(mapVal, Loc.T("map." + G.mapId + ".name"));
-            Show(hostOpts, G.isHost);
-            Txt(optsInfo, G.isHost ? "" : Loc.T("lobby.info", bots, G.rounds, G.hideTime, G.roundTime, G.giggleEvery, Loc.T("map." + G.mapId + ".name")));
-            Show(optsInfo, !G.isHost);
-            int waiting = hs.Count(h => h.id != hostId && !h.rdy);
-            lobbyHost = G.isHost; waitCanGo = hs.Count + bots >= 2;
-            Txt(wStatus, G.isHost ? (hs.Count + bots < 2 ? Loc.T("lobby.need_bot") : waiting > 0 ? Loc.T("lobby.can_start", waiting) : Loc.T("lobby.all_ready"))
-                                  : Loc.T("lobby.host_will_start"));
-            actBtn.text = Loc.T(G.isHost ? "lobby.start" : app.rdy ? "lobby.cancel" : "lobby.im_ready");
-            actBtn.SetEnabled(!G.isHost || waitCanGo);
-            actBtn.EnableInClassList("mbtn-on", !G.isHost && app.rdy);
-            leave2.text = Loc.T(on ? "lobby.leave" : "menu.back");
+            if (bots > 0)
+            {
+                var botCard = AddElement(playerCards, "pcard", "pcard-bots");
+                AddLabel(botCard, "+" + bots, "pcard-plus");
+                AddLabel(botCard, Localization.Get(bots > 1 ? "lobby.bots_plural" : "lobby.bot_singular"), "pcard-st");
+            }
+
+            matchOptions.Render();
+
+            int notReady = players.Count(player => player.id != hostId && !player.ready);
+            canStart = players.Count + bots >= 2;
+            string status;
+            if (!game.isHost) status = Localization.Get("lobby.host_will_start");
+            else if (!canStart) status = Localization.Get("lobby.need_bot");
+            else status = notReady > 0 ? Localization.Get("lobby.can_start", notReady) : Localization.Get("lobby.all_ready");
+            SetText(statusLabel, status);
+            readyOrStartButton.text = Localization.Get(game.isHost ? "lobby.start" : app.ready ? "lobby.cancel" : "lobby.im_ready");
+            readyOrStartButton.SetEnabled(!game.isHost || canStart);
+            readyOrStartButton.EnableInClassList("mbtn-on", !game.isHost && app.ready);
+            leaveButton.text = Localization.Get(online ? "lobby.leave" : "menu.back");
         }
     }
 }

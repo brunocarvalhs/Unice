@@ -4,185 +4,155 @@ using System.Collections.Generic;
 namespace Unice
 {
     /// <summary>
-    /// The current map: rooms, doors, furniture, collision, line of sight and path finding.
-    /// Built from a <see cref="MapDefinition"/> via <see cref="Load"/> — the house loads by default;
-    /// <see cref="Load"/> can swap in another map (quintal, praça) before a match starts.
+    /// The current map: rooms, doors, furniture, collision and line of sight (distances in house pixels).
+    /// Built from a <see cref="MapDefinition"/> by <see cref="Load"/> — the house loads by default, and <see cref="Load"/>
+    /// can swap in another map (quintal, praça) before a match starts. Path finding is in <see cref="Navigation"/>.
     /// </summary>
     public static class Map
     {
-        public const float R = 14, GAP = 24, DW = 64, OV = 30;
+        /// <summary>Half the width of a character: how far it keeps from walls and furniture.</summary>
+        public const float BodyRadius = 14;
+        /// <summary>Doors: the wall gap they cross, how wide they are, and how far they reach into each room.</summary>
+        public const float DoorGap = 24, DoorWidth = 64, DoorOverlap = 30;
+        /// <summary>How far in front of a hiding spot a character stands (and is drawn) when hidden in it.</summary>
+        const float SpotStandOffset = 22;
+        /// <summary>Line checks sample a point every this many pixels.</summary>
+        const float LineCheckStep = 8;
+
         public static float WorldW { get; private set; }
         public static float WorldH { get; private set; }
         public static string Id { get; private set; }
+        /// <summary>Color of the ground outside the rooms (hex).</summary>
         public static string GroundTint { get; private set; }
+        /// <summary>Where the hiders line up when a round starts.</summary>
         public static float SpawnX { get; private set; }
         public static float SpawnY { get; private set; }
+        /// <summary>The front door, where the Unice comes in.</summary>
+        public static Point Entrance { get; private set; }
 
         public static Room[] Rooms { get; private set; }
         public static Door[] Doors { get; private set; }
-        static RectF[] walk;
-        public static Furn[] Furniture { get; private set; }
-        public static Furn[] Spots { get; private set; }
-        public static P DoorIn { get; private set; }
+        /// <summary>Every piece of furniture: obstacles, and the hiding spots among them.</summary>
+        public static Furniture[] Furniture { get; private set; }
+        /// <summary>Only the furniture someone can hide in, in <see cref="Furniture.spotIndex"/> order.</summary>
+        public static Furniture[] Spots { get; private set; }
 
-        // navigation graph
-        public static List<P> Nodes { get; private set; } = new List<P>();
-        static List<(int to, float d)>[] adj;
+        /// <summary>Rooms plus door openings: where a character can be.</summary>
+        static RectF[] walkable;
 
         static Map() { Load(MapHouse.Build()); }
 
-        /// <summary>Rebuilds every static field from <paramref name="def"/>. Only call between matches — it wipes hiding-spot state.</summary>
-        public static void Load(MapDefinition def)
+        /// <summary>Rebuilds the whole map from <paramref name="definition"/>. Only call between matches — it wipes hiding-spot state.</summary>
+        public static void Load(MapDefinition definition)
         {
-            Id = def.id; WorldW = def.worldW; WorldH = def.worldH; GroundTint = def.groundTint;
-            DoorIn = new P(def.entryX, def.entryY); SpawnX = def.spawnX; SpawnY = def.spawnY;
-            Rooms = def.zones;
+            Id = definition.id; WorldW = definition.worldW; WorldH = definition.worldH; GroundTint = definition.groundTint;
+            Entrance = new Point(definition.entryX, definition.entryY); SpawnX = definition.spawnX; SpawnY = definition.spawnY;
+            Rooms = definition.rooms;
 
             var doors = new List<Door>();
-            foreach (var d in def.doorsV)
-                doors.Add(new Door { r = new RectF(d.x - DW / 2, d.y - OV, DW, GAP + 2 * OV), cx = d.x, cy = d.y + GAP / 2, vertical = true });
-            foreach (var d in def.doorsH)
-                doors.Add(new Door { r = new RectF(d.x - OV, d.y - DW / 2, GAP + 2 * OV, DW), cx = d.x + GAP / 2, cy = d.y, vertical = false });
+            foreach (var door in definition.verticalDoors)
+                doors.Add(new Door
+                {
+                    rect = new RectF(door.x - DoorWidth / 2, door.y - DoorOverlap, DoorWidth, DoorGap + 2 * DoorOverlap),
+                    centerX = door.x, centerY = door.y + DoorGap / 2, vertical = true,
+                });
+            foreach (var door in definition.horizontalDoors)
+                doors.Add(new Door
+                {
+                    rect = new RectF(door.x - DoorOverlap, door.y - DoorWidth / 2, DoorGap + 2 * DoorOverlap, DoorWidth),
+                    centerX = door.x + DoorGap / 2, centerY = door.y, vertical = false,
+                });
             Doors = doors.ToArray();
 
-            var wl = new List<RectF>();
-            foreach (var r in Rooms) wl.Add(new RectF(r.x, r.y, r.w, r.h));
-            foreach (var d in Doors) wl.Add(d.r);
-            walk = wl.ToArray();
+            var walkableAreas = new List<RectF>();
+            foreach (var room in Rooms) walkableAreas.Add(new RectF(room.x, room.y, room.w, room.h));
+            foreach (var door in Doors) walkableAreas.Add(door.rect);
+            walkable = walkableAreas.ToArray();
 
-            var furn = new List<Furn>(); var spots = new List<Furn>();
-            for (int i = 0; i < def.props.Length; i++)
+            var furniture = new List<Furniture>(); var spots = new List<Furniture>();
+            for (int i = 0; i < definition.furniture.Length; i++)
             {
-                var p = def.props[i];
-                var f = new Furn { id = i, type = p.type, x = p.x, y = p.y, w = p.w, h = p.h };
-                if (p.side != '\0')
+                var prop = definition.furniture[i];
+                var piece = new Furniture { id = i, type = prop.type, x = prop.x, y = prop.y, w = prop.w, h = prop.h };
+                if (prop.hideSide != '\0')
                 {
-                    f.side = p.side;
-                    const float o = 22;
-                    switch (f.side)
+                    // a hiding spot: the character stands just outside the side it is approached from
+                    piece.hideSide = prop.hideSide;
+                    switch (piece.hideSide)
                     {
-                        case 'n': f.ax = f.Cx; f.ay = f.y - o; break;
-                        case 's': f.ax = f.Cx; f.ay = f.y + f.h + o; break;
-                        case 'w': f.ax = f.x - o; f.ay = f.Cy; break;
-                        default: f.ax = f.x + f.w + o; f.ay = f.Cy; break;
+                        case 'n': piece.standX = piece.CenterX; piece.standY = piece.y - SpotStandOffset; break;
+                        case 's': piece.standX = piece.CenterX; piece.standY = piece.y + piece.h + SpotStandOffset; break;
+                        case 'w': piece.standX = piece.x - SpotStandOffset; piece.standY = piece.CenterY; break;
+                        default: piece.standX = piece.x + piece.w + SpotStandOffset; piece.standY = piece.CenterY; break;
                     }
-                    f.si = spots.Count; spots.Add(f);
+                    piece.spotIndex = spots.Count; spots.Add(piece);
                 }
-                furn.Add(f);
+                furniture.Add(piece);
             }
-            Furniture = furn.ToArray(); Spots = spots.ToArray();
-            Nodes = new List<P>();
-            BuildGraph();
+            Furniture = furniture.ToArray(); Spots = spots.ToArray();
+            Navigation.Build();
         }
 
-        public static bool InWalk(float x, float y, float m)
+        /// <summary>Whether (x, y) is inside a room or door, at least <paramref name="margin"/> away from its edges.</summary>
+        public static bool IsWalkable(float x, float y, float margin)
         {
-            foreach (var r in walk) if (x >= r.x + m && x <= r.x + r.w - m && y >= r.y + m && y <= r.y + r.h - m) return true;
+            foreach (var area in walkable)
+                if (x >= area.x + margin && x <= area.x + area.w - margin && y >= area.y + margin && y <= area.y + area.h - margin) return true;
             return false;
         }
-        public static bool InFurn(float x, float y, float m)
-        {
-            foreach (var f in Furniture) if (x > f.x - m && x < f.x + f.w + m && y > f.y - m && y < f.y + f.h + m) return true;
-            return false;
-        }
-        public static bool CanStand(float x, float y, float m = R) => InWalk(x, y, m) && !InFurn(x, y, m);
 
-        static bool ClearLine(float ax, float ay, float bx, float by, Func<float, float, bool> test)
+        /// <summary>Whether (x, y) is inside (or within <paramref name="margin"/> of) any piece of furniture.</summary>
+        public static bool IsInsideFurniture(float x, float y, float margin)
         {
-            float d = U.Dist(ax, ay, bx, by); int n = Math.Max(1, (int)MathF.Ceiling(d / 8));
-            for (int i = 0; i <= n; i++) { float t = (float)i / n; if (!test(ax + (bx - ax) * t, ay + (by - ay) * t)) return false; }
+            foreach (var piece in Furniture)
+                if (x > piece.x - margin && x < piece.x + piece.w + margin && y > piece.y - margin && y < piece.y + piece.h + margin) return true;
+            return false;
+        }
+
+        /// <summary>Whether a character of radius <paramref name="margin"/> fits at (x, y).</summary>
+        public static bool CanStand(float x, float y, float margin = BodyRadius) => IsWalkable(x, y, margin) && !IsInsideFurniture(x, y, margin);
+
+        /// <summary>A character can walk in a straight line from A (ax, ay) to B (bx, by) without bumping into anything.</summary>
+        public static bool CanWalkStraight(float ax, float ay, float bx, float by) => IsLineClear(ax, ay, bx, by, canStandAt);
+
+        /// <summary>Nothing but furniture between A and B: walls block sight, furniture doesn't.</summary>
+        public static bool HasLineOfSight(float ax, float ay, float bx, float by) => IsLineClear(ax, ay, bx, by, canSeeThrough);
+
+        static readonly Func<float, float, bool> canStandAt = (x, y) => CanStand(x, y);
+        static readonly Func<float, float, bool> canSeeThrough = (x, y) => IsWalkable(x, y, 0);
+
+        /// <summary>Samples the segment A→B and checks <paramref name="isClear"/> at every sample.</summary>
+        static bool IsLineClear(float ax, float ay, float bx, float by, Func<float, float, bool> isClear)
+        {
+            float length = Geometry.Distance(ax, ay, bx, by);
+            int samples = Math.Max(1, (int)MathF.Ceiling(length / LineCheckStep));
+            for (int i = 0; i <= samples; i++)
+            {
+                float along = (float)i / samples;   // 0 at A, 1 at B
+                if (!isClear(ax + (bx - ax) * along, ay + (by - ay) * along)) return false;
+            }
             return true;
         }
-        static readonly Func<float, float, bool> standTest = (x, y) => CanStand(x, y);
-        static readonly Func<float, float, bool> sightTest = (x, y) => InWalk(x, y, 0);
-        public static bool WalkLine(float ax, float ay, float bx, float by) => ClearLine(ax, ay, bx, by, standTest);
-        public static bool SightLine(float ax, float ay, float bx, float by) => ClearLine(ax, ay, bx, by, sightTest);
 
-        public static Room RoomOf(float x, float y)
+        /// <summary>The room (x, y) is in, or the closest one when it is in a doorway or outside.</summary>
+        public static Room RoomAt(float x, float y)
         {
-            foreach (var r in Rooms) if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r;
-            Room best = Rooms[0]; float bd = float.MaxValue;
-            foreach (var r in Rooms)
+            foreach (var room in Rooms) if (x >= room.x && x <= room.x + room.w && y >= room.y && y <= room.y + room.h) return room;
+            Room closest = Rooms[0]; float closestDistance = float.MaxValue;
+            foreach (var room in Rooms)
             {
-                float d = U.Dist(x, y, U.Clamp(x, r.x, r.x + r.w), U.Clamp(y, r.y, r.y + r.h));
-                if (d < bd) { bd = d; best = r; }
+                float distance = Geometry.Distance(x, y, Geometry.Clamp(x, room.x, room.x + room.w), Geometry.Clamp(y, room.y, room.y + room.h));
+                if (distance < closestDistance) { closestDistance = distance; closest = room; }
             }
-            return best;
+            return closest;
         }
 
-        public static float RectDist(Furn f, float x, float y)
+        /// <summary>Distance from (x, y) to the closest edge of <paramref name="piece"/> (0 when inside).</summary>
+        public static float DistanceToFurniture(Furniture piece, float x, float y)
         {
-            float dx = MathF.Max(MathF.Max(f.x - x, 0), x - f.x - f.w), dy = MathF.Max(MathF.Max(f.y - y, 0), y - f.y - f.h);
+            float dx = MathF.Max(MathF.Max(piece.x - x, 0), x - piece.x - piece.w);
+            float dy = MathF.Max(MathF.Max(piece.y - y, 0), y - piece.y - piece.h);
             return MathF.Sqrt(dx * dx + dy * dy);
-        }
-
-        static void BuildGraph()
-        {
-            for (float y = 64; y < WorldH; y += 46) for (float x = 64; x < WorldW; x += 46) if (CanStand(x, y, R + 3)) Nodes.Add(new P(x, y));
-            foreach (var d in Doors)
-            {
-                Nodes.Add(new P(d.cx, d.cy));
-                foreach (float s in new float[] { -34, 34 })
-                {
-                    float x = d.vertical ? d.cx : d.cx + s, y = d.vertical ? d.cy + s : d.cy;
-                    if (CanStand(x, y)) Nodes.Add(new P(x, y));
-                }
-            }
-            foreach (var s in Spots) Nodes.Add(new P(s.ax, s.ay));
-            adj = new List<(int, float)>[Nodes.Count];
-            for (int i = 0; i < Nodes.Count; i++) adj[i] = new List<(int, float)>();
-            for (int i = 0; i < Nodes.Count; i++)
-                for (int j = i + 1; j < Nodes.Count; j++)
-                {
-                    var a = Nodes[i]; var b = Nodes[j]; float d = U.Dist(a.x, a.y, b.x, b.y);
-                    if (d <= 80 && WalkLine(a.x, a.y, b.x, b.y)) { adj[i].Add((j, d)); adj[j].Add((i, d)); }
-                }
-        }
-
-        static List<(int i, float d)> NearNodes(float x, float y)
-        {
-            var o = new List<(int, float)>();
-            for (int i = 0; i < Nodes.Count; i++)
-            {
-                var n = Nodes[i]; float d = U.Dist(n.x, n.y, x, y);
-                if (d < 110 && WalkLine(x, y, n.x, n.y)) o.Add((i, d));
-            }
-            if (o.Count == 0)
-            {
-                int b = 0; float bd = float.MaxValue;
-                for (int i = 0; i < Nodes.Count; i++) { var n = Nodes[i]; float d = U.Dist(n.x, n.y, x, y); if (d < bd) { bd = d; b = i; } }
-                o.Add((b, bd));
-            }
-            return o;
-        }
-        public static int NearestNode(float x, float y) => NearNodes(x, y)[0].i;
-
-        static float[] D; static int[] Prev; static bool[] Done;
-        /// <summary>Shortest walkable route. Empty when unreachable. ponytail: O(N²) Dijkstra over ~550 nodes; use a heap if the house grows a lot more.</summary>
-        public static List<P> FindPath(float sx, float sy, float tx, float ty)
-        {
-            var path = new List<P>();
-            if (WalkLine(sx, sy, tx, ty)) { path.Add(new P(tx, ty)); return path; }
-            int N = Nodes.Count;
-            if (D == null || D.Length != N) { D = new float[N]; Prev = new int[N]; Done = new bool[N]; }
-            for (int i = 0; i < N; i++) { D[i] = float.PositiveInfinity; Prev[i] = -1; Done[i] = false; }
-            foreach (var (i, d) in NearNodes(sx, sy)) D[i] = d;
-            var T = new Dictionary<int, float>();
-            foreach (var (i, d) in NearNodes(tx, ty)) T[i] = d;
-            float best = float.PositiveInfinity; int end = -1;
-            for (;;)
-            {
-                int u = -1; float ud = float.PositiveInfinity;
-                for (int i = 0; i < N; i++) if (!Done[i] && D[i] < ud) { ud = D[i]; u = i; }
-                if (u < 0 || ud >= best) break;
-                Done[u] = true;
-                if (T.TryGetValue(u, out float td) && ud + td < best) { best = ud + td; end = u; }
-                foreach (var (v, w) in adj[u]) if (ud + w < D[v]) { D[v] = ud + w; Prev[v] = u; }
-            }
-            if (end < 0) return path;
-            for (int u = end; u >= 0; u = Prev[u]) path.Insert(0, Nodes[u]);
-            path.Add(new P(tx, ty));
-            return path;
         }
     }
 }

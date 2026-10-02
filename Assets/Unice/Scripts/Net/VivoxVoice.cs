@@ -17,12 +17,17 @@ namespace Unice
         static void Register() => VoiceRegistry.Factory = () => new VivoxVoice();
 
         // ponytail: fixed falloff tuned to the house's scale (world units = house px / 100, see Art.PxPerUnit). Expose as settings if it ever needs per-room tuning.
-        static readonly Channel3DProperties Props = new Channel3DProperties(
+        static readonly Channel3DProperties ChannelProperties = new Channel3DProperties(
             audibleDistance: 8, conversationalDistance: 2, audioFadeIntensityByDistanceaudio: 1f, audioFadeModel: AudioFadeModel.InverseByDistance);
 
+        /// <summary>The room's channel (the room code), or null.</summary>
         string channel;
-        bool loggedIn, joined, speaking, whispering;
+        bool loggedIn, joined;
+        /// <summary>What was last applied to the mic: unmuted, and at whisper volume.</summary>
+        bool speaking, whispering;
+        /// <summary>An object placed where this player is, used as the listening/speaking position.</summary>
         GameObject ear;
+        /// <summary>This device in the channel; its speech detection drives <see cref="IsSpeaking"/>.</summary>
         VivoxParticipant self;
 
         public bool MicOn { get; set; }
@@ -38,12 +43,12 @@ namespace Unice
                 VivoxService.Instance.ChannelJoined += OnChannelJoined;
                 VivoxService.Instance.ParticipantAddedToChannel += OnParticipantAdded;
                 VivoxService.Instance.ParticipantRemovedFromChannel += OnParticipantRemoved;
-                await VivoxService.Instance.JoinPositionalChannelAsync(channelName, ChatCapability.AudioOnly, Props);
+                await VivoxService.Instance.JoinPositionalChannelAsync(channelName, ChatCapability.AudioOnly, ChannelProperties);
                 VivoxService.Instance.MuteInputDevice();   // Tick() unmutes once allowed to speak
             }
-            catch (Exception x)
+            catch (Exception error)
             {
-                Metrics.Error(x, "voice");
+                Metrics.Error(error, "voice");
                 if (channel != null)
                 {
                     VivoxService.Instance.ChannelJoined -= OnChannelJoined;
@@ -56,38 +61,38 @@ namespace Unice
 
         public async Task LeaveRoomAsync()
         {
-            var ch = channel; channel = null; joined = false; speaking = false; whispering = false; IsSpeaking = false;
+            var leaving = channel; channel = null; joined = false; speaking = false; whispering = false; IsSpeaking = false;
             DetachSelf();
             VivoxService.Instance.ChannelJoined -= OnChannelJoined;
             VivoxService.Instance.ParticipantAddedToChannel -= OnParticipantAdded;
             VivoxService.Instance.ParticipantRemovedFromChannel -= OnParticipantRemoved;
-            if (ch == null) return;
-            try { await VivoxService.Instance.LeaveChannelAsync(ch); }
-            catch (Exception x) { Metrics.Error(x, "voice"); }
+            if (leaving == null) return;
+            try { await VivoxService.Instance.LeaveChannelAsync(leaving); }
+            catch (Exception error) { Metrics.Error(error, "voice"); }
         }
 
-        public void Tick(bool speak, float x, float y, bool hasPos, bool whisper)
+        public void Tick(bool speak, float x, float y, bool hasPosition, bool whisper)
         {
             if (!joined) return;
             try
             {
                 if (speak != speaking) { speaking = speak; if (speak) VivoxService.Instance.UnmuteInputDevice(); else VivoxService.Instance.MuteInputDevice(); }
                 if (whisper != whispering) { whispering = whisper; VivoxService.Instance.SetInputDeviceVolume(whisper ? -50 : 0); }
-                if (hasPos) VivoxService.Instance.Set3DPosition(Ear(x, y), channel);
+                if (hasPosition) VivoxService.Instance.Set3DPosition(Ear(x, y), channel);
             }
-            catch (Exception ex) { Metrics.Error(ex, "voice"); }
+            catch (Exception error) { Metrics.Error(error, "voice"); }
         }
 
         void OnChannelJoined(string name) { if (name == channel) joined = true; }
 
-        void OnParticipantAdded(VivoxParticipant p)
+        void OnParticipantAdded(VivoxParticipant participant)
         {
-            if (!p.IsSelf || p.ChannelName != channel) return;
+            if (!participant.IsSelf || participant.ChannelName != channel) return;
             DetachSelf();
-            self = p; self.ParticipantSpeechDetected += OnSelfSpeechDetected; IsSpeaking = self.SpeechDetected;
+            self = participant; self.ParticipantSpeechDetected += OnSelfSpeechDetected; IsSpeaking = self.SpeechDetected;
         }
 
-        void OnParticipantRemoved(VivoxParticipant p) { if (p == self) DetachSelf(); }
+        void OnParticipantRemoved(VivoxParticipant participant) { if (participant == self) DetachSelf(); }
 
         void OnSelfSpeechDetected() { if (self != null) IsSpeaking = self.SpeechDetected; }
 
@@ -114,14 +119,14 @@ namespace Unice
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             try { if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Microphone)) UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Microphone); }
-            catch (Exception x) { Metrics.Error(x, "voice"); }
+            catch (Exception error) { Metrics.Error(error, "voice"); }
 #endif
         }
 
         GameObject Ear(float x, float y)
         {
             if (ear == null) { ear = new GameObject("VoiceEar"); UnityEngine.Object.DontDestroyOnLoad(ear); }
-            ear.transform.position = Art.W(x, y);
+            ear.transform.position = Art.ToWorld(x, y);
             return ear;
         }
     }

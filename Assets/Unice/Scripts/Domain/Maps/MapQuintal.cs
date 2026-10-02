@@ -17,7 +17,7 @@ namespace Unice
             groundTint = "#4a7c3f", // grass
             entryX = 860, entryY = 45, // back door, top-center of the patio
             spawnX = 860, spawnY = 750,
-            zones = new[]
+            rooms = new[]
             {
                 new Room("front", 40, 40, 540, 380),
                 new Room("patio", 620, 40, 480, 380),
@@ -27,17 +27,17 @@ namespace Unice
                 new Room("yard", 620, 560, 480, 580),
                 new Room("shed", 1140, 560, 540, 580),
             },
-            doorsV = new[]
+            verticalDoors = new[]
             {
                 new MapDoor(620, 230), new MapDoor(1140, 230),   // front|patio, patio|side (top row)
                 new MapDoor(620, 850), new MapDoor(1140, 850),   // garden|yard, yard|shed (bottom row)
             },
-            doorsH = new[]
+            horizontalDoors = new[]
             {
                 new MapDoor(300, 420), new MapDoor(860, 420), new MapDoor(1400, 420),   // top row -> path
                 new MapDoor(300, 560), new MapDoor(860, 560), new MapDoor(1400, 560),   // path -> bottom row
             },
-            props = new[]
+            furniture = new[]
             {
                 // --- hiding spots (17) ---
                 new MapProp("hedge",      80,   140, 140, 90,  'n'),

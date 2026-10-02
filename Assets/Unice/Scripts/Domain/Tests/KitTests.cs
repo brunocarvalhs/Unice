@@ -10,35 +10,35 @@ namespace Unice
         public void Clean_ValidValues_ReturnsUnchanged()
         {
             var k = new[] { 1, 2, 3, 4, 5, 2, 1 };
-            CollectionAssert.AreEqual(k, Kit.Clean(k));
+            CollectionAssert.AreEqual(k, Kit.Sanitize(k));
         }
 
         [Test]
-        public void Clean_NullArray_ReturnsAllZeros() => CollectionAssert.AreEqual(new int[Kit.Slots], Kit.Clean(null));
+        public void Clean_NullArray_ReturnsAllZeros() => CollectionAssert.AreEqual(new int[Kit.Slots], Kit.Sanitize(null));
 
         [Test]
         public void Clean_ShorterArray_PadsRemainderWithZeros()
         {
-            var r = Kit.Clean(new[] { 1, 2 });
+            var r = Kit.Sanitize(new[] { 1, 2 });
             CollectionAssert.AreEqual(new[] { 1, 2, 0, 0, 0, 0, 0 }, r);
         }
 
         [Test]
         public void Clean_LongerArray_IgnoresExtraElements()
         {
-            var r = Kit.Clean(new[] { 1, 2, 3, 4, 5, 2, 1, 999, 999 });
+            var r = Kit.Sanitize(new[] { 1, 2, 3, 4, 5, 2, 1, 999, 999 });
             Assert.AreEqual(Kit.Slots, r.Length);
             CollectionAssert.AreEqual(new[] { 1, 2, 3, 4, 5, 2, 1 }, r);
         }
 
         [Test]
-        public void Clean_NegativeValue_ClampsToZero() => CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 0, 0, 0 }, Kit.Clean(new[] { -1, -5, 0, 0, 0, 0, 0 }));
+        public void Clean_NegativeValue_ClampsToZero() => CollectionAssert.AreEqual(new[] { 0, 0, 0, 0, 0, 0, 0 }, Kit.Sanitize(new[] { -1, -5, 0, 0, 0, 0, 0 }));
 
         [Test]
         public void Clean_ValueAtOrAboveMax_ClampsToZero()
         {
             // Max = { 4, 4, 5, 5, 8, 6, 4 }: values equal to Max (one past the valid range) fall back to 0.
-            var r = Kit.Clean(new[] { 4, 4, 5, 5, 8, 6, 4 });
+            var r = Kit.Sanitize(new[] { 4, 4, 5, 5, 8, 6, 4 });
             CollectionAssert.AreEqual(new int[Kit.Slots], r);
         }
 
@@ -51,7 +51,7 @@ namespace Unice
             for (int n = 0; n < 200; n++)
             {
                 var r = Kit.Random();
-                for (int i = 0; i < Kit.Slots; i++) Assert.That(r[i], Is.InRange(0, Kit.Max[i] - 1));
+                for (int i = 0; i < Kit.Slots; i++) Assert.That(r[i], Is.InRange(0, Kit.OptionCount[i] - 1));
             }
         }
 
@@ -74,7 +74,7 @@ namespace Unice
             {
                 var r = Kit.Unpack(v);
                 Assert.AreEqual(Kit.Slots, r.Length);
-                for (int i = 0; i < Kit.Slots; i++) Assert.That(r[i], Is.InRange(0, Kit.Max[i] - 1));
+                for (int i = 0; i < Kit.Slots; i++) Assert.That(r[i], Is.InRange(0, Kit.OptionCount[i] - 1));
             }
         }
 

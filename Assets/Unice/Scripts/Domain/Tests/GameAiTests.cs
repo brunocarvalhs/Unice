@@ -4,12 +4,12 @@ using NUnit.Framework;
 namespace Unice
 {
     /// <summary>
-    /// Characterization tests for Game's bot-AI and host-input paths (UniceAI/HiderAI/Patrol/ArriveU/ResolveCheck/
-    /// SetGoal/SpotNear/FleePoint/Los/AiHear, plus the public CanMoveNow/BackToLobby/ReadInputs/NearSpotFurn).
+    /// Characterization tests for Game's bot-AI and host-input paths (UniceBot/HiderBot/Patrol/UniceBot.OnArrived/UniceBot.FinishSpotCheck/
+    /// UniceBot.SetGoal/UncheckedSpotNear/FleePoint/BotPath.CanSee/UniceBot.HearNoise, plus the public CanMove/BackToLobby/ApplyPeerInputs/NearestSpot).
     /// These are RNG-driven heuristics: tests assert INVARIANTS that must hold regardless of the random draws
     /// (e.g. "stays inside the house"), or force edge conditions that make the outcome deterministic (e.g. an
     /// empty path so FollowPath "arrives" on the very next tick, or a goal placed exactly on a free spot's
-    /// anchor so NearFreeSpot/SpotNear have exactly one possible answer). Does not change Game.cs.
+    /// anchor so NearFreeSpot/UncheckedSpotNear have exactly one possible answer). Does not change Game.cs.
     /// </summary>
     [TestFixture]
     public class GameAiTests
@@ -17,13 +17,13 @@ namespace Unice
         static List<Game.Human> Humans(params (string id, string name)[] hs)
         {
             var list = new List<Game.Human>();
-            foreach (var (id, name) in hs) list.Add(new Game.Human { id = id, name = name, k = null, joinT = 0 });
+            foreach (var (id, name) in hs) list.Add(new Game.Human { id = id, name = name, kit = null, joinTime = 0 });
             return list;
         }
 
         static Game NewGameAfterMatch(int bots, List<Game.Human> humans)
         {
-            var g = new Game { isHost = true, bots = bots, rounds = 5 };
+            var g = new Game { isHost = true, botCount = bots, totalRounds = 5 };
             g.NewMatch(humans);
             return g;
         }
@@ -34,21 +34,21 @@ namespace Unice
         public void CanMoveNow_CoversLiveOutOfRoundHiddenAndUniceGuards()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var e = new Ent(0, "x", "X", new int[7], false);
+            var e = new Character(0, "x", "X", new int[7], false);
 
-            g.ph = Phase.Hunt;
-            Assert.IsTrue(g.CanMoveNow(e), "a plain hider can move during Hunt");
+            g.phase = Phase.Hunt;
+            Assert.IsTrue(g.CanMove(e), "a plain hider can move during Hunt");
 
-            e.outOfRound = true; Assert.IsFalse(g.CanMoveNow(e)); e.outOfRound = false;
-            e.hidden = Map.Spots[0]; Assert.IsFalse(g.CanMoveNow(e)); e.hidden = null;
+            e.outOfRound = true; Assert.IsFalse(g.CanMove(e)); e.outOfRound = false;
+            e.hidingSpot = Map.Spots[0]; Assert.IsFalse(g.CanMove(e)); e.hidingSpot = null;
 
-            e.role = Role.Unice; e.stun = 0;
-            Assert.IsTrue(g.CanMoveNow(e), "Unice can move during Hunt when not stunned");
-            g.ph = Phase.Hide; Assert.IsFalse(g.CanMoveNow(e), "Unice never moves during Hide");
-            g.ph = Phase.Hunt; e.stun = 1; Assert.IsFalse(g.CanMoveNow(e), "a stunned Unice can't move even during Hunt");
+            e.role = Role.Unice; e.stunTime = 0;
+            Assert.IsTrue(g.CanMove(e), "Unice can move during Hunt when not stunned");
+            g.phase = Phase.Hide; Assert.IsFalse(g.CanMove(e), "Unice never moves during Hide");
+            g.phase = Phase.Hunt; e.stunTime = 1; Assert.IsFalse(g.CanMove(e), "a stunned Unice can't move even during Hunt");
 
-            g.ph = Phase.Result; e.role = Role.Hider; e.stun = 0;
-            Assert.IsFalse(g.CanMoveNow(e), "nobody moves outside Hide/Hunt");
+            g.phase = Phase.Result; e.role = Role.Hider; e.stunTime = 0;
+            Assert.IsFalse(g.CanMove(e), "nobody moves outside Hide/Hunt");
         }
 
         [Test]
@@ -58,183 +58,183 @@ namespace Unice
 
             g.BackToLobby();
 
-            Assert.AreEqual(Phase.Lobby, g.ph);
-            Assert.AreEqual(0, g.ents.Count); Assert.AreEqual(0, g.r);
+            Assert.AreEqual(Phase.Lobby, g.phase);
+            Assert.AreEqual(0, g.characters.Count); Assert.AreEqual(0, g.round);
             Assert.IsNull(g.unice); Assert.IsNull(g.doll.holder);
-            Assert.AreEqual(EvType.Lobby, g.evs[g.evs.Count - 1].type);
+            Assert.AreEqual(GameEventType.Lobby, g.events[g.events.Count - 1].type);
         }
 
         [Test]
         public void NearSpotFurn_ReturnsNearestSpotWithin34Units_OrNullWhenFar()
         {
-            var atTheBed = new Ent(0, "x", "X", new int[7], false) { x = Map.Spots[0].ax, y = Map.Spots[0].ay };
-            Assert.AreSame(Map.Spots[0], Game.NearSpotFurn(atTheBed));
+            var atTheBed = new Character(0, "x", "X", new int[7], false) { x = Map.Spots[0].standX, y = Map.Spots[0].standY };
+            Assert.AreSame(Map.Spots[0], Game.NearestSpot(atTheBed));
 
-            var inTheOpenHall = new Ent(0, "x", "X", new int[7], false) { x = 900, y = 474 };
-            Assert.IsNull(Game.NearSpotFurn(inTheOpenHall));
+            var inTheOpenHall = new Character(0, "x", "X", new int[7], false) { x = 900, y = 474 };
+            Assert.IsNull(Game.NearestSpot(inTheOpenHall));
         }
 
-        // ---------- ReadInputs (host applying what peers sent) ----------
+        // ---------- ApplyPeerInputs (host applying what peers sent) ----------
 
         [Test]
         public void ReadInputs_PeerMissing_TurnsTheEntIntoABotAndRaisesLeftWhileLive()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana"), ("h2", "Beto")));
-            g.ph = Phase.Hunt;
-            var h2 = g.ents.Find(e => e.pid == "h2");
+            g.phase = Phase.Hunt;
+            var h2 = g.characters.Find(e => e.playerId == "h2");
 
-            g.ReadInputs(new List<PeerInfo>(), "h1", 0.05f);
+            g.ApplyPeerInputs(new List<PeerInfo>(), "h1", 0.05f);
 
-            Assert.IsTrue(h2.bot, "a human peer that's gone from the room becomes a bot so the match keeps going");
-            var ev = g.evs[g.evs.Count - 1];
-            Assert.AreEqual(EvType.Left, ev.type); Assert.AreEqual(h2.idx, ev.a);
+            Assert.IsTrue(h2.isBot, "a human peer that's gone from the room becomes a bot so the match keeps going");
+            var ev = g.events[g.events.Count - 1];
+            Assert.AreEqual(GameEventType.Left, ev.type); Assert.AreEqual(h2.index, ev.actor);
         }
 
         [Test]
         public void ReadInputs_NewerActionSequence_AppliesTheActionAndRemembersTheSequence()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana"), ("h2", "Beto")));
-            var h2 = g.ents.Find(e => e.pid == "h2");
-            h2.role = Role.Hider; h2.hidden = null; h2.outOfRound = false; // might have been randomly drawn as this round's Unice otherwise
-            var spot = Map.Spots[0]; h2.x = spot.ax; h2.y = spot.ay;
-            var peer = new PeerInfo { id = "h2", pres = new Presence { aSeq = 1, aType = Act.Hide, aArg = 0, hasPos = false } };
+            var h2 = g.characters.Find(e => e.playerId == "h2");
+            h2.role = Role.Hider; h2.hidingSpot = null; h2.outOfRound = false; // might have been randomly drawn as this round's Unice otherwise
+            var spot = Map.Spots[0]; h2.x = spot.standX; h2.y = spot.standY;
+            var peer = new PeerInfo { id = "h2", presence = new Presence { actionSeq = 1, action = PlayerAction.Hide, actionArg = 0, hasPosition = false } };
 
             try
             {
-                g.ReadInputs(new List<PeerInfo> { peer }, "h1", 0.05f);
+                g.ApplyPeerInputs(new List<PeerInfo> { peer }, "h1", 0.05f);
 
-                Assert.AreSame(spot, h2.hidden);
-                Assert.AreEqual(1, g.aseq["h2"]);
+                Assert.AreSame(spot, h2.hidingSpot);
+                Assert.AreEqual(1, g.lastActionSeq["h2"]);
             }
-            finally { spot.occ = null; }
+            finally { spot.occupant = null; }
         }
 
         [Test]
         public void ReadInputs_PositionSync_TeleportsWithinThreshold_AndRejectsAnImpossibleJump()
         {
             var g = NewGameAfterMatch(0, Humans(("h1", "Ana"), ("h2", "Beto"), ("h3", "Caio")));
-            g.ph = Phase.Hunt;
-            var h2 = g.ents.Find(e => e.pid == "h2"); h2.tp = 5; h2.x = 100; h2.y = 100;
-            var h3 = g.ents.Find(e => e.pid == "h3"); h3.tp = 5; h3.x = 100; h3.y = 100;
+            g.phase = Phase.Hunt;
+            var h2 = g.characters.Find(e => e.playerId == "h2"); h2.teleportSeq = 5; h2.x = 100; h2.y = 100;
+            var h3 = g.characters.Find(e => e.playerId == "h3"); h3.teleportSeq = 5; h3.x = 100; h3.y = 100;
             var peers = new List<PeerInfo>
             {
-                new PeerInfo { id = "h2", pres = new Presence { aSeq = 0, hasPos = true, tp = 5, x = 150, y = 100, fx = 1, fy = 0, sneak = true } },
-                new PeerInfo { id = "h3", pres = new Presence { aSeq = 0, hasPos = true, tp = 5, x = 2000, y = 2000, fx = 1, fy = 0 } }, // way beyond the 260 jump threshold
+                new PeerInfo { id = "h2", presence = new Presence { actionSeq = 0, hasPosition = true, teleportSeq = 5, x = 150, y = 100, faceX = 1, faceY = 0, sneaking = true } },
+                new PeerInfo { id = "h3", presence = new Presence { actionSeq = 0, hasPosition = true, teleportSeq = 5, x = 2000, y = 2000, faceX = 1, faceY = 0 } }, // way beyond the 260 jump threshold
             };
 
-            g.ReadInputs(peers, "h1", 0.1f);
+            g.ApplyPeerInputs(peers, "h1", 0.1f);
 
-            Assert.AreEqual(150, h2.x); Assert.AreEqual(100, h2.y); Assert.AreEqual(1, h2.fx); Assert.AreEqual(0, h2.fy); Assert.IsTrue(h2.sneak);
+            Assert.AreEqual(150, h2.x); Assert.AreEqual(100, h2.y); Assert.AreEqual(1, h2.faceX); Assert.AreEqual(0, h2.faceY); Assert.IsTrue(h2.sneaking);
             Assert.AreEqual(100, h3.x); Assert.AreEqual(100, h3.y, "an impossible jump is rejected, not applied");
-            Assert.AreEqual(6, h3.tp, "a rejected jump still bumps tp to force the client to resync");
+            Assert.AreEqual(6, h3.teleportSeq, "a rejected jump still bumps tp to force the client to resync");
         }
 
-        // ---------- UniceAI: arrival -> checking -> resolving a spot ----------
+        // ---------- UniceBot: arrival -> checking -> resolving a spot ----------
 
         [Test]
         public void UniceAI_ArrivingAtASpotGoal_StartsCheckingThenResolvesAndOpensTheEmptySpot()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var other = g.ents.Find(e => !e.bot); other.outOfRound = true; // keep it out of Unice's target search
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.stun = 0; unice.tired = 0; unice.checkT = 0; unice.target = null;
+            var other = g.characters.Find(e => !e.isBot); other.outOfRound = true; // keep it out of Unice's target search
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.stunTime = 0; unice.tiredTime = 0; unice.brain.checkTimer = 0; unice.brain.chaseTarget = null;
             var spot = Map.Spots[0];
-            unice.x = spot.ax; unice.y = spot.ay; unice.goal = new Goal { kind = "spot", spot = spot, pri = 0, left = 0 }; unice.path.Clear();
-            g.ph = Phase.Hunt; g.tl = 1000;
+            unice.x = spot.standX; unice.y = spot.standY; unice.brain.goal = new BotGoal { kind = BotGoal.Kind.Spot, spot = spot, priority = 0, hopsLeft = 0 }; unice.brain.path.Clear();
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            g.SimUpdate(0.05f); // FollowPath "arrives" immediately (empty path) -> ArriveU starts the check
-            Assert.AreEqual(Rules.AiCheck, unice.checkT);
-            Assert.AreSame(spot, unice.checkSpot);
+            g.Simulate(0.05f); // FollowPath "arrives" immediately (empty path) -> UniceBot.OnArrived starts the check
+            Assert.AreEqual(Rules.BotSpotCheckTime, unice.brain.checkTimer);
+            Assert.AreSame(spot, unice.brain.checkingSpot);
 
-            g.SimUpdate(1.1f); // checkT runs out -> ResolveCheck
-            Assert.IsNull(unice.goal); Assert.IsNull(unice.checkSpot);
-            var ev = g.evs[g.evs.Count - 1];
-            Assert.AreEqual(EvType.Open, ev.type); Assert.AreEqual(0, ev.b, "nobody was hiding there");
+            g.Simulate(1.1f); // brain.checkTimer runs out -> UniceBot.FinishSpotCheck
+            Assert.IsNull(unice.brain.goal); Assert.IsNull(unice.brain.checkingSpot);
+            var ev = g.events[g.events.Count - 1];
+            Assert.AreEqual(GameEventType.Open, ev.type); Assert.AreEqual(-1, ev.target, "nobody was hiding there");
         }
 
         [Test]
         public void UniceAI_ResolveCheck_CapturesAHiderFoundInTheSpot()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var other = g.ents.Find(e => !e.bot); other.outOfRound = true;
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.stun = 0; unice.tired = 0; unice.checkT = 0.01f; // one small tick away from resolving
-            var spot = Map.Spots[0]; unice.x = spot.ax; unice.y = spot.ay; unice.checkSpot = spot;
-            var hidden = new Ent(5, "ghost", "Ghost", new int[7], true) { hidden = spot };
-            spot.occ = hidden; g.ents.Add(hidden);
-            g.ph = Phase.Hunt; g.tl = 1000;
+            var other = g.characters.Find(e => !e.isBot); other.outOfRound = true;
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.stunTime = 0; unice.tiredTime = 0; unice.brain.checkTimer = 0.01f; // one small tick away from resolving
+            var spot = Map.Spots[0]; unice.x = spot.standX; unice.y = spot.standY; unice.brain.checkingSpot = spot;
+            var hidden = new Character(5, "ghost", "Ghost", new int[7], true) { hidingSpot = spot };
+            spot.occupant = hidden; g.characters.Add(hidden);
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
             try
             {
-                g.SimUpdate(0.02f);
+                g.Simulate(0.02f);
 
                 Assert.IsTrue(hidden.outOfRound);
                 Assert.AreEqual(1, unice.score);
             }
-            finally { spot.occ = null; }
+            finally { spot.occupant = null; }
         }
 
-        // ---------- UniceAI: no target -> Patrol/SetGoal, and ArriveU expanding a "pos" goal via SpotNear ----------
+        // ---------- UniceBot: no target -> Patrol/UniceBot.SetGoal, and UniceBot.OnArrived expanding a Position goal via UncheckedSpotNear ----------
 
         [Test]
         public void UniceAI_WithNoVisibleTarget_PatrolsAndSetsAValidGoal()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var other = g.ents.Find(e => !e.bot); other.outOfRound = true;
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.stun = 0; unice.tired = 0; unice.checkT = 0; unice.target = null; unice.hasMem = false; unice.pending = null;
-            unice.x = unice.tx = 900; unice.y = unice.ty = 474; // in case this bot was originally the round's Unice and never got off (-600,-600)
-            g.ph = Phase.Hunt; g.tl = 1000;
+            var other = g.characters.Find(e => !e.isBot); other.outOfRound = true;
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.stunTime = 0; unice.tiredTime = 0; unice.brain.checkTimer = 0; unice.brain.chaseTarget = null; unice.brain.remembersTarget = false; unice.brain.pendingGoal = null;
+            unice.x = unice.targetX = 900; unice.y = unice.targetY = 474; // in case this bot was originally the round's Unice and never got off (-600,-600)
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            for (int i = 0; i < 40; i++) { unice.goal = null; g.SimUpdate(0.016f); } // force Patrol to run fresh every tick
+            for (int i = 0; i < 40; i++) { unice.brain.goal = null; g.Simulate(0.016f); } // force Patrol to run fresh every tick
 
-            Assert.IsNotNull(unice.goal);
-            Assert.That(unice.goal.kind, Is.EqualTo("pos").Or.EqualTo("spot"));
-            if (unice.goal.kind == "spot") Assert.IsNotNull(unice.goal.spot);
+            Assert.IsNotNull(unice.brain.goal);
+            Assert.That(unice.brain.goal.kind, Is.EqualTo(BotGoal.Kind.Position).Or.EqualTo(BotGoal.Kind.Spot));
+            if (unice.brain.goal.kind == BotGoal.Kind.Spot) Assert.IsNotNull(unice.brain.goal.spot);
         }
 
         [Test]
         public void UniceAI_ArrivingAtAPosGoalWithStepsRemaining_ExpandsSearchViaSpotNear()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var other = g.ents.Find(e => !e.bot); other.outOfRound = true;
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.stun = 0; unice.tired = 0; unice.checkT = 0; unice.target = null; unice.hasMem = false; unice.pending = null;
+            var other = g.characters.Find(e => !e.isBot); other.outOfRound = true;
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.stunTime = 0; unice.tiredTime = 0; unice.brain.checkTimer = 0; unice.brain.chaseTarget = null; unice.brain.remembersTarget = false; unice.brain.pendingGoal = null;
             var spot = Map.Spots[0];
-            unice.goal = new Goal { kind = "pos", x = spot.ax, y = spot.ay, pri = 2, left = 2, hasAround = true, ax = spot.ax, ay = spot.ay };
-            unice.path.Clear();
-            g.ph = Phase.Hunt; g.tl = 1000;
+            unice.brain.goal = new BotGoal { kind = BotGoal.Kind.Position, x = spot.standX, y = spot.standY, priority = 2, hopsLeft = 2, hasSearchCenter = true, searchCenterX = spot.standX, searchCenterY = spot.standY };
+            unice.brain.path.Clear();
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            g.SimUpdate(0.05f); // empty path -> arrives immediately -> ArriveU expands the "pos" goal via SpotNear
+            g.Simulate(0.05f); // empty path -> arrives immediately -> UniceBot.OnArrived expands the Position goal via UncheckedSpotNear
 
-            Assert.IsNotNull(unice.goal);
-            Assert.AreEqual("spot", unice.goal.kind);
-            Assert.AreSame(spot, unice.goal.spot, "the nearest never-checked spot to the goal's position is this one");
-            Assert.AreEqual(1, unice.goal.left);
+            Assert.IsNotNull(unice.brain.goal);
+            Assert.AreEqual(BotGoal.Kind.Spot, unice.brain.goal.kind);
+            Assert.AreSame(spot, unice.brain.goal.spot, "the nearest never-checked spot to the goal's position is this one");
+            Assert.AreEqual(1, unice.brain.goal.hopsLeft);
         }
 
-        // ---------- AiHear (and, as a side effect, Los) ----------
+        // ---------- UniceBot.HearNoise (and, as a side effect, BotPath.CanSee) ----------
 
         [Test]
         public void AiHear_NoiseFromAnUnseenHider_RedirectsTheUniceTowardIt()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var hider = g.ents.Find(e => !e.bot); // human: skipped by the bot-AI loop, so its manual state below isn't overwritten
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.target = null; unice.checkT = 0; unice.goal = null;
-            hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null; hider.loud = true; hider.noiseT = 0.01f;
+            var hider = g.characters.Find(e => !e.isBot); // human: skipped by the bot-AI loop, so its manual state below isn't overwritten
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.brain.chaseTarget = null; unice.brain.checkTimer = 0; unice.brain.goal = null;
+            hider.role = Role.Hider; hider.outOfRound = false; hider.hidingSpot = null; hider.loud = true; hider.noiseTimer = 0.01f;
             hider.x = 400; hider.y = 300; // master bedroom
-            unice.x = 650; unice.y = 300; // bath: 250 units away (within NoiseR) but behind the dividing wall (no sightline)
-            g.ph = Phase.Hunt; g.tl = 1000;
+            unice.x = 650; unice.y = 300; // bath: 250 units away (within Rules.NoiseRange) but behind the dividing wall (no sightline)
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            Assert.IsFalse(Map.SightLine(hider.x, hider.y, unice.x, unice.y), "the two rooms' only door isn't on this line");
+            Assert.IsFalse(Map.HasLineOfSight(hider.x, hider.y, unice.x, unice.y), "the two rooms' only door isn't on this line");
 
-            g.SimUpdate(0.02f);
+            g.Simulate(0.02f);
 
-            Assert.IsNotNull(unice.goal);
-            Assert.AreEqual("pos", unice.goal.kind);
-            Assert.AreEqual(400, unice.goal.x); Assert.AreEqual(300, unice.goal.y);
-            Assert.AreEqual(1, unice.goal.pri);
+            Assert.IsNotNull(unice.brain.goal);
+            Assert.AreEqual(BotGoal.Kind.Position, unice.brain.goal.kind);
+            Assert.AreEqual(400, unice.brain.goal.x); Assert.AreEqual(300, unice.brain.goal.y);
+            Assert.AreEqual(1, unice.brain.goal.priority);
         }
 
         [Test]
@@ -242,20 +242,20 @@ namespace Unice
         {
             // "normal" voice level counts as noise for the AI exactly like movement noise, even while standing still.
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var hider = g.ents.Find(e => !e.bot);
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.target = null; unice.checkT = 0; unice.goal = null;
-            hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null; hider.loud = false; hider.talking = true; hider.noiseT = 0.01f;
+            var hider = g.characters.Find(e => !e.isBot);
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.brain.chaseTarget = null; unice.brain.checkTimer = 0; unice.brain.goal = null;
+            hider.role = Role.Hider; hider.outOfRound = false; hider.hidingSpot = null; hider.loud = false; hider.talking = true; hider.noiseTimer = 0.01f;
             hider.x = 400; hider.y = 300; // master bedroom
-            unice.x = 650; unice.y = 300; // bath: 250 units away (within NoiseR) but behind the dividing wall (no sightline)
-            g.ph = Phase.Hunt; g.tl = 1000;
+            unice.x = 650; unice.y = 300; // bath: 250 units away (within Rules.NoiseRange) but behind the dividing wall (no sightline)
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            g.SimUpdate(0.02f);
+            g.Simulate(0.02f);
 
-            Assert.IsNotNull(unice.goal);
-            Assert.AreEqual("pos", unice.goal.kind);
-            Assert.AreEqual(400, unice.goal.x); Assert.AreEqual(300, unice.goal.y);
-            Assert.AreEqual(1, unice.goal.pri);
+            Assert.IsNotNull(unice.brain.goal);
+            Assert.AreEqual(BotGoal.Kind.Position, unice.brain.goal.kind);
+            Assert.AreEqual(400, unice.brain.goal.x); Assert.AreEqual(300, unice.brain.goal.y);
+            Assert.AreEqual(1, unice.brain.goal.priority);
         }
 
         [Test]
@@ -263,18 +263,18 @@ namespace Unice
         {
             // "sussurro" (whisper): no movement noise and no voice noise either, so the Unice must not be pulled toward the hider.
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var hider = g.ents.Find(e => !e.bot);
-            var unice = g.ents.Find(e => e.bot); unice.role = Role.Unice; g.unice = unice;
-            unice.target = null; unice.checkT = 0; unice.goal = null;
-            hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null; hider.loud = false; hider.talking = false; hider.noiseT = 0.01f;
+            var hider = g.characters.Find(e => !e.isBot);
+            var unice = g.characters.Find(e => e.isBot); unice.role = Role.Unice; g.unice = unice;
+            unice.brain.chaseTarget = null; unice.brain.checkTimer = 0; unice.brain.goal = null;
+            hider.role = Role.Hider; hider.outOfRound = false; hider.hidingSpot = null; hider.loud = false; hider.talking = false; hider.noiseTimer = 0.01f;
             hider.x = 400; hider.y = 300;
             unice.x = 650; unice.y = 300;
-            g.ph = Phase.Hunt; g.tl = 1000;
+            g.phase = Phase.Hunt; g.timeLeft = 1000;
 
-            g.SimUpdate(0.02f);
+            g.Simulate(0.02f);
 
-            // AiHear's signature is a "pos" goal at pri 1 placed exactly on the noise source; Patrol only ever sets pri 0.
-            bool heardTheHider = unice.goal != null && unice.goal.kind == "pos" && unice.goal.pri == 1 && unice.goal.x == 400 && unice.goal.y == 300;
+            // UniceBot.HearNoise's signature is a Position goal at priority 1 placed exactly on the noise source; Patrol only ever sets priority 0.
+            bool heardTheHider = unice.brain.goal != null && unice.brain.goal.kind == BotGoal.Kind.Position && unice.brain.goal.priority == 1 && unice.brain.goal.x == 400 && unice.brain.goal.y == 300;
             Assert.IsFalse(heardTheHider, "with loud=false and talking=false, AiHear must not fire");
         }
 
@@ -283,91 +283,91 @@ namespace Unice
         [Test]
         public void SimUpdate_GiggleTimerRunsOutWhileHolderIsHidden_RevealsItsLastPosition()
         {
-            var g = NewGameAfterMatch(2, Humans(("h1", "Ana"))); // 3 ents: human + 2 bots
-            var unice = g.ents[0]; unice.role = Role.Unice; g.unice = unice; // human, far away: inert and harmless to HiderAI's distance check
+            var g = NewGameAfterMatch(2, Humans(("h1", "Ana"))); // 3 characters: human + 2 bots
+            var unice = g.characters[0]; unice.role = Role.Unice; g.unice = unice; // human, far away: inert and harmless to HiderBot's distance check
             unice.x = 900; unice.y = 474;
-            var holder = g.ents[1]; holder.role = Role.Hider; holder.outOfRound = false;
-            var spot = Map.Spots[0]; holder.x = spot.ax; holder.y = spot.ay; holder.hidden = spot; spot.occ = holder;
+            var holder = g.characters[1]; holder.role = Role.Hider; holder.outOfRound = false;
+            var spot = Map.Spots[0]; holder.x = spot.standX; holder.y = spot.standY; holder.hidingSpot = spot; spot.occupant = holder;
             g.doll.holder = holder;
-            var other = g.ents[2]; other.outOfRound = true; // keep the 3rd ent out of the way entirely
-            g.ph = Phase.Hunt; g.tl = 100; g.doll.giggleT = 0.01f;
+            var other = g.characters[2]; other.outOfRound = true; // keep the 3rd ent out of the way entirely
+            g.phase = Phase.Hunt; g.timeLeft = 100; g.doll.giggleTimer = 0.01f;
 
             try
             {
-                g.SimUpdate(0.02f);
+                g.Simulate(0.02f);
 
-                Assert.AreEqual(Rules.GiggleEvery, g.doll.giggleT, "Giggle() resets its own timer");
-                Assert.IsTrue(g.doll.hasLast);
-                Assert.AreEqual(spot.ax, g.doll.lastX); Assert.AreEqual(spot.ay, g.doll.lastY);
-                Assert.AreEqual(g.t, g.doll.lastT, 0.0001f);
-                var ev = g.evs[g.evs.Count - 1];
-                Assert.AreEqual(EvType.Giggle, ev.type);
-                Assert.AreEqual((int)spot.ax, ev.a); Assert.AreEqual((int)spot.ay, ev.b);
+                Assert.AreEqual(Rules.GiggleInterval, g.doll.giggleTimer, "Giggle() resets its own timer");
+                Assert.IsTrue(g.doll.hasLastGiggle);
+                Assert.AreEqual(spot.standX, g.doll.lastGiggleX); Assert.AreEqual(spot.standY, g.doll.lastGiggleY);
+                Assert.AreEqual(g.roundClock, g.doll.lastGiggleTime, 0.0001f);
+                var ev = g.events[g.events.Count - 1];
+                Assert.AreEqual(GameEventType.Giggle, ev.type);
+                Assert.AreEqual((int)spot.standX, ev.x); Assert.AreEqual((int)spot.standY, ev.y);
             }
-            finally { spot.occ = null; }
+            finally { spot.occupant = null; }
         }
 
-        // ---------- HiderAI: seeking a spot, and the two "flee" sub-paths ----------
+        // ---------- HiderBot: seeking a spot, and the two "flee" sub-paths ----------
 
         [Test]
         public void HiderAI_SeekingWithNoThreat_EventuallyFindsAndTakesAHidingSpot()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var unice = g.ents.Find(e => !e.bot); unice.role = Role.Unice; g.unice = unice; // human: inert, no AI runs for it
-            var hider = g.ents.Find(e => e.bot); hider.role = Role.Hider; hider.hidden = null; hider.outOfRound = false; hider.st = "seek";
-            // StartRound only repositions the round's non-Unice ents to the spawn row; if this bot was originally
+            var unice = g.characters.Find(e => !e.isBot); unice.role = Role.Unice; g.unice = unice; // human: inert, no AI runs for it
+            var hider = g.characters.Find(e => e.isBot); hider.role = Role.Hider; hider.hidingSpot = null; hider.outOfRound = false; hider.brain.mode = HiderMode.Seek;
+            // StartRound only repositions the round's non-Unice characters to the spawn row; if this bot was originally
             // picked as Unice (before the override above), it would still be sitting at ResetRound's (-600,-600).
-            hider.x = hider.tx = 900; hider.y = hider.ty = 474; // open hall floor, known clear of furniture
-            g.ph = Phase.Hide; g.tl = 1000;
+            hider.x = hider.targetX = 900; hider.y = hider.targetY = 474; // open hall floor, known clear of furniture
+            g.phase = Phase.Hide; g.timeLeft = 1000;
 
             try
             {
-                for (int i = 0; i < 100 && hider.hidden == null; i++)
+                for (int i = 0; i < 100 && hider.hidingSpot == null; i++)
                 {
-                    g.SimUpdate(0.1f);
+                    g.Simulate(0.1f);
                     Assert.IsTrue(Map.CanStand(hider.x, hider.y), $"tick {i}: the hider must never end up inside a wall or furniture");
                 }
 
-                Assert.IsNotNull(hider.hidden, "within 10 simulated seconds the hider should have found and taken a spot");
+                Assert.IsNotNull(hider.hidingSpot, "within 10 simulated seconds the hider should have found and taken a spot");
             }
-            finally { if (hider.hidden != null) hider.hidden.occ = null; }
+            finally { if (hider.hidingSpot != null) hider.hidingSpot.occupant = null; }
         }
 
         [Test]
         public void HiderAI_FleeingNearAFreeSpot_HidesInItImmediately()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var unice = g.ents.Find(e => !e.bot); unice.role = Role.Unice; g.unice = unice;
-            var hider = g.ents.Find(e => e.bot); hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null;
+            var unice = g.characters.Find(e => !e.isBot); unice.role = Role.Unice; g.unice = unice;
+            var hider = g.characters.Find(e => e.isBot); hider.role = Role.Hider; hider.outOfRound = false; hider.hidingSpot = null;
             var spot = Map.Spots[0];
-            hider.x = spot.ax; hider.y = spot.ay; hider.st = "flee"; hider.lastSeenU = 0; hider.bolted = false;
+            hider.x = spot.standX; hider.y = spot.standY; hider.brain.mode = HiderMode.Flee; hider.brain.lastSawUniceAt = 0; hider.brain.startled = false;
             unice.x = 650; unice.y = 300; // far away (> 200) and behind a wall (no sightline) from the hider
-            g.ph = Phase.Hunt; g.tl = 1000; g.t = 0;
+            g.phase = Phase.Hunt; g.timeLeft = 1000; g.roundClock = 0;
 
             try
             {
-                g.SimUpdate(0.02f);
+                g.Simulate(0.02f);
 
-                Assert.AreSame(spot, hider.hidden, "NearFreeSpot found the spot the hider was already standing next to");
+                Assert.AreSame(spot, hider.hidingSpot, "NearFreeSpot found the spot the hider was already standing next to");
             }
-            finally { spot.occ = null; }
+            finally { spot.occupant = null; }
         }
 
         [Test]
         public void HiderAI_FleeingFarFromAnySpot_FallsBackToFleePointAndKeepsMoving()
         {
             var g = NewGameAfterMatch(1, Humans(("h1", "Ana")));
-            var unice = g.ents.Find(e => !e.bot); unice.role = Role.Unice; g.unice = unice;
-            var hider = g.ents.Find(e => e.bot); hider.role = Role.Hider; hider.outOfRound = false; hider.hidden = null;
-            hider.x = 400; hider.y = 300; hider.st = "flee"; hider.lastSeenU = 0; hider.bolted = false; hider.repath = 0;
-            unice.x = 650; unice.y = 300; // same wall-blocked pair as AiHear's test: far (>200) and no sightline, but no spot nearby this time
-            g.ph = Phase.Hunt; g.tl = 1000; g.t = 0;
+            var unice = g.characters.Find(e => !e.isBot); unice.role = Role.Unice; g.unice = unice;
+            var hider = g.characters.Find(e => e.isBot); hider.role = Role.Hider; hider.outOfRound = false; hider.hidingSpot = null;
+            hider.x = 400; hider.y = 300; hider.brain.mode = HiderMode.Flee; hider.brain.lastSawUniceAt = 0; hider.brain.startled = false; hider.brain.repathTimer = 0;
+            unice.x = 650; unice.y = 300; // same wall-blocked pair as UniceBot.HearNoise's test: far (>200) and no sightline, but no spot nearby this time
+            g.phase = Phase.Hunt; g.timeLeft = 1000; g.roundClock = 0;
 
-            g.SimUpdate(0.02f);
+            g.Simulate(0.02f);
 
-            Assert.IsNull(hider.hidden, "no spot was close enough, so it falls back to FleePoint instead of hiding");
-            Assert.AreEqual(1.2f, hider.repath);
-            Assert.IsFalse(hider.sneak);
+            Assert.IsNull(hider.hidingSpot, "no spot was close enough, so it falls back to FleePoint instead of hiding");
+            Assert.AreEqual(1.2f, hider.brain.repathTimer);
+            Assert.IsFalse(hider.sneaking);
             Assert.IsTrue(Map.CanStand(hider.x, hider.y));
         }
     }

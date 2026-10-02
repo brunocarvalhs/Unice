@@ -37,7 +37,7 @@ namespace Unice
 
             Assert.AreEqual("Nova", p.Name);
             Assert.AreEqual(Kit.Slots, p.Kit.Length);
-            for (int i = 0; i < Kit.Slots; i++) Assert.That(p.Kit[i], Is.InRange(0, Kit.Max[i] - 1));
+            for (int i = 0; i < Kit.Slots; i++) Assert.That(p.Kit[i], Is.InRange(0, Kit.OptionCount[i] - 1));
         }
 
         [Test]

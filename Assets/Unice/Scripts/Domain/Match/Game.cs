@@ -5,296 +5,468 @@ using System.Linq;
 namespace Unice
 {
     /// <summary>
-    /// The match. The host runs the rules and the bots and publishes snapshots; everyone else mirrors them.
-    /// A straight port of the web version so both play the same.
+    /// The match and its rules. The host runs it (rules, bots, timers) and broadcasts snapshots; everyone else mirrors them
+    /// (see Game.Snapshot.cs). A straight port of the web version, so both play the same: keep the numbers and the order of
+    /// the checks when changing anything here.
     /// </summary>
     public sealed partial class Game
     {
-        public Phase ph = Phase.Home;
-        public int ep, r, rounds = 5, bots = 3, evSeq;
-        public float hb, tl, t;
+        // ---------- state ----------
+        public Phase phase = Phase.Home;
+        /// <summary>Increases every time a new device takes over as host; the highest epoch is the real host.</summary>
+        public int epoch;
+        /// <summary>Current round (1-based) and how many the match has.</summary>
+        public int round, totalRounds = 5;
+        /// <summary>Bots the host asked for (more are added when there aren't two characters).</summary>
+        public int botCount = 3;
+        /// <summary>Seconds the host has been running the match (shown nowhere; sent so guests see it change).</summary>
+        public float hostClock;
+        /// <summary>Seconds left in the current phase (hide, hunt or result).</summary>
+        public float timeLeft;
+        /// <summary>Seconds since the round started; the AI and the doll's last giggle are timed with it.</summary>
+        public float roundClock;
         public string mapId = MapHouse.Id;
-        // host-configurable match settings (defaults match Rules); synced to peers in the snapshot
-        public float hideTime = Rules.HideTime, roundTime = Rules.RoundTime, giggleEvery = Rules.GiggleEvery;
-        public readonly List<Ent> ents = new List<Ent>();
-        public Ent unice, nextU;
-        public readonly DollState doll = new DollState();
-        public readonly List<GameEvent> evs = new List<GameEvent>();
-        public int[] res;            // [unWin, whoIdx, spotIdx, nextIdx]
-        public bool isHost;
-        public readonly Dictionary<string, int> aseq = new Dictionary<string, int>();
 
-        public bool Live => ph == Phase.Hide || ph == Phase.Hunt;
-        public Ent EntAt(int i) => i >= 0 && i < ents.Count ? ents[i] : null;
+        // host-configurable match settings (defaults match Rules); synced to guests in the snapshot
+        public float hideTime = Rules.HideTime, huntTime = Rules.HuntTime, giggleInterval = Rules.GiggleInterval;
+
+        public readonly List<Character> characters = new List<Character>();
+        public Character unice, nextUnice;
+        public readonly DollState doll = new DollState();
+        /// <summary>The last few events (kept short: they travel in every snapshot).</summary>
+        public readonly List<GameEvent> events = new List<GameEvent>();
+        public int eventSeq;
+        /// <summary>How the last round ended, or null while a round is being played.</summary>
+        public RoundResult roundResult;
+        /// <summary>True on the one device that runs the match.</summary>
+        public bool isHost;
+        /// <summary>Host: the last action number applied per player, so each action happens once.</summary>
+        public readonly Dictionary<string, int> lastActionSeq = new Dictionary<string, int>();
+
+        const int MaxEvents = 10;
+        /// <summary>How close (house pixels) a player must be to a spot to hide in it or open it.</summary>
+        const float SpotReach = 60;
+        /// <summary>Extra reach given to remote players' pass and catch requests, which arrive a little late.</summary>
+        const float PassLatencySlack = 20, CatchLatencySlack = 45;
+
+        readonly HiderBot hiderBot;
+        readonly UniceBot uniceBot;
+
+        public Game()
+        {
+            hiderBot = new HiderBot(this);
+            uniceBot = new UniceBot(this);
+        }
+
+        /// <summary>A round is being played (hiding or hunting).</summary>
+        public bool IsLive => phase == Phase.Hide || phase == Phase.Hunt;
+        public Character CharacterAt(int index) => index >= 0 && index < characters.Count ? characters[index] : null;
 
         // ---------- events ----------
-        public void Ev(EvType type, int a = 0, int b = 0, int c = 0, int d = 0, int e = 0, string s = null)
+        public void AddEvent(GameEventType type, int actor = -1, int target = -1, int value = 0, int x = 0, int y = 0, string text = null)
         {
-            evSeq++;
-            evs.Add(new GameEvent { seq = evSeq, type = type, a = a, b = b, c = c, d = d, e = e, s = s });
-            if (evs.Count > 10) evs.RemoveAt(0);
+            eventSeq++;
+            events.Add(new GameEvent { sequence = eventSeq, type = type, actor = actor, target = target, value = value, x = x, y = y, text = text });
+            if (events.Count > MaxEvents) events.RemoveAt(0);
         }
 
-        // ---------- helpers ----------
-        public static Furn NearSpotFurn(Ent e)
+        // ---------- hiding spots ----------
+        /// <summary>The hiding spot within reach of <paramref name="character"/> (the closest), or null.</summary>
+        public static Furniture NearestSpot(Character character)
         {
-            Furn b = null; float bd = 34;
-            foreach (var s in Map.Spots) { float d = Map.RectDist(s, e.x, e.y); if (d < bd) { bd = d; b = s; } }
-            return b;
-        }
-        Furn NearFreeSpot(Ent e, float r)
-        {
-            Furn b = null; float bd = r;
-            foreach (var s in Map.Spots)
+            Furniture nearest = null; float nearestDistance = 34;
+            foreach (var spot in Map.Spots)
             {
-                if (s.occ != null || (s.res != null && s.res != e)) continue;
-                float d = U.Dist(s.ax, s.ay, e.x, e.y);
-                if (d < bd && Map.WalkLine(e.x, e.y, s.ax, s.ay)) { bd = d; b = s; }
+                float distance = Map.DistanceToFurniture(spot, character.x, character.y);
+                if (distance < nearestDistance) { nearestDistance = distance; nearest = spot; }
             }
-            return b;
+            return nearest;
         }
-        public void Hide(Ent e, Furn s)
+
+        /// <summary>The closest spot no one is in or heading to, within <paramref name="maxDistance"/> and reachable in a straight line.</summary>
+        internal Furniture NearestFreeSpot(Character character, float maxDistance)
         {
-            if (s.res != null && s.res != e) s.res.goalSpot = null;
-            s.res = null; s.occ = e; e.hidden = s; e.goalSpot = null; e.prevSpot = s;
-            e.x = s.ax; e.y = s.ay; e.path.Clear(); e.moving = false; e.bolted = false;
+            Furniture nearest = null; float nearestDistance = maxDistance;
+            foreach (var spot in Map.Spots)
+            {
+                if (spot.occupant != null || (spot.reservedBy != null && spot.reservedBy != character)) continue;
+                float distance = Geometry.Distance(spot.standX, spot.standY, character.x, character.y);
+                if (distance < nearestDistance && Map.CanWalkStraight(character.x, character.y, spot.standX, spot.standY)) { nearestDistance = distance; nearest = spot; }
+            }
+            return nearest;
         }
-        public static void ExitSpot(Ent e) { if (e.hidden != null) { e.hidden.occ = null; e.hidden = null; } }
-        public Ent PassTarget(Ent a, float slack = 0)
+
+        public void Hide(Character character, Furniture spot)
         {
-            Ent b = null; float bd = Rules.PassR + slack;
-            foreach (var e in ents) { if (e == a || e.IsUnice || e.outOfRound || e.hidden != null) continue; float d = U.Dist(a, e); if (d < bd) { bd = d; b = e; } }
-            return b;
+            if (spot.reservedBy != null && spot.reservedBy != character) spot.reservedBy.brain.targetSpot = null;   // whoever was heading there must pick another
+            spot.reservedBy = null; spot.occupant = character;
+            character.hidingSpot = spot; character.x = spot.standX; character.y = spot.standY; character.moving = false;
+            var brain = character.brain;
+            brain.targetSpot = null; brain.previousSpot = spot; brain.path.Clear(); brain.startled = false;
         }
-        public bool CanMoveNow(Ent e) => Live && !e.outOfRound && e.hidden == null && !(e.IsUnice && (ph == Phase.Hide || e.stun > 0));
+
+        public static void LeaveSpot(Character character)
+        {
+            if (character.hidingSpot == null) return;
+            character.hidingSpot.occupant = null; character.hidingSpot = null;
+        }
+
+        /// <summary>Who would get the doll from <paramref name="giver"/>: the closest visible hider within pass range.</summary>
+        public Character PassTarget(Character giver, float extraRange = 0)
+        {
+            Character nearest = null; float nearestDistance = Rules.PassRange + extraRange;
+            foreach (var other in characters)
+            {
+                if (other == giver || other.IsUnice || other.outOfRound || other.hidingSpot != null) continue;
+                float distance = Geometry.Distance(giver, other);
+                if (distance < nearestDistance) { nearestDistance = distance; nearest = other; }
+            }
+            return nearest;
+        }
+
+        /// <summary>Whether <paramref name="character"/> can walk right now (the Unice waits outside while the others hide).</summary>
+        public bool CanMove(Character character) =>
+            IsLive && !character.outOfRound && character.hidingSpot == null && !(character.IsUnice && (phase == Phase.Hide || character.stunTime > 0));
 
         // ---------- rules (host) ----------
-        void PassDoll(Ent a, Ent b) { doll.holder = b; b.passCd = Rules.PassCd; a.passCd = 0; Ev(EvType.Pass, a.idx, b.idx); }
-
-        void Capture(Ent u, Ent h)
+        internal void PassDoll(Character giver, Character receiver)
         {
-            int x = (int)MathF.Round(h.x), y = (int)MathF.Round(h.y);
-            ExitSpot(h);
-            if (h == doll.holder) { Ev(EvType.Catch, u.idx, h.idx, 1, x, y); EndRound(true, h); return; }
-            h.outOfRound = true; u.score += 1; u.stun = Rules.Stun; u.target = null; u.goal = null; u.path.Clear(); u.checkT = 0;
-            if (h.goalSpot != null && h.goalSpot.res == h) h.goalSpot.res = null;
-            Ev(EvType.Catch, u.idx, h.idx, 0, x, y);
+            doll.holder = receiver; receiver.passCooldown = Rules.PassCooldown; giver.passCooldown = 0;
+            AddEvent(GameEventType.Pass, actor: giver.index, target: receiver.index);
         }
-        void OpenSpot(Ent u, Furn s) { s.checkedAt = t; Ev(EvType.Open, s.si, s.occ != null ? 1 : 0); if (s.occ != null) Capture(u, s.occ); }
+
+        /// <summary>The Unice catches <paramref name="caught"/>: with the doll the round is over, without it they're just out.</summary>
+        internal void Capture(Character uniceCharacter, Character caught)
+        {
+            int x = (int)MathF.Round(caught.x), y = (int)MathF.Round(caught.y);
+            LeaveSpot(caught);
+            if (caught == doll.holder)
+            {
+                AddEvent(GameEventType.Catch, actor: uniceCharacter.index, target: caught.index, value: 1, x: x, y: y);
+                EndRound(uniceWon: true, caught);
+                return;
+            }
+            caught.outOfRound = true; uniceCharacter.score += 1; uniceCharacter.stunTime = Rules.StunTime;
+            var brain = uniceCharacter.brain;
+            brain.chaseTarget = null; brain.goal = null; brain.path.Clear(); brain.checkTimer = 0;
+            var caughtTarget = caught.brain.targetSpot;
+            if (caughtTarget != null && caughtTarget.reservedBy == caught) caughtTarget.reservedBy = null;
+            AddEvent(GameEventType.Catch, actor: uniceCharacter.index, target: caught.index, value: 0, x: x, y: y);
+        }
+
+        internal void OpenSpot(Character uniceCharacter, Furniture spot)
+        {
+            spot.checkedAt = roundClock;
+            AddEvent(GameEventType.Open, actor: uniceCharacter.index, target: spot.occupant != null ? spot.occupant.index : -1, value: spot.spotIndex);
+            if (spot.occupant != null) Capture(uniceCharacter, spot.occupant);
+        }
+
+        /// <summary>The doll giggles where its holder is; a bot holder then leaves its spot shortly after.</summary>
         void Giggle()
         {
-            var h = doll.holder;
-            doll.giggleT = giggleEvery; doll.hasLast = true; doll.lastX = h.x; doll.lastY = h.y; doll.lastT = t; doll.lastSpot = h.hidden;
-            Ev(EvType.Giggle, (int)MathF.Round(h.x), (int)MathF.Round(h.y), h.idx);
-            if (h.bot) h.leaveAt = t + U.Rand(.3f, 1);
+            var holder = doll.holder;
+            doll.giggleTimer = giggleInterval;
+            RememberGiggle(holder);
+            AddEvent(GameEventType.Giggle, actor: holder.index, x: (int)MathF.Round(holder.x), y: (int)MathF.Round(holder.y));
+            if (holder.isBot) holder.brain.leaveSpotAt = roundClock + GameRandom.Range(.3f, 1);
         }
+
         /// <summary>Anyone can laugh on purpose; the Unice hears it exactly like the doll's own giggle.</summary>
-        void Laugh(Ent e)
+        void Laugh(Character laugher)
         {
-            e.laughCd = Rules.LaughCd;
-            doll.hasLast = true; doll.lastX = e.x; doll.lastY = e.y; doll.lastT = t; doll.lastSpot = e.hidden;
-            if (doll.holder == e) doll.giggleT = giggleEvery;
-            Ev(EvType.Giggle, (int)MathF.Round(e.x), (int)MathF.Round(e.y), e.idx);
+            laugher.laughCooldown = Rules.LaughCooldown;
+            RememberGiggle(laugher);
+            if (doll.holder == laugher) doll.giggleTimer = giggleInterval;
+            AddEvent(GameEventType.Giggle, actor: laugher.index, x: (int)MathF.Round(laugher.x), y: (int)MathF.Round(laugher.y));
         }
 
-        public void DoAction(Ent e, Act type, int arg)
+        void RememberGiggle(Character source)
         {
-            if (!Live || e.outOfRound) return;
-            if (!e.IsUnice)
+            doll.hasLastGiggle = true; doll.lastGiggleX = source.x; doll.lastGiggleY = source.y;
+            doll.lastGiggleTime = roundClock; doll.lastGiggleSpot = source.hidingSpot;
+        }
+
+        /// <summary>Applies an action a player asked for, if the rules allow it right now.</summary>
+        public void ApplyAction(Character character, PlayerAction action, int arg)
+        {
+            if (!IsLive || character.outOfRound) return;
+            if (!character.IsUnice)
             {
-                if (type == Act.Hide) { var s = arg >= 0 && arg < Map.Spots.Length ? Map.Spots[arg] : null; if (s != null && e.hidden == null && s.occ == null && Map.RectDist(s, e.x, e.y) < 60) Hide(e, s); }
-                else if (type == Act.Exit) ExitSpot(e);
-                else if (type == Act.Pass && doll.holder == e && e.passCd <= 0) { var m = PassTarget(e, 20); if (m != null) PassDoll(e, m); }
-                else if (type == Act.Laugh && e.laughCd <= 0) Laugh(e);
+                if (action == PlayerAction.Hide)
+                {
+                    var spot = SpotAt(arg);
+                    if (spot != null && character.hidingSpot == null && spot.occupant == null && Map.DistanceToFurniture(spot, character.x, character.y) < SpotReach) Hide(character, spot);
+                }
+                else if (action == PlayerAction.Exit) LeaveSpot(character);
+                else if (action == PlayerAction.Pass && doll.holder == character && character.passCooldown <= 0)
+                {
+                    var receiver = PassTarget(character, PassLatencySlack);
+                    if (receiver != null) PassDoll(character, receiver);
+                }
+                else if (action == PlayerAction.Laugh && character.laughCooldown <= 0) Laugh(character);
             }
-            else if (ph == Phase.Hunt && e.stun <= 0)
+            else if (phase == Phase.Hunt && character.stunTime <= 0)
             {
-                if (type == Act.Open) { var s = arg >= 0 && arg < Map.Spots.Length ? Map.Spots[arg] : null; if (s != null && Map.RectDist(s, e.x, e.y) < 60) OpenSpot(e, s); }
-                else if (type == Act.Catch) { var h = EntAt(arg); if (h != null && !h.IsUnice && !h.outOfRound && h.hidden == null && U.Dist(e, h) < Rules.CatchR + 45) Capture(e, h); }
+                if (action == PlayerAction.Open)
+                {
+                    var spot = SpotAt(arg);
+                    if (spot != null && Map.DistanceToFurniture(spot, character.x, character.y) < SpotReach) OpenSpot(character, spot);
+                }
+                else if (action == PlayerAction.Catch)
+                {
+                    var caught = CharacterAt(arg);
+                    if (caught != null && !caught.IsUnice && !caught.outOfRound && caught.hidingSpot == null && Geometry.Distance(character, caught) < Rules.CatchRange + CatchLatencySlack)
+                        Capture(character, caught);
+                }
             }
         }
 
-        public struct Human { public string id, name; public int[] k; public long joinT; }
+        static Furniture SpotAt(int spotIndex) => spotIndex >= 0 && spotIndex < Map.Spots.Length ? Map.Spots[spotIndex] : null;
+
+        // ---------- match and rounds (host) ----------
+        /// <summary>A human in the room, as the host knows them when a round starts.</summary>
+        public struct Human { public string id, name; public int[] kit; public long joinTime; }
 
         /// <summary>
         /// Who can be drawn for the Unice or the doll: with two or more people in the room only people,
         /// otherwise (playing alone with bots) everyone, so it is not always the same person.
         /// </summary>
-        List<Ent> Eligible(List<Ent> from)
+        List<Character> EligibleForDraw(List<Character> candidates)
         {
-            var people = from.Where(e => !e.bot).ToList();
-            return ents.Count(e => !e.bot) >= 2 && people.Count > 0 ? people : from;
+            var people = candidates.Where(character => !character.isBot).ToList();
+            return characters.Count(character => !character.isBot) >= 2 && people.Count > 0 ? people : candidates;
         }
 
-        void AddHuman(Human h) { if (ents.Count < Rules.MaxPlayers) ents.Add(new Ent(ents.Count, h.id, h.name, h.k, false)); }
+        void AddHuman(Human human)
+        {
+            if (characters.Count < Rules.MaxPlayers) characters.Add(new Character(characters.Count, human.id, human.name, human.kit, false));
+        }
 
         /// <summary>Starts a match. <paramref name="humans"/> must list this device first, then the others by arrival.</summary>
         public void NewMatch(List<Human> humans)
         {
             if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
-            ents.Clear();
-            foreach (var h in humans) AddHuman(h);
-            var taken = new HashSet<string>(ents.Select(e => e.name.ToLowerInvariant()));
-            var names = Rules.BotNames.Where(n => !taken.Contains(n.ToLowerInvariant())).ToList(); U.Shuffle(names);
-            for (int i = 0; (i < bots || ents.Count < 2) && ents.Count < Rules.MaxPlayers; i++)
-                ents.Add(new Ent(ents.Count, "b" + i, i < names.Count ? names[i] : "Robô " + (i + 1), Kit.Random(), true));
-            r = 0;
-            nextU = U.Pick(Eligible(ents));
+            characters.Clear();
+            foreach (var human in humans) AddHuman(human);
+
+            // bots take the bot names nobody in the room is using
+            var takenNames = new HashSet<string>(characters.Select(character => character.name.ToLowerInvariant()));
+            var botNames = Rules.BotNames.Where(name => !takenNames.Contains(name.ToLowerInvariant())).ToList();
+            GameRandom.Shuffle(botNames);
+            for (int i = 0; (i < botCount || characters.Count < 2) && characters.Count < Rules.MaxPlayers; i++)
+                characters.Add(new Character(characters.Count, "b" + i, i < botNames.Count ? botNames[i] : "Robô " + (i + 1), Kit.Random(), true));
+
+            round = 0;
+            nextUnice = GameRandom.Pick(EligibleForDraw(characters));
             StartRound(humans);
         }
 
+        /// <summary>Starts the next round: picks up who joined, resets everyone, draws the doll holder and starts the hiding time.</summary>
         public void StartRound(List<Human> humansNow)
         {
-            r++;
-            foreach (var h in humansNow) if (!ents.Any(e => e.pid == h.id)) AddHuman(h);
-            foreach (var e in ents)
+            round++;
+            foreach (var human in humansNow) if (!characters.Any(character => character.playerId == human.id)) AddHuman(human);
+            foreach (var character in characters)
             {
-                e.ResetRound(); e.tp++;
-                foreach (var h in humansNow) if (!e.bot && e.pid == h.id) { e.name = h.name; e.k = h.k; }
+                character.ResetRound(); character.teleportSeq++;
+                foreach (var human in humansNow)
+                    if (!character.isBot && character.playerId == human.id) { character.name = human.name; character.kit = human.kit; }   // they may have changed their look
             }
-            foreach (var s in Map.Spots) { s.occ = null; s.res = null; s.checkedAt = -99; }
-            var u = nextU != null && ents.Contains(nextU) ? nextU : U.Pick(ents);
-            u.role = Role.Unice; u.turns++; unice = u;
-            var hs = ents.Where(e => e != u).ToList();
-            for (int i = 0; i < hs.Count; i++) { hs[i].x = hs[i].tx = Map.SpawnX + i * 70; hs[i].y = hs[i].ty = Map.SpawnY; }
-            doll.holder = U.Pick(Eligible(hs)); doll.giggleT = giggleEvery; doll.hasLast = false; doll.lastSpot = null;
-            ph = Phase.Hide; tl = hideTime; t = 0; res = null;
-            Ev(EvType.Start, r, u.idx, doll.holder.idx);
+            foreach (var spot in Map.Spots) { spot.occupant = null; spot.reservedBy = null; spot.checkedAt = -99; }
+
+            var newUnice = nextUnice != null && characters.Contains(nextUnice) ? nextUnice : GameRandom.Pick(characters);
+            newUnice.role = Role.Unice; newUnice.uniceTurns++; unice = newUnice;
+
+            // the others line up at the spawn point
+            var hiders = characters.Where(character => character != newUnice).ToList();
+            for (int i = 0; i < hiders.Count; i++)
+            {
+                hiders[i].x = hiders[i].targetX = Map.SpawnX + i * 70;
+                hiders[i].y = hiders[i].targetY = Map.SpawnY;
+            }
+            doll.holder = GameRandom.Pick(EligibleForDraw(hiders)); doll.giggleTimer = giggleInterval; doll.hasLastGiggle = false; doll.lastGiggleSpot = null;
+            phase = Phase.Hide; timeLeft = hideTime; roundClock = 0; roundResult = null;
+            AddEvent(GameEventType.Start, actor: newUnice.index, target: doll.holder.index, value: round);
         }
 
-        void EndRound(bool unWin, Ent caught)
+        /// <summary>
+        /// Scores the round and picks the next Unice: if the Unice won, whoever lost the doll; otherwise the hider who has
+        /// been the Unice the fewest times.
+        /// </summary>
+        void EndRound(bool uniceWon, Character caughtHolder)
         {
-            if (!Live) return;
-            var U_ = unice; var holder = doll.holder;
-            if (unWin) { U_.score += 3; nextU = caught; res = new[] { 1, caught.idx, -1, 0 }; }
+            if (!IsLive) return;
+            var holder = doll.holder;
+            roundResult = new RoundResult { uniceWon = uniceWon };
+            if (uniceWon)
+            {
+                unice.score += 3;
+                nextUnice = caughtHolder;
+                roundResult.dollHolder = caughtHolder.index;
+            }
             else
             {
-                foreach (var h in ents) if (!h.IsUnice) h.score += 2;
+                foreach (var character in characters) if (!character.IsUnice) character.score += 2;
                 holder.score += 1;
-                var pool = Eligible(ents.Where(e => e != U_).ToList()); int minT = pool.Min(e => e.turns);
-                nextU = U.Pick(pool.Where(e => e.turns == minT).ToList());
-                res = new[] { 0, holder.idx, holder.hidden != null ? holder.hidden.si : -1, 0 };
+                var candidates = EligibleForDraw(characters.Where(character => character != unice).ToList());
+                int fewestTurns = candidates.Min(character => character.uniceTurns);
+                nextUnice = GameRandom.Pick(candidates.Where(character => character.uniceTurns == fewestTurns).ToList());
+                roundResult.dollHolder = holder.index;
+                roundResult.holderSpotIndex = holder.hidingSpot != null ? holder.hidingSpot.spotIndex : -1;
             }
-            res[3] = nextU.idx;
-            ph = Phase.Result; tl = Rules.ResultTime;
-            Ev(EvType.End, res[0]);
+            roundResult.nextUnice = nextUnice.index;
+            phase = Phase.Result; timeLeft = Rules.ResultTime;
+            AddEvent(GameEventType.End, value: uniceWon ? 1 : 0);
         }
 
-        public void BackToLobby() { ph = Phase.Lobby; ents.Clear(); r = 0; unice = null; doll.holder = null; Ev(EvType.Lobby); }
+        public void BackToLobby()
+        {
+            phase = Phase.Lobby; characters.Clear(); round = 0; unice = null; doll.holder = null;
+            AddEvent(GameEventType.Lobby);
+        }
 
         // ---------- movement ----------
-        public static void MoveEnt(Ent e, float dx, float dy)
+        /// <summary>Moves by (dx, dy), sliding along walls and furniture: each axis only moves if the new spot is free.</summary>
+        public static void MoveCharacter(Character character, float dx, float dy)
         {
-            float nx = e.x + dx; if (Map.CanStand(nx, e.y)) e.x = nx;
-            float ny = e.y + dy; if (Map.CanStand(e.x, ny)) e.y = ny;
-        }
-        bool FollowPath(Ent e, float dt, float speed)
-        {
-            if (e.path.Count == 0) { e.moving = false; return true; }
-            if (e.path.Count > 1 && Map.WalkLine(e.x, e.y, e.path[1].x, e.path[1].y)) e.path.RemoveAt(0);
-            var p = e.path[0]; float dx = p.x - e.x, dy = p.y - e.y, d = MathF.Sqrt(dx * dx + dy * dy), step = speed * dt;
-            e.moving = true;
-            if (d <= step) { if (Map.CanStand(p.x, p.y)) { e.x = p.x; e.y = p.y; } e.path.RemoveAt(0); return e.path.Count == 0; }
-            float ux = dx / d, uy = dy / d, ox = e.x, oy = e.y;
-            MoveEnt(e, ux * step, uy * step); e.fx = ux; e.fy = uy;
-            if (U.Dist(e.x, e.y, ox, oy) < step * .3f)
-            {
-                e.stuckT += dt;
-                if (e.stuckT > .5f)
-                {
-                    e.stuckT = 0; e.stuckN++;
-                    var last = e.path[e.path.Count - 1];
-                    e.path = e.stuckN > 4 ? new List<P>() : Map.FindPath(e.x, e.y, last.x, last.y);
-                    if (e.path.Count == 0) { e.stuckN = 0; return true; }
-                }
-            }
-            else e.stuckT = 0;
-            return false;
+            float newX = character.x + dx; if (Map.CanStand(newX, character.y)) character.x = newX;
+            float newY = character.y + dy; if (Map.CanStand(character.x, newY)) character.y = newY;
         }
 
         // ---------- host tick ----------
-        public void SimUpdate(float dt)
-        {
-            t += dt;
-            if (ph == Phase.Hide)
-            {
-                tl -= dt;
-                if (tl <= 0) { var u = unice; ph = Phase.Hunt; tl = roundTime; u.x = Map.DoorIn.x; u.y = Map.DoorIn.y; u.fx = 0; u.fy = -1; u.tp++; Ev(EvType.Enter); }
-            }
-            else { tl -= dt; if (tl <= 0) { EndRound(false, null); return; } }
-            foreach (var e in ents) { if (e.passCd > 0) e.passCd -= dt; if (e.laughCd > 0) e.laughCd -= dt; if (e.stun > 0) e.stun -= dt; }
-            foreach (var e in ents)
-            {
-                if (!e.bot) continue;
-                if (e.IsUnice) UniceAI(e, dt); else HiderAI(e, dt);
-                if (!Live) return;
-                e.loud = !e.IsUnice && e.moving && !e.sneak;
-            }
-            foreach (var e in ents)
-                if (!e.IsUnice && !e.outOfRound && e.hidden == null && (e.loud || e.talking)) { e.noiseT -= dt; if (e.noiseT <= 0) { e.noiseT = .42f; AiHear(e); } }
-            var U_ = unice;
-            if (ph == Phase.Hunt && U_.stun <= 0 && U_.checkT <= 0)
-                foreach (var h in ents) if (!h.IsUnice && !h.outOfRound && h.hidden == null && U.Dist(U_, h) < Rules.CatchR) { Capture(U_, h); if (!Live) return; break; }
-            if (ph == Phase.Hunt && doll.holder.hidden != null) { doll.giggleT -= dt; if (doll.giggleT <= 0) Giggle(); }
-        }
-
-        /// <summary>Host only: apply what the other players sent (their position and their last action).</summary>
-        public void ReadInputs(IReadOnlyList<PeerInfo> peers, string myId, float dt)
-        {
-            foreach (var e in ents)
-            {
-                if (e.bot || e.pid == myId) continue;
-                PeerInfo p = null;
-                foreach (var q in peers) if (q.id == e.pid) { p = q; break; }
-                if (p == null) { e.bot = true; e.ResetAI(); if (Live) Ev(EvType.Left, e.idx); continue; }
-                var pr = p.pres;
-                e.talking = pr.talking;
-                if (pr.aSeq > (aseq.TryGetValue(p.id, out int last) ? last : 0)) { aseq[p.id] = pr.aSeq; DoAction(e, pr.aType, pr.aArg); }
-                if (pr.hasPos && pr.tp >= e.tp && CanMoveNow(e))
-                {
-                    float d = U.Dist(pr.x, pr.y, e.x, e.y);
-                    if (d < 260 && Map.CanStand(pr.x, pr.y)) { e.spd += (d / dt - e.spd) * .25f; e.x = pr.x; e.y = pr.y; }
-                    else { e.spd *= .7f; e.tp++; }   // impossible jump (lag spike): send the player back to where the host has them
-                    float l = MathF.Sqrt(pr.fx * pr.fx + pr.fy * pr.fy); if (l > .1f) { e.fx = pr.fx / l; e.fy = pr.fy / l; }
-                    e.sneak = pr.sneak;
-                }
-                else e.spd *= .7f;
-                e.moving = e.spd > 15; e.loud = !e.IsUnice && e.moving && !e.sneak && e.spd > 60;
-            }
-        }
-
         /// <summary>Host only: one fixed step of the whole match.</summary>
-        public void HostStep(float dt, IReadOnlyList<PeerInfo> peers, string myId, Action<float> movePlayer, Func<List<Human>> humansNow)
+        public void HostStep(float dt, IReadOnlyList<PeerInfo> peers, string myPlayerId, Action<float> moveMyCharacter, Func<List<Human>> humansNow)
         {
-            hb += dt;
-            if (peers != null) ReadInputs(peers, myId, dt);
-            if (Live) { movePlayer?.Invoke(dt); SimUpdate(dt); }
-            else if (ph == Phase.Result)
+            hostClock += dt;
+            if (peers != null) ApplyPeerInputs(peers, myPlayerId, dt);
+            if (IsLive) { moveMyCharacter?.Invoke(dt); Simulate(dt); }
+            else if (phase == Phase.Result)
             {
-                tl -= dt;
-                if (tl <= 0)
+                timeLeft -= dt;
+                if (timeLeft <= 0)
                 {
-                    if (r >= rounds) { ph = Phase.Final; Ev(EvType.Final); }
+                    if (round >= totalRounds) { phase = Phase.Final; AddEvent(GameEventType.Final); }
                     else StartRound(humansNow());
                 }
             }
         }
 
-        /// <summary>A player who joined later takes over as host from the last snapshot.</summary>
-        public void TakeOver(IReadOnlyList<PeerInfo> peers, Ent me, string myName)
+        /// <summary>One step of a live round: timers, bots, noise, touch catches and the doll's giggle.</summary>
+        public void Simulate(float dt)
         {
-            isHost = true; ep += 1; aseq.Clear();
-            foreach (var p in peers) aseq[p.id] = p.pres.aSeq;
-            foreach (var e in ents)
+            roundClock += dt;
+            timeLeft -= dt;
+            if (phase == Phase.Hide)
             {
-                if (e != me) { e.x = e.tx; e.y = e.ty; }
-                bool alive = false; foreach (var p in peers) if (p.id == e.pid) alive = true;
-                if (!e.bot && !alive) e.bot = true;
-                e.ResetAI();
+                if (timeLeft <= 0) UniceEnters();
             }
-            foreach (var s in Map.Spots) s.res = null;
-            if (doll.hasLast) doll.lastSpot = doll.holder != null ? doll.holder.hidden : null;
-            Ev(EvType.Host, s: myName);
+            else if (timeLeft <= 0) { EndRound(uniceWon: false, null); return; }
+
+            foreach (var character in characters)
+            {
+                if (character.passCooldown > 0) character.passCooldown -= dt;
+                if (character.laughCooldown > 0) character.laughCooldown -= dt;
+                if (character.stunTime > 0) character.stunTime -= dt;
+            }
+
+            foreach (var character in characters)
+            {
+                if (!character.isBot) continue;
+                if (character.IsUnice) uniceBot.Update(character, dt); else hiderBot.Update(character, dt);
+                if (!IsLive) return;   // a bot just ended the round
+                character.loud = !character.IsUnice && character.moving && !character.sneaking;
+            }
+
+            // running and talking hiders attract the Unice bot
+            foreach (var character in characters)
+                if (!character.IsUnice && !character.outOfRound && character.hidingSpot == null && (character.loud || character.talking))
+                {
+                    character.noiseTimer -= dt;
+                    if (character.noiseTimer <= 0) { character.noiseTimer = .42f; uniceBot.HearNoise(character); }
+                }
+
+            // the Unice catches whoever it touches (while not stunned or opening a spot)
+            if (phase == Phase.Hunt && unice.stunTime <= 0 && unice.brain.checkTimer <= 0)
+                foreach (var hider in characters)
+                    if (!hider.IsUnice && !hider.outOfRound && hider.hidingSpot == null && Geometry.Distance(unice, hider) < Rules.CatchRange)
+                    {
+                        Capture(unice, hider);
+                        if (!IsLive) return;
+                        break;
+                    }
+
+            // the doll giggles every few seconds while its holder is hidden
+            if (phase == Phase.Hunt && doll.holder.hidingSpot != null)
+            {
+                doll.giggleTimer -= dt;
+                if (doll.giggleTimer <= 0) Giggle();
+            }
+        }
+
+        /// <summary>The hiding time is over: the Unice appears at the front door, looking in.</summary>
+        void UniceEnters()
+        {
+            phase = Phase.Hunt; timeLeft = huntTime;
+            unice.x = Map.Entrance.x; unice.y = Map.Entrance.y; unice.faceX = 0; unice.faceY = -1; unice.teleportSeq++;
+            AddEvent(GameEventType.Enter);
+        }
+
+        /// <summary>Host only: apply what the other players sent (their position and their last action).</summary>
+        public void ApplyPeerInputs(IReadOnlyList<PeerInfo> peers, string myPlayerId, float dt)
+        {
+            foreach (var character in characters)
+            {
+                if (character.isBot || character.playerId == myPlayerId) continue;
+                PeerInfo peer = null;
+                foreach (var candidate in peers) if (candidate.id == character.playerId) { peer = candidate; break; }
+                if (peer == null)
+                {
+                    // the player left: a bot finishes the match in their place
+                    character.isBot = true; character.ResetBot();
+                    if (IsLive) AddEvent(GameEventType.Left, actor: character.index);
+                    continue;
+                }
+
+                var presence = peer.presence;
+                character.talking = presence.talking;
+                int lastSeq = lastActionSeq.TryGetValue(peer.id, out int seq) ? seq : 0;
+                if (presence.actionSeq > lastSeq) { lastActionSeq[peer.id] = presence.actionSeq; ApplyAction(character, presence.action, presence.actionArg); }
+
+                // positions sent before the last teleport are stale
+                if (presence.hasPosition && presence.teleportSeq >= character.teleportSeq && CanMove(character))
+                {
+                    float jump = Geometry.Distance(presence.x, presence.y, character.x, character.y);
+                    if (jump < 260 && Map.CanStand(presence.x, presence.y))
+                    {
+                        character.speed += (jump / dt - character.speed) * .25f;
+                        character.x = presence.x; character.y = presence.y;
+                    }
+                    else { character.speed *= .7f; character.teleportSeq++; }   // impossible jump (lag spike): send the player back to where the host has them
+                    float faceLength = MathF.Sqrt(presence.faceX * presence.faceX + presence.faceY * presence.faceY);
+                    if (faceLength > .1f) { character.faceX = presence.faceX / faceLength; character.faceY = presence.faceY / faceLength; }
+                    character.sneaking = presence.sneaking;
+                }
+                else character.speed *= .7f;
+                character.moving = character.speed > 15;
+                character.loud = !character.IsUnice && character.moving && !character.sneaking && character.speed > 60;
+            }
+        }
+
+        /// <summary>The host left: this device continues the match from the last snapshot it received.</summary>
+        public void TakeOverAsHost(IReadOnlyList<PeerInfo> peers, Character myCharacter, string myName)
+        {
+            isHost = true; epoch += 1; lastActionSeq.Clear();
+            foreach (var peer in peers) lastActionSeq[peer.id] = peer.presence.actionSeq;   // don't replay actions the old host already applied
+            foreach (var character in characters)
+            {
+                if (character != myCharacter) { character.x = character.targetX; character.y = character.targetY; }
+                bool stillHere = peers.Any(peer => peer.id == character.playerId);
+                if (!character.isBot && !stillHere) character.isBot = true;
+                character.ResetBot();
+            }
+            foreach (var spot in Map.Spots) spot.reservedBy = null;
+            if (doll.hasLastGiggle) doll.lastGiggleSpot = doll.holder != null ? doll.holder.hidingSpot : null;
+            AddEvent(GameEventType.Host, text: myName);
         }
     }
 }

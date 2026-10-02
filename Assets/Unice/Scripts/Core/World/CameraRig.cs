@@ -5,33 +5,53 @@ namespace Unice
     /// <summary>The orthographic camera: follows the view in a match, drifts slowly over the house behind the menus, shakes on a catch.</summary>
     sealed class CameraRig
     {
-        public readonly Camera Cam;
-        float camX = 860, camY = 590, shakeT, shakeMag;
-        const float ShakeDur = .35f;
+        const float ShakeDuration = .35f;
+        /// <summary>How fast the camera catches up with the view (per second).</summary>
+        const float FollowSpeed = 6;
+        /// <summary>The camera looks a little above the player's feet.</summary>
+        const float LookAboveFeet = 20;
+        /// <summary>Behind the menus the camera wanders around this point, this far.</summary>
+        const float IdleCenterX = 860, IdleCenterY = 590, IdleRangeX = 520, IdleRangeY = 300;
+        /// <summary>At least this many house pixels show vertically (more on narrow screens, so the width fits ~700).</summary>
+        const float MinHalfHeight = 250, HalfWidth = 350;
+
+        public readonly Camera Camera;
+        float lookX = IdleCenterX, lookY = IdleCenterY, shakeTimeLeft, shakeMagnitude;
 
         public CameraRig()
         {
-            var cam = Camera.main;
-            if (cam == null) { cam = new GameObject("Camera").AddComponent<Camera>(); cam.tag = "MainCamera"; }
-            cam.orthographic = true; cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
-            cam.nearClipPlane = .1f; cam.farClipPlane = 50;
-            if (Object.FindAnyObjectByType<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
-            Cam = cam;
+            var camera = Camera.main;
+            if (camera == null) { camera = new GameObject("Camera").AddComponent<Camera>(); camera.tag = "MainCamera"; }
+            camera.orthographic = true; camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = Color.black;
+            camera.nearClipPlane = .1f; camera.farClipPlane = 50;
+            if (Object.FindAnyObjectByType<AudioListener>() == null) camera.gameObject.AddComponent<AudioListener>();
+            Camera = camera;
         }
 
-        public void Shake(float mag) { shakeT = ShakeDur; shakeMag = mag; }
+        /// <param name="magnitude">How far it shakes at first, in house pixels.</param>
+        public void Shake(float magnitude) { shakeTimeLeft = ShakeDuration; shakeMagnitude = magnitude; }
 
-        public void Frame(float dt, bool follow, ViewInfo view)
+        /// <summary>Every frame. <paramref name="followView"/>: in a match (otherwise it drifts over the house).</summary>
+        public void Follow(float dt, bool followView, ViewInfo view)
         {
-            var cam = Cam; float time = Time.unscaledTime;
-            if (follow) { float k = Mathf.Min(1, dt * 6); camX += (view.x - camX) * k; camY += (view.y - 20 - camY) * k; }
-            else { camX = 860 + Mathf.Sin(time * .1f) * 520; camY = 590 + Mathf.Sin(time * .16f) * 300; }
-            cam.orthographicSize = Mathf.Max(250, 350 / Mathf.Max(.5f, cam.aspect)) / Art.PxPerUnit;
-            cam.transform.position = Art.W(camX, camY, -10);
-            if (shakeT > 0)
+            float time = Time.unscaledTime;
+            if (followView)
             {
-                shakeT -= dt; float k = Mathf.Max(0, shakeT) / ShakeDur;
-                cam.transform.position += (Vector3)(UnityEngine.Random.insideUnitCircle * (shakeMag * k) / Art.PxPerUnit);
+                float blend = Mathf.Min(1, dt * FollowSpeed);
+                lookX += (view.x - lookX) * blend; lookY += (view.y - LookAboveFeet - lookY) * blend;
+            }
+            else
+            {
+                lookX = IdleCenterX + Mathf.Sin(time * .1f) * IdleRangeX;
+                lookY = IdleCenterY + Mathf.Sin(time * .16f) * IdleRangeY;
+            }
+            Camera.orthographicSize = Mathf.Max(MinHalfHeight, HalfWidth / Mathf.Max(.5f, Camera.aspect)) / Art.PxPerUnit;
+            Camera.transform.position = Art.ToWorld(lookX, lookY, -10);
+            if (shakeTimeLeft > 0)
+            {
+                shakeTimeLeft -= dt;
+                float strength = Mathf.Max(0, shakeTimeLeft) / ShakeDuration;
+                Camera.transform.position += (Vector3)(Random.insideUnitCircle * (shakeMagnitude * strength) / Art.PxPerUnit);
             }
         }
     }

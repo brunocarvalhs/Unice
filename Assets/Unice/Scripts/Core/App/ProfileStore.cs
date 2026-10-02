@@ -3,28 +3,32 @@ using UnityEngine;
 namespace Unice
 {
     /// <summary>
-    /// This device's own name and look, persisted locally via PlayerPrefs. Extracted out of App so App stays
-    /// a thin Unity-lifecycle adapter; App keeps exposing myName/kit/SaveProfile/SetKit as one-line passthroughs
-    /// so nothing else (Ui, etc.) needs to change.
+    /// This device's player name and look, saved on the device (PlayerPrefs). The screens reach it through
+    /// <see cref="App.myName"/>, <see cref="App.kit"/>, <see cref="App.SaveProfile"/> and <see cref="App.SetKit"/>.
     /// </summary>
     public sealed class ProfileStore
     {
+        const string NameKey = "unice.name", KitKey = "unice.kit";
+        const string DefaultName = "Nova";
+
         public string Name;
         public int[] Kit;
 
+        /// <summary>Loads the saved profile; a first run gets the default name and a random look.</summary>
         public ProfileStore()
         {
-            Name = U.CleanName(PlayerPrefs.GetString("unice.name", "Nova"));
-            Kit = PlayerPrefs.HasKey("unice.kit") ? Unice.Kit.Unpack(PlayerPrefs.GetInt("unice.kit")) : Unice.Kit.Random();
+            Name = TextFormat.CleanName(PlayerPrefs.GetString(NameKey, DefaultName));
+            Kit = PlayerPrefs.HasKey(KitKey) ? Unice.Kit.Unpack(PlayerPrefs.GetInt(KitKey)) : Unice.Kit.Random();
         }
 
         public void Save()
         {
-            PlayerPrefs.SetString("unice.name", Name);
-            PlayerPrefs.SetInt("unice.kit", Unice.Kit.Pack(Kit));
+            PlayerPrefs.SetString(NameKey, Name);
+            PlayerPrefs.SetInt(KitKey, Unice.Kit.Pack(Kit));
             PlayerPrefs.Save();
         }
 
-        public void SetKit(int[] k) { Kit = Unice.Kit.Clean(k); Save(); }
+        /// <summary>Replaces the look (invalid options become 0) and saves.</summary>
+        public void SetKit(int[] newKit) { Kit = Unice.Kit.Sanitize(newKit); Save(); }
     }
 }

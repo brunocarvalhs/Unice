@@ -3,140 +3,195 @@ using System.IO;
 
 namespace Unice
 {
-    /// <summary>The host's view of the match, packed small enough to send ~15 times a second.</summary>
+    /// <summary>
+    /// The host's view of the match, packed small enough to send ~15 times a second, and how guests apply it.
+    /// The byte layout is the protocol between devices: change <see cref="SnapshotVersion"/> whenever it changes,
+    /// so a device running an older build ignores snapshots it would misread.
+    /// </summary>
     public sealed partial class Game
     {
-        const byte SnapVersion = 4;
+        const byte SnapshotVersion = 5;
+
+        /// <summary>Per-character yes/no states, packed into one byte.</summary>
+        [Flags]
+        enum CharacterFlags : byte { None = 0, Bot = 1, OutOfRound = 2, Moving = 4, Loud = 8, Unice = 16, Tired = 32, Sneaking = 64 }
+
+        /// <summary>A guest that sees a character this far from where it is drawn snaps it there instead of sliding.</summary>
+        const float SnapDistance = 200;
 
         public byte[] WriteSnapshot()
         {
-            using var ms = new MemoryStream(1024);
-            using var w = new BinaryWriter(ms);
-            w.Write(SnapVersion);
-            w.Write(ep); w.Write(hb); w.Write((byte)ph); w.Write((byte)r); w.Write((byte)rounds); w.Write((byte)bots); w.Write(tl); w.Write(t);
-            w.Write(hideTime); w.Write(roundTime); w.Write(giggleEvery); w.Write(mapId);
-            w.Write((sbyte)(unice != null ? unice.idx : -1)); w.Write((sbyte)(nextU != null ? nextU.idx : -1));
-            w.Write(res != null);
-            if (res != null) for (int i = 0; i < 4; i++) w.Write((sbyte)res[i]);
-            w.Write((sbyte)(doll.holder != null ? doll.holder.idx : -1)); w.Write(doll.giggleT); w.Write(doll.hasLast);
-            if (doll.hasLast) { w.Write(doll.lastX); w.Write(doll.lastY); w.Write(t - doll.lastT); }
-            w.Write((byte)ents.Count);
-            foreach (var e in ents)
+            using var stream = new MemoryStream(1024);
+            using var writer = new BinaryWriter(stream);
+            writer.Write(SnapshotVersion);
+
+            // match state
+            writer.Write(epoch); writer.Write(hostClock); writer.Write((byte)phase);
+            writer.Write((byte)round); writer.Write((byte)totalRounds); writer.Write((byte)botCount);
+            writer.Write(timeLeft); writer.Write(roundClock);
+            writer.Write(hideTime); writer.Write(huntTime); writer.Write(giggleInterval); writer.Write(mapId);
+            writer.Write((sbyte)IndexOf(unice)); writer.Write((sbyte)IndexOf(nextUnice));
+            writer.Write(roundResult != null);
+            if (roundResult != null)
             {
-                w.Write(e.pid); w.Write(e.name); w.Write(Kit.Pack(e.k));
-                byte f = 0;
-                if (e.bot) f |= 1; if (e.outOfRound) f |= 2; if (e.moving) f |= 4; if (e.loud) f |= 8; if (e.IsUnice) f |= 16; if (e.tired > 0) f |= 32; if (e.sneak) f |= 64;
-                w.Write(f);
-                w.Write((short)MathF.Round(e.x)); w.Write((short)MathF.Round(e.y)); w.Write((short)MathF.Round(MathF.Atan2(e.fy, e.fx) * 1000));
-                w.Write((sbyte)(e.hidden != null ? e.hidden.si : -1)); w.Write(MathF.Max(0, e.passCd)); w.Write(MathF.Max(0, e.laughCd)); w.Write((short)e.score); w.Write((byte)e.turns); w.Write(MathF.Max(0, e.stun)); w.Write(e.tp);
+                writer.Write((sbyte)(roundResult.uniceWon ? 1 : 0)); writer.Write((sbyte)roundResult.dollHolder);
+                writer.Write((sbyte)roundResult.holderSpotIndex); writer.Write((sbyte)roundResult.nextUnice);
             }
-            w.Write(evSeq); w.Write((byte)evs.Count);
-            foreach (var v in evs)
+
+            // the doll
+            writer.Write((sbyte)IndexOf(doll.holder)); writer.Write(doll.giggleTimer); writer.Write(doll.hasLastGiggle);
+            if (doll.hasLastGiggle) { writer.Write(doll.lastGiggleX); writer.Write(doll.lastGiggleY); writer.Write(roundClock - doll.lastGiggleTime); }
+
+            // characters
+            writer.Write((byte)characters.Count);
+            foreach (var character in characters)
             {
-                w.Write(v.seq); w.Write((byte)v.type); w.Write(v.a); w.Write(v.b); w.Write(v.c); w.Write(v.d); w.Write(v.e);
-                w.Write(v.s != null); if (v.s != null) w.Write(v.s);
+                writer.Write(character.playerId); writer.Write(character.name); writer.Write(Kit.Pack(character.kit));
+                writer.Write((byte)FlagsOf(character));
+                writer.Write((short)MathF.Round(character.x)); writer.Write((short)MathF.Round(character.y));
+                writer.Write((short)MathF.Round(MathF.Atan2(character.faceY, character.faceX) * 1000));   // facing angle, in milliradians
+                writer.Write((sbyte)(character.hidingSpot != null ? character.hidingSpot.spotIndex : -1));
+                writer.Write(MathF.Max(0, character.passCooldown)); writer.Write(MathF.Max(0, character.laughCooldown));
+                writer.Write((short)character.score); writer.Write((byte)character.uniceTurns); writer.Write(MathF.Max(0, character.stunTime));
+                writer.Write(character.teleportSeq);
             }
-            w.Flush();
-            return ms.ToArray();
+
+            // the last events
+            writer.Write(eventSeq); writer.Write((byte)events.Count);
+            foreach (var gameEvent in events)
+            {
+                writer.Write(gameEvent.sequence); writer.Write((byte)gameEvent.type);
+                writer.Write(gameEvent.actor); writer.Write(gameEvent.target); writer.Write(gameEvent.value); writer.Write(gameEvent.x); writer.Write(gameEvent.y);
+                writer.Write(gameEvent.text != null); if (gameEvent.text != null) writer.Write(gameEvent.text);
+            }
+            writer.Flush();
+            return stream.ToArray();
+        }
+
+        static int IndexOf(Character character) => character != null ? character.index : -1;
+
+        static CharacterFlags FlagsOf(Character character)
+        {
+            var flags = CharacterFlags.None;
+            if (character.isBot) flags |= CharacterFlags.Bot;
+            if (character.outOfRound) flags |= CharacterFlags.OutOfRound;
+            if (character.moving) flags |= CharacterFlags.Moving;
+            if (character.loud) flags |= CharacterFlags.Loud;
+            if (character.IsUnice) flags |= CharacterFlags.Unice;
+            if (character.tiredTime > 0) flags |= CharacterFlags.Tired;
+            if (character.sneaking) flags |= CharacterFlags.Sneaking;
+            return flags;
         }
 
         /// <summary>
-        /// Mirror the host's snapshot. Returns this device's character (or null when watching).
-        /// The local character keeps its own position unless the host moved it (tp changed), hid it or took it out.
+        /// Guest: mirror the host's snapshot. Returns this device's character (or null when only watching).
+        /// The local character keeps its own position, unless the host moved it (teleportSeq changed), hid it or took it out.
         /// </summary>
-        public Ent ApplySnapshot(byte[] data, string myId, Ent me)
+        public Character ApplySnapshot(byte[] data, string myPlayerId, Character myCharacter)
         {
-            using var ms = new MemoryStream(data);
-            using var rd = new BinaryReader(ms);
-            if (rd.ReadByte() != SnapVersion) return me;
-            ep = rd.ReadInt32(); hb = rd.ReadSingle(); ph = (Phase)Math.Min((int)rd.ReadByte(), (int)Phase.Final); if (ph == Phase.Home) ph = Phase.Lobby;
-            r = rd.ReadByte(); rounds = rd.ReadByte(); bots = rd.ReadByte(); tl = rd.ReadSingle(); t = rd.ReadSingle();
-            hideTime = rd.ReadSingle(); roundTime = rd.ReadSingle(); giggleEvery = rd.ReadSingle();
-            mapId = rd.ReadString(); if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
-            int ui = rd.ReadSByte(), nx = rd.ReadSByte();
-            if (rd.ReadBoolean()) { res = new int[4]; for (int i = 0; i < 4; i++) res[i] = rd.ReadSByte(); } else res = null;
-            int hi = rd.ReadSByte(); float gT = rd.ReadSingle(); bool hasLast = rd.ReadBoolean();
-            float lx = 0, ly = 0, age = 0; if (hasLast) { lx = rd.ReadSingle(); ly = rd.ReadSingle(); age = rd.ReadSingle(); }
-            int n = Math.Min((int)rd.ReadByte(), Rules.MaxPlayers);
-            while (ents.Count > n) ents.RemoveAt(ents.Count - 1);
-            foreach (var s in Map.Spots) s.occ = null;
-            Ent newMe = null;
-            for (int i = 0; i < n; i++)
-            {
-                string pid = rd.ReadString(), name = U.CleanName(rd.ReadString()); int kit = rd.ReadInt32(); byte f = rd.ReadByte();
-                float x = rd.ReadInt16(), y = rd.ReadInt16(), ang = rd.ReadInt16() / 1000f; int si = rd.ReadSByte();
-                float passCd = rd.ReadSingle(); float laughCd = rd.ReadSingle(); int score = rd.ReadInt16(), turns = rd.ReadByte(); float stun = rd.ReadSingle(); int tp = rd.ReadInt32();
-                Ent e = i < ents.Count ? ents[i] : null; bool first = false;
-                if (e == null || e.pid != pid) { e = new Ent(i, pid, name, Kit.Unpack(kit), false); if (i < ents.Count) ents[i] = e; else ents.Add(e); first = true; }
-                e.name = name; e.k = Kit.Unpack(kit); e.bot = (f & 1) != 0; e.outOfRound = (f & 2) != 0; e.role = (f & 16) != 0 ? Role.Unice : Role.Hider; e.tired = (f & 32) != 0 ? 1 : 0;
-                e.hidden = si >= 0 && si < Map.Spots.Length ? Map.Spots[si] : null; if (e.hidden != null) e.hidden.occ = e;
-                e.passCd = passCd; e.laughCd = laughCd; e.score = score; e.turns = turns; e.stun = stun;
-                bool isMe = pid == myId;
-                if (isMe)
+            using var stream = new MemoryStream(data);
+            using var reader = new BinaryReader(stream);
+            if (reader.ReadByte() != SnapshotVersion) return myCharacter;
+
+            // match state
+            epoch = reader.ReadInt32(); hostClock = reader.ReadSingle();
+            phase = (Phase)Math.Min((int)reader.ReadByte(), (int)Phase.Final);
+            if (phase == Phase.Home) phase = Phase.Lobby;   // a guest in a room is never "home"
+            round = reader.ReadByte(); totalRounds = reader.ReadByte(); botCount = reader.ReadByte();
+            timeLeft = reader.ReadSingle(); roundClock = reader.ReadSingle();
+            hideTime = reader.ReadSingle(); huntTime = reader.ReadSingle(); giggleInterval = reader.ReadSingle();
+            mapId = reader.ReadString(); if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
+            int uniceIndex = reader.ReadSByte(), nextUniceIndex = reader.ReadSByte();
+            if (reader.ReadBoolean())
+                roundResult = new RoundResult
                 {
-                    newMe = e;
-                    if (first || tp != e.tp || e.hidden != null || e.outOfRound || !Live) { e.x = e.tx = x; e.y = e.ty = y; }
-                    if (first || tp != e.tp) { e.fx = MathF.Cos(ang); e.fy = MathF.Sin(ang); }
+                    uniceWon = reader.ReadSByte() != 0, dollHolder = reader.ReadSByte(),
+                    holderSpotIndex = reader.ReadSByte(), nextUnice = reader.ReadSByte(),
+                };
+            else roundResult = null;
+
+            // the doll
+            int holderIndex = reader.ReadSByte(); float giggleTimer = reader.ReadSingle(); bool hasLastGiggle = reader.ReadBoolean();
+            float giggleX = 0, giggleY = 0, giggleAge = 0;
+            if (hasLastGiggle) { giggleX = reader.ReadSingle(); giggleY = reader.ReadSingle(); giggleAge = reader.ReadSingle(); }
+
+            // characters
+            int count = Math.Min((int)reader.ReadByte(), Rules.MaxPlayers);
+            while (characters.Count > count) characters.RemoveAt(characters.Count - 1);
+            foreach (var spot in Map.Spots) spot.occupant = null;
+            Character newMyCharacter = null;
+            for (int i = 0; i < count; i++)
+            {
+                string playerId = reader.ReadString(), name = TextFormat.CleanName(reader.ReadString());
+                int packedKit = reader.ReadInt32(); var flags = (CharacterFlags)reader.ReadByte();
+                float x = reader.ReadInt16(), y = reader.ReadInt16(), facingAngle = reader.ReadInt16() / 1000f;
+                int spotIndex = reader.ReadSByte();
+                float passCooldown = reader.ReadSingle(), laughCooldown = reader.ReadSingle();
+                int score = reader.ReadInt16(), uniceTurns = reader.ReadByte();
+                float stunTime = reader.ReadSingle(); int teleportSeq = reader.ReadInt32();
+
+                // reuse the character in this slot if it is the same player, so positions keep sliding smoothly
+                Character character = i < characters.Count ? characters[i] : null; bool isNew = false;
+                if (character == null || character.playerId != playerId)
+                {
+                    character = new Character(i, playerId, name, Kit.Unpack(packedKit), false);
+                    if (i < characters.Count) characters[i] = character; else characters.Add(character);
+                    isNew = true;
+                }
+                character.name = name; character.kit = Kit.Unpack(packedKit);
+                character.isBot = flags.HasFlag(CharacterFlags.Bot);
+                character.outOfRound = flags.HasFlag(CharacterFlags.OutOfRound);
+                character.role = flags.HasFlag(CharacterFlags.Unice) ? Role.Unice : Role.Hider;
+                character.tiredTime = flags.HasFlag(CharacterFlags.Tired) ? 1 : 0;
+                character.hidingSpot = spotIndex >= 0 && spotIndex < Map.Spots.Length ? Map.Spots[spotIndex] : null;
+                if (character.hidingSpot != null) character.hidingSpot.occupant = character;
+                character.passCooldown = passCooldown; character.laughCooldown = laughCooldown;
+                character.score = score; character.uniceTurns = uniceTurns; character.stunTime = stunTime;
+
+                bool teleported = isNew || teleportSeq != character.teleportSeq;
+                if (playerId == myPlayerId)
+                {
+                    // this device moves its own character; only take the host's position when the host forces it
+                    newMyCharacter = character;
+                    if (teleported || character.hidingSpot != null || character.outOfRound || !IsLive) { character.x = character.targetX = x; character.y = character.targetY = y; }
+                    if (teleported) { character.faceX = MathF.Cos(facingAngle); character.faceY = MathF.Sin(facingAngle); }
                 }
                 else
                 {
-                    e.moving = (f & 4) != 0; e.loud = (f & 8) != 0; e.sneak = (f & 64) != 0;
-                    e.fx = MathF.Cos(ang); e.fy = MathF.Sin(ang); e.tx = x; e.ty = y;
-                    if (first || tp != e.tp || U.Dist(x, y, e.x, e.y) > 200) { e.x = x; e.y = y; }
+                    // others slide towards (targetX, targetY) every frame; see App.RenderFrame
+                    character.moving = flags.HasFlag(CharacterFlags.Moving); character.loud = flags.HasFlag(CharacterFlags.Loud);
+                    character.sneaking = flags.HasFlag(CharacterFlags.Sneaking);
+                    character.faceX = MathF.Cos(facingAngle); character.faceY = MathF.Sin(facingAngle);
+                    character.targetX = x; character.targetY = y;
+                    if (teleported || Geometry.Distance(x, y, character.x, character.y) > SnapDistance) { character.x = x; character.y = y; }
                 }
-                e.tp = tp;
+                character.teleportSeq = teleportSeq;
             }
-            unice = EntAt(ui); nextU = EntAt(nx);
-            doll.holder = EntAt(hi); doll.giggleT = gT; doll.hasLast = hasLast; doll.lastX = lx; doll.lastY = ly; doll.lastT = t - age; doll.lastSpot = null;
-            evSeq = rd.ReadInt32(); int ne = rd.ReadByte();
-            evs.Clear();
-            for (int i = 0; i < ne; i++)
+            unice = CharacterAt(uniceIndex); nextUnice = CharacterAt(nextUniceIndex);
+            doll.holder = CharacterAt(holderIndex); doll.giggleTimer = giggleTimer; doll.hasLastGiggle = hasLastGiggle;
+            doll.lastGiggleX = giggleX; doll.lastGiggleY = giggleY; doll.lastGiggleTime = roundClock - giggleAge; doll.lastGiggleSpot = null;
+
+            // the last events
+            eventSeq = reader.ReadInt32(); int eventCount = reader.ReadByte();
+            events.Clear();
+            for (int i = 0; i < eventCount; i++)
             {
-                var v = new GameEvent { seq = rd.ReadInt32(), type = (EvType)rd.ReadByte(), a = rd.ReadInt32(), b = rd.ReadInt32(), c = rd.ReadInt32(), d = rd.ReadInt32(), e = rd.ReadInt32() };
-                if (rd.ReadBoolean()) v.s = U.CleanName(rd.ReadString());
-                evs.Add(v);
+                var gameEvent = new GameEvent
+                {
+                    sequence = reader.ReadInt32(), type = (GameEventType)reader.ReadByte(),
+                    actor = reader.ReadInt32(), target = reader.ReadInt32(), value = reader.ReadInt32(), x = reader.ReadInt32(), y = reader.ReadInt32(),
+                };
+                if (reader.ReadBoolean()) gameEvent.text = TextFormat.CleanName(reader.ReadString());
+                events.Add(gameEvent);
             }
-            return newMe;
+            return newMyCharacter;
         }
 
+        /// <summary>The epoch of a snapshot without decoding the rest (-1 if it isn't one this build can read).</summary>
         public static int ReadEpoch(byte[] data)
         {
-            if (data == null || data.Length < 5 || data[0] != SnapVersion) return -1;
+            if (data == null || data.Length < 5 || data[0] != SnapshotVersion) return -1;
             return BitConverter.ToInt32(data, 1);
-        }
-    }
-
-    /// <summary>Presence on the wire (sent ~15 times a second by every player).</summary>
-    public static class Wire
-    {
-        public static byte[] Write(in Presence p)
-        {
-            using var ms = new MemoryStream(64);
-            using var w = new BinaryWriter(ms);
-            w.Write((byte)1); w.Write(p.name ?? ""); w.Write(p.kit); w.Write(p.joinT); w.Write(p.rdy); w.Write(p.tp);
-            w.Write(p.hasPos); if (p.hasPos) { w.Write(p.x); w.Write(p.y); w.Write(p.fx); w.Write(p.fy); w.Write(p.sneak); }
-            w.Write(p.aSeq); w.Write((byte)p.aType); w.Write((short)p.aArg); w.Write(p.talking);
-            w.Flush(); return ms.ToArray();
-        }
-
-        /// <summary>Data from other players: anything malformed is dropped.</summary>
-        public static bool TryRead(byte[] data, out Presence p)
-        {
-            p = default;
-            try
-            {
-                using var ms = new MemoryStream(data);
-                using var r = new BinaryReader(ms);
-                if (r.ReadByte() != 1) return false;
-                p.name = U.CleanName(r.ReadString()); p.kit = r.ReadInt32(); p.joinT = r.ReadInt64(); p.rdy = r.ReadBoolean(); p.tp = r.ReadInt32();
-                p.hasPos = r.ReadBoolean();
-                if (p.hasPos) { p.x = r.ReadSingle(); p.y = r.ReadSingle(); p.fx = r.ReadSingle(); p.fy = r.ReadSingle(); p.sneak = r.ReadBoolean(); }
-                if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.fx) || float.IsNaN(p.fy)) p.hasPos = false;
-                p.aSeq = r.ReadInt32(); byte a = r.ReadByte(); p.aType = a <= (byte)Act.Laugh ? (Act)a : Act.None; p.aArg = r.ReadInt16();
-                p.talking = r.ReadBoolean();
-                return true;
-            }
-            catch (Exception) { return false; }
         }
     }
 }

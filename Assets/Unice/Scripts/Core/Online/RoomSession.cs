@@ -7,172 +7,170 @@ using UnityEngine;
 namespace Unice
 {
     /// <summary>
-    /// The room this device is in (or solo play): create/join/leave, who hosts, presence and snapshots on the wire,
-    /// and who is in the waiting room. The host runs <see cref="Game"/>; guests mirror its snapshots.
+    /// The room this device is in (or solo play): create, join, leave, the status line shown in the menu, who is in the
+    /// waiting room, and starting a match. Keeping in sync while in a room is <see cref="RoomSync"/>'s job.
     /// </summary>
     sealed class RoomSession
     {
+        /// <summary>A guest waits this long for the host's first snapshot before giving up.</summary>
+        const float JoinTimeoutSeconds = 8;
+        const int JoinPollMs = 250;
+        /// <summary>The player id used when not in a room.</summary>
+        const string OfflinePlayerId = "me";
+
         readonly App app;
-        Game G => app.G;
-        public INetBackend net;                 // the room this device is in (null when solo or at home)
-        readonly INetBackend backend;           // created once, reused between rooms
-        public bool Online => net != null && net.InRoom;
-        public string code = "", myId = "me"; public bool rdy, busy; public long joinT;
-        public string netText = ""; public bool netErr;
-        byte[] lastS, lastApplied;
-        float pubT;
+        Game game => app.game;
+        /// <summary>The room's connection while in one; null when solo or at home.</summary>
+        public INetBackend connection;
+        /// <summary>Created once (if the multiplayer packages are installed) and reused for every room.</summary>
+        readonly INetBackend backend;
+        public readonly RoomSync sync;
+
+        public bool IsOnline => connection != null && connection.InRoom;
+        public string roomCode = "", myPlayerId = OfflinePlayerId;
+        /// <summary>Ready to start, in the waiting room.</summary>
+        public bool ready;
+        /// <summary>A room operation is in progress (creating, joining, leaving).</summary>
+        public bool isBusy;
+        /// <summary>When this device joined the current room (Unix ms); earlier joiners win host-election ties.</summary>
+        public long joinTime;
+        /// <summary>The line under the online menu ("Creating room…", an error…).</summary>
+        public string statusText = "";
+        public bool statusIsError;
 
         public RoomSession(App app)
         {
             this.app = app;
+            sync = new RoomSync(app, this);
             backend = NetRegistry.Factory?.Invoke();
-            if (backend != null) backend.Lost += RoomLost;
+            if (backend != null) backend.Lost += OnRoomLost;
         }
 
-        public PeerInfo FindHost() => Online ? HostElection.Find(net.Peers, Time.realtimeSinceStartup) : null;
+        public PeerInfo FindHost() => sync.FindHost();
+        public void SetStatus(string text, bool isError = false) { statusText = text ?? ""; statusIsError = isError; }
 
-        /// <summary>Per step while online: steps down when another host shows up, takes over when there is none.</summary>
-        public void ElectHost()
+        /// <summary>Back to a clean state before entering a room or playing solo.</summary>
+        void ResetRoomState()
         {
-            var h = FindHost();
-            if (G.isHost)
-            {
-                if (h != null && !h.isMe)
-                {
-                    G.isHost = false; lastApplied = null;
-                    foreach (var p in net.Peers) if (p.isMe) p.lastSnap = null;
-                    app.ui.Toast(Loc.T("net.host_changed", U.CleanName(h.pres.name)));
-                }
-                return;
-            }
-            if (h != null || lastS == null) return;
-            var oldest = HostElection.Oldest(net.Peers, Time.realtimeSinceStartup);
-            if (oldest != null && oldest.isMe) G.TakeOver(net.Peers, app.me, app.myName);
+            roomCode = ""; ready = false;
+            app.myCharacter = null; app.paused = false; app.eventFeed.Reset(); app.player.Reset(); sync.Reset();
+            game.characters.Clear(); game.isHost = false; game.events.Clear(); game.lastActionSeq.Clear(); game.eventSeq = 0;
+            game.round = 0; game.unice = null; game.doll.holder = null; game.phase = Phase.Home;
+            joinTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
 
-        /// <summary>Guest: applies the host's newest snapshot.</summary>
-        public void PullSnap()
+        /// <summary>Creates a room (this device hosts) or joins one by code (waits for the host's first snapshot).</summary>
+        public async void EnterRoom(bool create, string roomCodeToJoin)
         {
-            var h = FindHost();
-            if (h == null || h.lastSnap == lastApplied) return;
-            lastApplied = h.lastSnap;
-            try { app.me = G.ApplySnapshot(h.lastSnap, myId, app.me); lastS = h.lastSnap; }
-            catch (Exception x) { Metrics.Error(x, "snapshot"); return; }
-            app.events.Handle();
-        }
-
-        void Publish()
-        {
-            var pr = new Presence { name = app.myName, kit = Kit.Pack(app.kit), joinT = joinT, rdy = rdy, tp = app.me != null ? app.me.tp : 0, aSeq = app.player.aSeq, aType = app.player.aType, aArg = app.player.aArg };
-            var me = app.me;
-            if (me != null && G.CanMoveNow(me)) { pr.hasPos = true; pr.x = me.x; pr.y = me.y; pr.fx = me.fx; pr.fy = me.fy; pr.sneak = me.sneak; }
-            pr.talking = app.Talking;
-            net.SetPresence(pr);
-            if (G.isHost) net.BroadcastSnapshot(G.WriteSnapshot(), G.ep);
-        }
-
-        public void ResetRoomState()
-        {
-            code = ""; app.me = null; app.events.Reset(); lastS = null; lastApplied = null; app.player.Reset(); rdy = false; app.paused = false;
-            G.ents.Clear(); G.isHost = false; G.evs.Clear(); G.aseq.Clear(); G.evSeq = 0; G.r = 0; G.unice = null; G.doll.holder = null; G.ph = Phase.Home;
-            joinT = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        }
-
-        public void SetNet(string text, bool err = false) { netText = text ?? ""; netErr = err; }
-
-        public async void EnterRoom(bool create, string joinCode)
-        {
-            if (busy) return;
-            if (backend == null) { SetNet(Loc.T("net.unavailable"), true); return; }
-            busy = true; app.SaveProfile();
-            SetNet(Loc.T(create ? "net.creating" : "net.joining"));
+            if (isBusy) return;
+            if (backend == null) { SetStatus(Localization.Get("net.unavailable"), true); return; }
+            isBusy = true; app.SaveProfile();
+            SetStatus(Localization.Get(create ? "net.creating" : "net.joining"));
             try
             {
                 await backend.InitAsync();
-                if (create) await backend.CreateAsync(); else await backend.JoinAsync(joinCode);
+                if (create) await backend.CreateAsync(); else await backend.JoinAsync(roomCodeToJoin);
             }
-            catch (Exception x)
+            catch (Exception error)
             {
-                busy = false; SetNet(x is NetException ? x.Message : Loc.T("net.conn_failed"), true);
-                if (x is NetException) Debug.LogWarning(x.Message); else Metrics.Error(x, "room");   // NetException = already reported by the backend
-                Metrics.Log("room_error", ("mode", create ? "create" : "join"), ("error", x.GetType().Name)); return;
+                isBusy = false;
+                SetStatus(error is NetException ? error.Message : Localization.Get("net.conn_failed"), true);
+                if (error is NetException) Debug.LogWarning(error.Message); else Metrics.Error(error, "room");   // NetException = already reported by the backend
+                Metrics.Log("room_error", ("mode", create ? "create" : "join"), ("error", error.GetType().Name));
+                return;
             }
+
             ResetRoomState();
-            net = backend; code = backend.Code; myId = backend.MyId;
-            if (app.voice != null) { try { await app.voice.JoinRoomAsync(code); } catch (Exception x) { Metrics.Error(x); } }
-            Publish();
-            if (create) { G.isHost = true; G.ep = 1; G.ph = Phase.Lobby; }
+            connection = backend; roomCode = backend.Code; myPlayerId = backend.LocalId;
+            if (app.voice != null) { try { await app.voice.JoinRoomAsync(roomCode); } catch (Exception error) { Metrics.Error(error); } }
+            sync.Publish();
+            if (create) { game.isHost = true; game.epoch = 1; game.phase = Phase.Lobby; }
             else
             {
-                float t0 = Time.realtimeSinceStartup;
-                while (Online && Time.realtimeSinceStartup - t0 < 8 && FindHost() == null) await Task.Delay(250);
-                if (!Online) { busy = false; return; }
-                if (FindHost() == null) { busy = false; LeaveRoom(); SetNet(Loc.T("net.no_answer"), true); Metrics.Log("room_error", ("mode", "join"), ("error", "no_host")); return; }
-                PullSnap();
+                float startedAt = Time.realtimeSinceStartup;
+                while (IsOnline && Time.realtimeSinceStartup - startedAt < JoinTimeoutSeconds && FindHost() == null) await Task.Delay(JoinPollMs);
+                if (!IsOnline) { isBusy = false; return; }
+                if (FindHost() == null)
+                {
+                    isBusy = false; LeaveRoom(); SetStatus(Localization.Get("net.no_answer"), true);
+                    Metrics.Log("room_error", ("mode", "join"), ("error", "no_host"));
+                    return;
+                }
+                sync.ApplyHostSnapshot();
             }
-            busy = false; SetNet("");
-            Metrics.Log(create ? "room_create" : "room_join", ("app.voice", app.voice != null));
+            isBusy = false; SetStatus("");
+            Metrics.Log(create ? "room_create" : "room_join", ("voice", app.voice != null));
         }
 
-        public void RoomLost(string why) { if (net == null) return; Metrics.Log("room_lost", ("phase", G.ph.ToString().ToLowerInvariant())); LeaveRoom(); SetNet(why, true); }
+        /// <summary>The connection dropped for good: back home, showing why.</summary>
+        void OnRoomLost(string reason)
+        {
+            if (connection == null) return;
+            Metrics.Log("room_lost", ("phase", game.phase.ToString().ToLowerInvariant()));
+            LeaveRoom();
+            SetStatus(reason, true);
+        }
 
         public async void LeaveRoom()
         {
-            var b = net; net = null;
-            ResetRoomState(); myId = "me"; app.ui.ShowPause(false, false);
-            if (app.voice != null) { try { await app.voice.LeaveRoomAsync(); } catch (Exception x) { Metrics.Error(x); } }
-            if (b == null) return;
+            var leaving = connection; connection = null;
+            ResetRoomState(); myPlayerId = OfflinePlayerId; app.ui.ShowPause(false, false);
+            if (app.voice != null) { try { await app.voice.LeaveRoomAsync(); } catch (Exception error) { Metrics.Error(error); } }
+            if (leaving == null) return;
             Metrics.Log("room_leave");
-            busy = true;
-            try { await b.LeaveAsync(); } catch (Exception x) { Metrics.Error(x); }
-            busy = false;
+            isBusy = true;
+            try { await leaving.LeaveAsync(); } catch (Exception error) { Metrics.Error(error); }
+            isBusy = false;
         }
 
+        /// <summary>Solo: this device hosts a local match with bots.</summary>
         public void PlaySolo()
         {
-            if (busy) return;
-            app.SaveProfile(); ResetRoomState(); net = null; myId = "me"; rdy = true;
-            G.isHost = true; G.ep = 1; G.ph = Phase.Lobby;
+            if (isBusy) return;
+            app.SaveProfile(); ResetRoomState(); connection = null; myPlayerId = OfflinePlayerId; ready = true;
+            game.isHost = true; game.epoch = 1; game.phase = Phase.Lobby;
             Metrics.Log("solo_start");
         }
 
-        public struct LobbyHuman { public string id, name; public int[] k; public bool rdy, me; }
+        /// <summary>One person in the waiting room.</summary>
+        public struct LobbyPlayer { public string id, name; public int[] kit; public bool ready, isMe; }
 
         /// <summary>Who is in the waiting room, by arrival.</summary>
-        public List<LobbyHuman> LobbyHumans()
+        public List<LobbyPlayer> LobbyPlayers()
         {
-            var list = new List<LobbyHuman>();
-            if (!Online) { list.Add(new LobbyHuman { id = myId, name = app.myName, k = app.kit, rdy = true, me = true }); return list; }
-            foreach (var p in net.Peers.Where(p => p.isMe || p.pres.name != null).OrderBy(p => p.pres.joinT).ThenBy(p => p.id, StringComparer.Ordinal))
-                list.Add(p.isMe ? new LobbyHuman { id = p.id, name = app.myName, k = app.kit, rdy = rdy, me = true }
-                                : new LobbyHuman { id = p.id, name = U.CleanName(p.pres.name), k = Kit.Unpack(p.pres.kit), rdy = p.pres.rdy });
-            return list;
+            var players = new List<LobbyPlayer>();
+            if (!IsOnline) { players.Add(new LobbyPlayer { id = myPlayerId, name = app.myName, kit = app.kit, ready = true, isMe = true }); return players; }
+            var present = connection.Peers.Where(peer => peer.isMe || peer.presence.name != null)
+                                          .OrderBy(peer => peer.presence.joinTime).ThenBy(peer => peer.id, StringComparer.Ordinal);
+            foreach (var peer in present)
+                players.Add(peer.isMe
+                    ? new LobbyPlayer { id = peer.id, name = app.myName, kit = app.kit, ready = ready, isMe = true }
+                    : new LobbyPlayer { id = peer.id, name = TextFormat.CleanName(peer.presence.name), kit = Kit.Unpack(peer.presence.kit), ready = peer.presence.ready });
+            return players;
         }
 
         /// <summary>The humans for a new round: this device first, then the others by arrival.</summary>
-        public List<Game.Human> HumansNow()
+        public List<Game.Human> HumansForNextRound()
         {
-            var a = this; var list = new List<Game.Human> { new Game.Human { id = a.myId, name = app.myName, k = (int[])app.kit.Clone(), joinT = a.joinT } };
-            if (a.Online)
-                foreach (var p in a.net.Peers.Where(p => !p.isMe && p.pres.name != null).OrderBy(p => p.pres.joinT))
-                    list.Add(new Game.Human { id = p.id, name = U.CleanName(p.pres.name), k = Kit.Unpack(p.pres.kit), joinT = p.pres.joinT });
-            return list;
+            var humans = new List<Game.Human> { new Game.Human { id = myPlayerId, name = app.myName, kit = (int[])app.kit.Clone(), joinTime = joinTime } };
+            if (IsOnline)
+                foreach (var peer in connection.Peers.Where(peer => !peer.isMe && peer.presence.name != null).OrderBy(peer => peer.presence.joinTime))
+                    humans.Add(new Game.Human { id = peer.id, name = TextFormat.CleanName(peer.presence.name), kit = Kit.Unpack(peer.presence.kit), joinTime = peer.presence.joinTime });
+            return humans;
         }
 
+        /// <summary>Host, in the waiting room: starts the match.</summary>
         public void StartMatch(int bots, int rounds)
         {
-            if (!G.isHost || G.ph != Phase.Lobby) return;
-            G.bots = bots; G.rounds = rounds; G.NewMatch(HumansNow());
-            Metrics.Log("match_start", ("humans", G.ents.Count(e => !e.bot)), ("bots", G.ents.Count(e => e.bot)), ("rounds", rounds), ("map", G.mapId), ("online", Online),
-                ("hide_time", (int)G.hideTime), ("round_time", (int)G.roundTime));
+            if (!game.isHost || game.phase != Phase.Lobby) return;
+            game.botCount = bots; game.totalRounds = rounds; game.NewMatch(HumansForNextRound());
+            Metrics.Log("match_start", ("humans", game.characters.Count(character => !character.isBot)), ("bots", game.characters.Count(character => character.isBot)),
+                ("rounds", rounds), ("map", game.mapId), ("online", IsOnline), ("hide_time", (int)game.hideTime), ("round_time", (int)game.huntTime));
         }
 
-        public void NewMatchLobby() { if (G.isHost && G.ph == Phase.Final) G.BackToLobby(); }
-        public void ToggleReady() { rdy = !rdy; pubT = 0; }
-        /// <summary>Sends this device's presence on the next step instead of waiting for the regular beat.</summary>
-        public void PublishSoon() => pubT = 0;
+        /// <summary>Host, on the final scoreboard: everyone back to the waiting room.</summary>
+        public void BackToLobby() { if (game.isHost && game.phase == Phase.Final) game.BackToLobby(); }
 
-        /// <summary>Per step while online.</summary>
-        public void Tick(float dt) { pubT -= dt; if (pubT <= 0) { pubT = 1 / 15f; Publish(); } }
+        public void ToggleReady() { ready = !ready; sync.PublishSoon(); }
     }
 }

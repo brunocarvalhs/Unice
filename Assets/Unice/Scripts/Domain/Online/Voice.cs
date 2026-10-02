@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace Unice
 {
     /// <summary>
-    /// Proximity voice chat for a room. Implemented in Unice.Net (Vivox); optional, like INetBackend — the game plays fine without it.
+    /// Proximity voice chat for a room. Implemented in Unice.Net (Vivox); optional, like <see cref="INetBackend"/> — the game plays fine without it.
     /// </summary>
     public interface IVoiceChat
     {
@@ -13,8 +13,11 @@ namespace Unice
         bool IsSpeaking { get; }
         Task JoinRoomAsync(string channelName);
         Task LeaveRoomAsync();
-        /// <summary>Every tick: speak = this device should be heard right now; hasPos = x/y are a live match position (else everyone stays at the same spot, e.g. the lobby); whisper = transmit quieter.</summary>
-        void Tick(bool speak, float x, float y, bool hasPos, bool whisper);
+        /// <summary>
+        /// Every step. <paramref name="speak"/>: this device should be heard right now. <paramref name="hasPosition"/>: x/y are a live
+        /// match position (otherwise everyone stays at the same spot, e.g. the waiting room). <paramref name="whisper"/>: transmit quieter.
+        /// </summary>
+        void Tick(bool speak, float x, float y, bool hasPosition, bool whisper);
     }
 
     public static class VoiceRegistry
@@ -25,7 +28,10 @@ namespace Unice
 
     public static class VoiceRule
     {
-        /// <summary>You're heard by the room iff your mic is on and you're not hidden (hidden covers both the Unice and hiders mid-round; outside a round `me` is null, which also passes).</summary>
-        public static bool CanSpeak(bool micOn, Ent me) => micOn && (me == null || me.hidden == null);
+        /// <summary>
+        /// You're heard by the room only if your mic is on and you're not hidden (hidden covers both the Unice and hiders mid-round;
+        /// outside a round <paramref name="myCharacter"/> is null, which also passes).
+        /// </summary>
+        public static bool CanSpeak(bool micOn, Character myCharacter) => micOn && (myCharacter == null || myCharacter.hidingSpot == null);
     }
 }

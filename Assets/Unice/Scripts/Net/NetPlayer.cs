@@ -10,37 +10,53 @@ namespace Unice
     /// </summary>
     public sealed class NetPlayer : NetworkBehaviour
     {
+        /// <summary>Anything bigger is not a real presence / snapshot: dropped.</summary>
+        const int MaxPresenceBytes = 512, MaxSnapshotBytes = 8192;
+
+        /// <summary>Every spawned player object in the room, this device's included.</summary>
         public static readonly List<NetPlayer> All = new List<NetPlayer>();
-        public readonly PeerInfo info = new PeerInfo();
+        /// <summary>What this device knows about the player (their last presence and snapshot).</summary>
+        public readonly PeerInfo peerInfo = new PeerInfo();
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => All.Clear();   // Play mode without domain reload
 
-        public override void OnNetworkSpawn() { info.id = OwnerClientId.ToString(); info.isMe = IsOwner; if (!All.Contains(this)) All.Add(this); }
+        public override void OnNetworkSpawn()
+        {
+            peerInfo.id = OwnerClientId.ToString(); peerInfo.isMe = IsOwner;
+            if (!All.Contains(this)) All.Add(this);
+        }
         public override void OnNetworkDespawn() => All.Remove(this);
         public override void OnDestroy() { All.Remove(this); base.OnDestroy(); }
 
-        public void SendPresence(in Presence p) { info.pres = p; PresRpc(Wire.Write(p)); }
-
-        public void SendSnapshot(byte[] data, int ep)
+        /// <summary>Owner: sends this player's presence to everyone else.</summary>
+        public void SendPresence(in Presence presence)
         {
-            info.lastSnap = data; info.lastSnapEp = ep; info.lastSnapAt = Time.realtimeSinceStartup;
-            SnapRpc(data);
+            peerInfo.presence = presence;
+            PresenceRpc(PresenceCodec.Write(presence));
+        }
+
+        /// <summary>Owner, when hosting: sends the match snapshot to everyone else.</summary>
+        public void SendSnapshot(byte[] snapshot, int epoch)
+        {
+            peerInfo.lastSnapshot = snapshot; peerInfo.lastSnapshotEpoch = epoch; peerInfo.lastSnapshotAt = Time.realtimeSinceStartup;
+            SnapshotRpc(snapshot);
         }
 
         [Rpc(SendTo.NotMe)]
-        void PresRpc(byte[] data, RpcParams rp = default)
+        void PresenceRpc(byte[] data, RpcParams rpcParams = default)
         {
-            if (rp.Receive.SenderClientId != OwnerClientId || data == null || data.Length > 512) return;
-            if (Wire.TryRead(data, out var p)) { info.pres = p; info.presAt = Time.realtimeSinceStartup; }
+            if (rpcParams.Receive.SenderClientId != OwnerClientId || data == null || data.Length > MaxPresenceBytes) return;
+            if (PresenceCodec.TryRead(data, out var presence)) { peerInfo.presence = presence; peerInfo.presenceAt = Time.realtimeSinceStartup; }
         }
 
         [Rpc(SendTo.NotMe)]
-        void SnapRpc(byte[] data, RpcParams rp = default)
+        void SnapshotRpc(byte[] data, RpcParams rpcParams = default)
         {
-            if (rp.Receive.SenderClientId != OwnerClientId || data == null || data.Length > 8192) return;
-            int ep = Game.ReadEpoch(data); if (ep < 0) return;
-            info.lastSnap = data; info.lastSnapEp = ep; info.lastSnapAt = Time.realtimeSinceStartup;
+            if (rpcParams.Receive.SenderClientId != OwnerClientId || data == null || data.Length > MaxSnapshotBytes) return;
+            int epoch = Game.ReadEpoch(data);
+            if (epoch < 0) return;   // not a snapshot this build can read
+            peerInfo.lastSnapshot = data; peerInfo.lastSnapshotEpoch = epoch; peerInfo.lastSnapshotAt = Time.realtimeSinceStartup;
         }
     }
 }

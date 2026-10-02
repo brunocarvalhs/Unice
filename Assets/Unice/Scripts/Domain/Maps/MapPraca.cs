@@ -3,7 +3,7 @@ namespace Unice
     /// <summary>
     /// Concept data for the town-square map: a plaza after the fair's closed for the night. Same
     /// world scale as the house (1720×1180). The Unice enters from the promenade (the street),
-    /// not a front door — fits a public-space setting better than a house's DoorIn.
+    /// not a front door — fits a public-space setting better than a house's Entrance.
     /// </summary>
     public static class MapPraca
     {
@@ -17,7 +17,7 @@ namespace Unice
             groundTint = "#6b6a63", // pavement
             entryX = 860, entryY = 475, // off the promenade, into the square
             spawnX = 860, spawnY = 850,
-            zones = new[]
+            rooms = new[]
             {
                 new Room("market", 40, 40, 540, 380),
                 new Room("church", 620, 40, 480, 380),
@@ -27,17 +27,17 @@ namespace Unice
                 new Room("fountain", 620, 560, 480, 580),
                 new Room("park", 1140, 560, 540, 580),
             },
-            doorsV = new[]
+            verticalDoors = new[]
             {
                 new MapDoor(620, 230), new MapDoor(1140, 230),
                 new MapDoor(620, 850), new MapDoor(1140, 850),
             },
-            doorsH = new[]
+            horizontalDoors = new[]
             {
                 new MapDoor(300, 420), new MapDoor(860, 420), new MapDoor(1400, 420),
                 new MapDoor(300, 560), new MapDoor(860, 560), new MapDoor(1400, 560),
             },
-            props = new[]
+            furniture = new[]
             {
                 // --- hiding spots (17) ---
                 new MapProp("kiosk",       80,   140, 140, 110, 's'),

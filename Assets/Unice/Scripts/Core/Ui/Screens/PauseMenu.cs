@@ -1,36 +1,35 @@
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
 using UnityEngine.UIElements;
 using static Unice.UiKit;
 
 namespace Unice
 {
-    /// <summary>The pause sheet. Solo it freezes the match; online it only covers the screen.</summary>
+    /// <summary>The pause sheet: continue, sound/voice settings, leave. Solo it freezes the match; online it only covers the screen.</summary>
     sealed class PauseMenu : UiPart
     {
-        readonly VisualElement pauseOv; readonly Label pauseTitle, pauseNote; readonly Button pauseLeave;
+        readonly VisualElement overlay;
+        readonly Label titleLabel, noteLabel;
+        readonly Button leaveButton;
 
         public PauseMenu(Ui ui) : base(ui)
         {
-            var sh = Sheet(ui.root, out pauseOv);
-            pauseTitle = L(sh, "", "title", "title-md");
-            pauseNote = L(sh, "", "muted");
-            BB(sh, "pause.continue", () => app.TogglePause(), "btn", "gap");
-            var r = E(sh, "row", "gap", "wrap");
-            ui.SoundBtn(r, "btn", "btn-ghost");
-            ui.MicBtn(r, "btn", "btn-ghost");
-            ui.WhisperBtn(r, "btn", "btn-ghost");
-            pauseLeave = B(sh, "", () => app.LeaveRoom(), "btn", "btn-link", "gap");
-            UiKit.Show(pauseOv, false);
+            var sheet = AddSheet(ui.root, out overlay);
+            titleLabel = AddLabel(sheet, "", "title", "title-md");
+            noteLabel = AddLabel(sheet, "", "muted");
+            LocalizedButton(sheet, "pause.continue", () => app.TogglePause(), "btn", "gap");
+            var settingsRow = AddElement(sheet, "row", "gap", "wrap");
+            ui.settings.AddSoundButton(settingsRow, "btn", "btn-ghost");
+            ui.settings.AddMicButton(settingsRow, "btn", "btn-ghost");
+            ui.settings.AddWhisperButton(settingsRow, "btn", "btn-ghost");
+            leaveButton = AddButton(sheet, "", () => app.LeaveRoom(), "btn", "btn-link", "gap");
+            UiKit.Show(overlay, false);
         }
 
-        public void Show(bool on, bool online)
+        public void Show(bool visible, bool online)
         {
-            UiKit.Show(pauseOv, on);
-            pauseTitle.text = Loc.T(online ? "pause.online_title" : "pause.title");
-            pauseNote.text = Loc.T(online ? "pause.note_online" : "pause.note_local");
-            pauseLeave.text = Loc.T(online ? "res.leave_room" : "pause.leave_match");
+            UiKit.Show(overlay, visible);
+            titleLabel.text = Localization.Get(online ? "pause.online_title" : "pause.title");
+            noteLabel.text = Localization.Get(online ? "pause.note_online" : "pause.note_local");
+            leaveButton.text = Localization.Get(online ? "res.leave_room" : "pause.leave_match");
         }
     }
 }

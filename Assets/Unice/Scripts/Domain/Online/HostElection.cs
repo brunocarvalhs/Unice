@@ -4,32 +4,40 @@ namespace Unice
 {
     /// <summary>
     /// Who runs the match in a room. Every device decides on its own from what the peers last sent, with the same
-    /// rule, so they all agree without a server. Peers silent for more than <see cref="Stale"/> seconds don't count.
+    /// rule, so they all agree without a server. Peers silent for more than <see cref="StaleSeconds"/> seconds don't count.
     /// </summary>
     public static class HostElection
     {
-        public const float Stale = 4;
+        public const float StaleSeconds = 4;
 
         /// <summary>The host is whoever sends the freshest snapshot with the highest epoch (ties: who joined first).</summary>
-        public static PeerInfo Find(IReadOnlyList<PeerInfo> peers, float now)
+        public static PeerInfo FindHost(IReadOnlyList<PeerInfo> peers, float now)
         {
-            PeerInfo h = null;
-            foreach (var p in peers)
+            PeerInfo host = null;
+            foreach (var peer in peers)
             {
-                if (p.lastSnap == null || (!p.isMe && now - p.lastSnapAt > Stale)) continue;
-                if (h == null || p.lastSnapEp > h.lastSnapEp || (p.lastSnapEp == h.lastSnapEp && Older(p, h))) h = p;
+                bool silent = peer.lastSnapshot == null || (!peer.isMe && now - peer.lastSnapshotAt > StaleSeconds);
+                if (silent) continue;
+                bool better = host == null || peer.lastSnapshotEpoch > host.lastSnapshotEpoch
+                           || (peer.lastSnapshotEpoch == host.lastSnapshotEpoch && JoinedBefore(peer, host));
+                if (better) host = peer;
             }
-            return h;
+            return host;
         }
 
         /// <summary>With no host left, the peer who joined first (and is still around) takes over.</summary>
-        public static PeerInfo Oldest(IReadOnlyList<PeerInfo> peers, float now)
+        public static PeerInfo FindOldestPresent(IReadOnlyList<PeerInfo> peers, float now)
         {
             PeerInfo oldest = null;
-            foreach (var p in peers) if ((p.isMe || (p.pres.name != null && now - p.presAt < Stale)) && (oldest == null || Older(p, oldest))) oldest = p;
+            foreach (var peer in peers)
+            {
+                bool present = peer.isMe || (peer.presence.name != null && now - peer.presenceAt < StaleSeconds);
+                if (present && (oldest == null || JoinedBefore(peer, oldest))) oldest = peer;
+            }
             return oldest;
         }
 
-        public static bool Older(PeerInfo a, PeerInfo b) => a.pres.joinT < b.pres.joinT || (a.pres.joinT == b.pres.joinT && string.CompareOrdinal(a.id, b.id) < 0);
+        /// <summary>Tie-break everyone agrees on: earlier join time, then lower id.</summary>
+        public static bool JoinedBefore(PeerInfo a, PeerInfo b) => a.presence.joinTime < b.presence.joinTime || (a.presence.joinTime == b.presence.joinTime && string.CompareOrdinal(a.id, b.id) < 0);
     }
 }

@@ -3,24 +3,28 @@ using System.Collections.Generic;
 namespace Unice
 {
     /// <summary>
-    /// Data shape for a swappable map (house, quintal, praça, …): the same primitives Map.cs's
-    /// Load(...) turns into Rooms/Doors/Furniture/Spots/the nav graph. Display text (room names,
-    /// hiding-spot phrases, the map's own name) is never stored here — it lives in Core's Loc
-    /// table, keyed by id/type, same as Map.cs's Room/Furn.
+    /// Data for one playable map (house, quintal, praça, …): what <see cref="Map.Load"/> turns into rooms, doors,
+    /// furniture, hiding spots and the navigation graph. Display text (room names, hiding-spot phrases, the map's
+    /// own name) is never stored here — it lives in Core's Localization table, keyed by id/type.
     /// </summary>
     public sealed class MapDefinition
     {
         public string id;
         public float worldW, worldH;
-        public Room[] zones;               // reuses Domain's Room type directly: id + rect, nothing else
-        public MapDoor[] doorsV, doorsH;    // vertical/horizontal openings, same split as Map.cs's old DV/DH
-        public MapProp[] props;            // decorative obstacles AND hiding spots in one list
-        public float entryX, entryY;       // where the Unice walks in from (Map.DoorIn)
-        public float spawnX, spawnY;       // where hiders line up at the start of a round
-        public string groundTint;          // flat floor color used where there's no painted floor art
+        public Room[] rooms;
+        /// <summary>Openings in horizontal walls (walked through vertically) and in vertical walls.</summary>
+        public MapDoor[] verticalDoors, horizontalDoors;
+        /// <summary>Obstacles and hiding spots, in one list (the art manifest refers to them by position in it).</summary>
+        public MapProp[] furniture;
+        /// <summary>Where the Unice walks in from (<see cref="Map.Entrance"/>).</summary>
+        public float entryX, entryY;
+        /// <summary>Where hiders line up at the start of a round.</summary>
+        public float spawnX, spawnY;
+        /// <summary>Flat floor color used where there is no painted floor art.</summary>
+        public string groundTint;
     }
 
-    /// <summary>One opening between zones — x/y of its center, same idea as the old DV/DH float pairs.</summary>
+    /// <summary>One opening between rooms: the center of the wall gap it crosses.</summary>
     public readonly struct MapDoor
     {
         public readonly float x, y;
@@ -28,16 +32,18 @@ namespace Unice
     }
 
     /// <summary>
-    /// One prop: a decorative obstacle, or a hiding spot when <see cref="side"/> is set (non-'\0').
-    /// Its flavor phrase when hideable lives in Loc as "spot." + type.
+    /// One prop: a decorative obstacle, or a hiding spot when <see cref="hideSide"/> is set (non-'\0').
+    /// When hideable, its phrase ("under the bed") lives in Localization as "spot." + type.
     /// </summary>
     public sealed class MapProp
     {
-        public string type;    // display/art key (e.g. "hedge", "shed") — also the Loc "spot." key when hideable
+        /// <summary>Art key (e.g. "hedge", "shed"), also the "spot." localization key when hideable.</summary>
+        public string type;
         public float x, y, w, h;
-        public char side;      // '\0' = decorative only; else n/s/e/w approach side for the hiding pose
-        public MapProp(string type, float x, float y, float w, float h, char side = '\0')
-        { this.type = type; this.x = x; this.y = y; this.w = w; this.h = h; this.side = side; }
+        /// <summary>'\0' = decorative only; otherwise the side (n/s/e/w) a child approaches it from to hide.</summary>
+        public char hideSide;
+        public MapProp(string type, float x, float y, float w, float h, char hideSide = '\0')
+        { this.type = type; this.x = x; this.y = y; this.w = w; this.h = h; this.hideSide = hideSide; }
     }
 
     /// <summary>Registry of every playable map, by id.</summary>
@@ -50,6 +56,6 @@ namespace Unice
             { MapPraca.Id, MapPraca.Build() },
         };
         public static readonly string[] AllIds = { MapHouse.Id, MapQuintal.Id, MapPraca.Id };
-        public static MapDefinition ById(string id) => All.TryGetValue(id, out var m) ? m : All[MapHouse.Id];
+        public static MapDefinition ById(string id) => All.TryGetValue(id, out var definition) ? definition : All[MapHouse.Id];
     }
 }

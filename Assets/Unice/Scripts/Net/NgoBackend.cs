@@ -12,56 +12,62 @@ namespace Unice
 {
     /// <summary>
     /// Online rooms through Unity Multiplayer Services sessions (join by code) with distributed authority,
-    /// so the room survives whoever created it leaving. The game picks its own host on top (see App.ElectHost).
+    /// so the room survives whoever created it leaving. The game picks its own host on top (see RoomSync.ElectHost).
     /// </summary>
     public sealed class NgoBackend : INetBackend
     {
+        /// <summary>Waiting for the connection after creating/joining gives up after this long.</summary>
+        const float ConnectTimeoutSeconds = 15;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register() => NetRegistry.Factory = () => new NgoBackend();
 
         ISession session;
+        /// <summary>Connected and the player object exists; false while connecting or after leaving.</summary>
         bool ready;
         public event Action<string> Lost;
 
-        static NetworkManager NM => NetworkManager.Singleton;
-        public bool InRoom => ready && session != null && NM != null && NM.IsConnectedClient;
+        static NetworkManager Network => NetworkManager.Singleton;
+        public bool InRoom => ready && session != null && Network != null && Network.IsConnectedClient;
         public string Code => session?.Code ?? "";
-        public string MyId => NM != null ? NM.LocalClientId.ToString() : "";
+        public string LocalId => Network != null ? Network.LocalClientId.ToString() : "";
 
         public IReadOnlyList<PeerInfo> Peers
         {
             get
             {
-                var list = new List<PeerInfo>(NetPlayer.All.Count);
-                foreach (var p in NetPlayer.All) if (p != null && p.IsSpawned) list.Add(p.info);
-                return list;
+                var peers = new List<PeerInfo>(NetPlayer.All.Count);
+                foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned) peers.Add(player.peerInfo);
+                return peers;
             }
         }
 
-        static NetPlayer Local() { foreach (var p in NetPlayer.All) if (p != null && p.IsSpawned && p.IsOwner) return p; return null; }
+        /// <summary>This device's own player object, once spawned.</summary>
+        static NetPlayer Local() { foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned && player.IsOwner) return player; return null; }
 
+        /// <summary>Creates the NetworkManager (once) and signs in to Unity Services anonymously.</summary>
         public async Task InitAsync()
         {
-            if (NM == null)
+            if (Network == null)
             {
-                var player = Resources.Load<GameObject>("UniceNet/NetPlayer");
-                if (player == null) throw new NetException("Falta o objeto de rede do jogador. No Unity, use o menu Unice > Configurar projeto.");
-                var go = new GameObject("NetworkManager"); go.SetActive(false); UnityEngine.Object.DontDestroyOnLoad(go);
-                var tr = go.AddComponent<UnityTransport>();
-                var nm = go.AddComponent<NetworkManager>();
-                nm.NetworkConfig = new NetworkConfig { NetworkTransport = tr, PlayerPrefab = player, NetworkTopology = NetworkTopologyTypes.DistributedAuthority };
-                go.SetActive(true);
-                nm.OnClientStopped += _ => { if (!ready) return; ready = false; Lost?.Invoke("A conexão com a sala caiu."); };   // keep session: LeaveAsync still has to leave it
+                var playerPrefab = Resources.Load<GameObject>("UniceNet/NetPlayer");
+                if (playerPrefab == null) throw new NetException("Falta o objeto de rede do jogador. No Unity, use o menu Unice > Configurar projeto.");
+                var managerObject = new GameObject("NetworkManager"); managerObject.SetActive(false); UnityEngine.Object.DontDestroyOnLoad(managerObject);
+                var transport = managerObject.AddComponent<UnityTransport>();
+                var manager = managerObject.AddComponent<NetworkManager>();
+                manager.NetworkConfig = new NetworkConfig { NetworkTransport = transport, PlayerPrefab = playerPrefab, NetworkTopology = NetworkTopologyTypes.DistributedAuthority };
+                managerObject.SetActive(true);
+                manager.OnClientStopped += _ => { if (!ready) return; ready = false; Lost?.Invoke("A conexão com a sala caiu."); };   // keep session: LeaveAsync still has to leave it
             }
             try
             {
                 if (UnityServices.State != ServicesInitializationState.Initialized) await UnityServices.InitializeAsync();
                 if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
             }
-            catch (Exception x)
+            catch (Exception error)
             {
-                Metrics.Error(x, "net");
-                if (x.ToString().Contains("UnityProjectNotLinkedException"))
+                Metrics.Error(error, "net");
+                if (error.ToString().Contains("UnityProjectNotLinkedException"))
                     throw new NetException("O projeto ainda não está ligado ao Unity Cloud. No Unity: Edit > Project Settings > Services, escolha a organização e ligue um projeto.");
                 throw new NetException("Não consegui falar com os serviços online. Confira a internet e tente de novo.");
             }
@@ -69,18 +75,18 @@ namespace Unice
 
         public async Task<string> CreateAsync()
         {
-            NM.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
+            Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
             try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions { MaxPlayers = Rules.MaxPlayers, IsPrivate = true }.WithDistributedAuthorityNetwork()); }
-            catch (Exception x) { Metrics.Error(x, "net"); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
+            catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
             await Connected();
             return session.Code;
         }
 
-        public async Task JoinAsync(string code)
+        public async Task JoinAsync(string roomCode)
         {
-            NM.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
-            try { session = await MultiplayerService.Instance.JoinSessionByCodeAsync(code); }
-            catch (Exception x) { Metrics.Error(x, "net"); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
+            Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
+            try { session = await MultiplayerService.Instance.JoinSessionByCodeAsync(roomCode); }
+            catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
             await Connected();
         }
 
@@ -89,15 +95,16 @@ namespace Unice
         {
             session.RemovedFromSession += OnRemoved;
             session.Deleted += OnRemoved;
-            float t0 = Time.realtimeSinceStartup;
-            while (!(NM.IsConnectedClient && Local() != null))
+            float startedAt = Time.realtimeSinceStartup;
+            while (!(Network.IsConnectedClient && Local() != null))
             {
-                if (Time.realtimeSinceStartup - t0 > 15) { await LeaveAsync(); throw new NetException("A sala demorou demais para responder. Tente de novo."); }
+                if (Time.realtimeSinceStartup - startedAt > ConnectTimeoutSeconds) { await LeaveAsync(); throw new NetException("A sala demorou demais para responder. Tente de novo."); }
                 await Task.Delay(50);
             }
             ready = true;
         }
 
+        /// <summary>The session ended or kicked this device out.</summary>
         void OnRemoved()
         {
             if (!ready) return;
@@ -108,16 +115,16 @@ namespace Unice
         public async Task LeaveAsync()
         {
             ready = false;
-            var s = session; session = null;
-            if (s != null)
+            var leaving = session; session = null;
+            if (leaving != null)
             {
-                s.RemovedFromSession -= OnRemoved; s.Deleted -= OnRemoved;
-                try { await s.LeaveAsync(); } catch (Exception x) { Metrics.Error(x, "net"); }
+                leaving.RemovedFromSession -= OnRemoved; leaving.Deleted -= OnRemoved;
+                try { await leaving.LeaveAsync(); } catch (Exception error) { Metrics.Error(error, "net"); }
             }
-            if (NM != null && NM.IsListening) NM.Shutdown();
+            if (Network != null && Network.IsListening) Network.Shutdown();
         }
 
-        public void SetPresence(Presence p) { var me = Local(); if (me != null) me.SendPresence(p); }
-        public void BroadcastSnapshot(byte[] data, int ep) { var me = Local(); if (me != null) me.SendSnapshot(data, ep); }
+        public void SetPresence(Presence presence) { var me = Local(); if (me != null) me.SendPresence(presence); }
+        public void BroadcastSnapshot(byte[] snapshot, int epoch) { var me = Local(); if (me != null) me.SendSnapshot(snapshot, epoch); }
     }
 }

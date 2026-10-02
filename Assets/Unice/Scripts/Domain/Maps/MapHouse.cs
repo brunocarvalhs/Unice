@@ -19,7 +19,7 @@ namespace Unice
             groundTint = "#2e2319",
             entryX = 824, entryY = 1085,
             spawnX = 620, spawnY = 474,
-            zones = new[]
+            rooms = new[]
             {
                 new Room("master", 40, 40, 440, 350),
                 new Room("bath", 504, 40, 220, 350),
@@ -34,19 +34,19 @@ namespace Unice
                 new Room("pantry", 1088, 924, 300, 216),
                 new Room("laundry", 1412, 924, 268, 216),
             },
-            doorsV = new[]
+            verticalDoors = new[]
             {
                 new MapDoor(260, 390), new MapDoor(614, 390), new MapDoor(958, 390), new MapDoor(1436, 390),
                 new MapDoor(300, 534), new MapDoor(824, 534), new MapDoor(1384, 534),
                 new MapDoor(300, 900), new MapDoor(824, 900), new MapDoor(1238, 900), new MapDoor(1546, 900),
             },
-            doorsH = new[]
+            horizontalDoors = new[]
             {
                 new MapDoor(480, 215), new MapDoor(1168, 215),
                 new MapDoor(560, 729), new MapDoor(1064, 729),
                 new MapDoor(560, 1032), new MapDoor(1064, 1032), new MapDoor(1388, 1032),
             },
-            props = new[]
+            furniture = new[]
             {
                 // --- original 30, same order/coordinates as before (manifest furn[].i depends on this) ---
                 new MapProp("bed", 170, 40, 150, 175, 's'),

@@ -49,7 +49,7 @@ namespace Unice
             if (!force && SessionState.GetBool("unice.pkg", false)) return;
             SessionState.SetBool("unice.pkg", true);
             string manifest = File.ReadAllText("Packages/manifest.json");
-            var missing = Packages.Where(p => !manifest.Contains("\"" + p + "\"")).ToArray();
+            var missing = Packages.Where(package => !manifest.Contains("\"" + package + "\"")).ToArray();
             if (missing.Length == 0) return;
             Debug.Log("[Unice] Instalando pacotes de multiplayer: " + string.Join(", ", missing));
             var req = Client.AddAndRemove(missing, null);
@@ -67,19 +67,19 @@ namespace Unice
         static void CreateMaterial()
         {
             if (File.Exists(MatPath)) return;
-            var sh = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default") ?? Shader.Find("Sprites/Default");
-            AssetDatabase.CreateAsset(new Material(sh) { name = "UniceUnlit" }, MatPath);
+            var shader = Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default") ?? Shader.Find("Sprites/Default");
+            AssetDatabase.CreateAsset(new Material(shader) { name = "UniceUnlit" }, MatPath);
         }
 
         /// <summary>A saved panel asset keeps references to the UI shaders, so they are not stripped from the Android build.</summary>
         static void CreatePanel()
         {
             if (File.Exists(PanelPath)) return;
-            var ps = ScriptableObject.CreateInstance<PanelSettings>();
-            ps.scaleMode = PanelScaleMode.ScaleWithScreenSize; ps.referenceResolution = new Vector2Int(1280, 720);
-            ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; ps.match = 1;
-            ps.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>("Assets/Unice/Resources/UI/UniceTheme.tss");
-            AssetDatabase.CreateAsset(ps, PanelPath);
+            var panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
+            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = new Vector2Int(1280, 720);
+            panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; panelSettings.match = 1;
+            panelSettings.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>("Assets/Unice/Resources/UI/UniceTheme.tss");
+            AssetDatabase.CreateAsset(panelSettings, PanelPath);
         }
 
         static void ConfigurePlayer()
@@ -119,14 +119,14 @@ namespace Unice
         void OnPreprocessTexture()
         {
             if (!assetPath.StartsWith("Assets/Unice/Resources/Art/")) return;
-            var ti = (TextureImporter)assetImporter;
-            ti.textureType = TextureImporterType.Default;
-            ti.npotScale = TextureImporterNPOTScale.None;
-            ti.mipmapEnabled = false;
-            ti.alphaIsTransparency = true;
-            ti.wrapMode = TextureWrapMode.Clamp;
-            ti.maxTextureSize = 4096;
-            ti.textureCompression = TextureImporterCompression.CompressedHQ;
+            var textureImporter = (TextureImporter)assetImporter;
+            textureImporter.textureType = TextureImporterType.Default;
+            textureImporter.npotScale = TextureImporterNPOTScale.None;
+            textureImporter.mipmapEnabled = false;
+            textureImporter.alphaIsTransparency = true;
+            textureImporter.wrapMode = TextureWrapMode.Clamp;
+            textureImporter.maxTextureSize = 4096;
+            textureImporter.textureCompression = TextureImporterCompression.CompressedHQ;
         }
     }
 }

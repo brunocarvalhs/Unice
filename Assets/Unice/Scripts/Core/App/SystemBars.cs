@@ -3,9 +3,10 @@ using UnityEngine;
 
 namespace Unice
 {
+    /// <summary>Android full screen: hides the status and navigation bars (swipe from the edge shows them for a moment).</summary>
     static class SystemBars
     {
-        /// <summary>Android: hide the status and navigation bars (they come back after the keyboard or leaving the app).</summary>
+        /// <summary>Call at start and again whenever the bars may have come back (after the keyboard or returning to the app).</summary>
         public static void Hide()
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
