@@ -26,6 +26,7 @@ namespace Unice
         static Material mat;
         public static Sprite White;
         static Material fogMat;
+        static Material pixelMat;
 
         /// <summary>Plain vertex-color material for the darkness mesh (Resources/UniceFog.shader).</summary>
         public static Material FogMat
@@ -44,7 +45,7 @@ namespace Unice
 
         // The project enters Play mode without a domain reload, so statics from the last session must be cleared.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() { M = null; cache.Clear(); mat = null; fogMat = null; White = null; }
+        static void ResetStatics() { M = null; cache.Clear(); mat = null; fogMat = null; pixelMat = null; White = null; }
 
         public static void Load()
         {
@@ -70,6 +71,18 @@ namespace Unice
                     mat = new Material(sh);
                 }
                 return mat;
+            }
+        }
+
+        /// <summary>Chunky/pixelated material for character sprites (Resources/UnicePixel.shader): the chibi retro look.</summary>
+        public static Material PixelMat
+        {
+            get
+            {
+                if (pixelMat != null) return pixelMat;
+                var sh = Resources.Load<Shader>("UnicePixel");
+                pixelMat = new Material(sh != null ? sh : Shader.Find("Sprites/Default"));
+                return pixelMat;
             }
         }
 

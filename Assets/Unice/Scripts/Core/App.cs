@@ -175,6 +175,7 @@ namespace Unice
             if (typing || !G.Live || paused) return;
             if (kb.eKey.wasPressedThisFrame) DoAct();
             if (kb.qKey.wasPressedThisFrame) TryPass();
+            if (kb.rKey.wasPressedThisFrame) TryLaugh();
             if (kb.pKey.wasPressedThisFrame) TogglePause();
         }
 
@@ -221,8 +222,8 @@ namespace Unice
         static string Side(float dx, float dy)
         {
             float ax = Mathf.Abs(dx), ay = Mathf.Abs(dy);
-            if (ax < 60 && ay < 60) return "bem do lado";
-            string h = dx < 0 ? "à esquerda" : "à direita", v = dy < 0 ? "acima" : "abaixo";
+            if (ax < 60 && ay < 60) return Loc.T("app.side.near");
+            string h = Loc.T(dx < 0 ? "app.side.left" : "app.side.right"), v = Loc.T(dy < 0 ? "app.side.above" : "app.side.below");
             return ax > ay * 1.6f ? h : ay > ax * 1.6f ? v : v + ", " + h;
         }
 
@@ -238,7 +239,7 @@ namespace Unice
             if (label != null && me != null && !me.outOfRound && !Seen(x, y))
             {
                 ui.Cue(Mathf.Atan2(y - L.y, x - L.x), g, col);
-                if (hid) ui.Caption($"{label} · {(g > .45f ? "muito perto" : g > .15f ? "perto" : "longe")} · {Side(x - L.x, y - L.y)}");
+                if (hid) ui.Caption($"{label} · {(g > .45f ? Loc.T("app.close.near") : g > .15f ? Loc.T("app.close.mid") : Loc.T("app.close.far"))} · {Side(x - L.x, y - L.y)}");
             }
             return g;
         }
@@ -252,8 +253,8 @@ namespace Unice
             if (G.evSeq < lastEv - 50) lastEv = G.evSeq;
         }
 
-        public string NameOf(Ent e) => e == null ? "alguém" : e == me ? "você" : e.name;
-        public string NameUp(Ent e) => e == null ? "Alguém" : e == me ? "Você" : e.name;
+        public string NameOf(Ent e) => e == null ? Loc.T("app.someone") : e == me ? Loc.T("app.you") : e.name;
+        public string NameUp(Ent e) => e == null ? Loc.T("app.someone.up") : e == me ? Loc.T("app.you.up") : e.name;
 
         void OnEvent(GameEvent v)
         {
@@ -263,66 +264,68 @@ namespace Unice
                 case EvType.Start:
                 {
                     var u = E(v.b); var h = E(v.c);
-                    if (me == null) ui.Banner($"Rodada {v.a}: você assiste. {NameUp(u)} é a Unice", "info", 3);
-                    else if (me == u) ui.Banner("Você é a Unice! Pegaram sua boneca. Espere eles se esconderem", "rose", 3.2f);
-                    else if (me == h) ui.Banner("A boneca está com você! Esconda-se", "rose", 3.2f);
-                    else ui.Banner($"{NameUp(u)} é a Unice. Esconda-se!", "candle", 3.2f);
+                    if (me == null) ui.Banner(Loc.T("ev.start.watch", v.a, NameUp(u)), "info", 3);
+                    else if (me == u) ui.Banner(Loc.T("ev.start.you_unice"), "rose", 3.2f);
+                    else if (me == h) ui.Banner(Loc.T("ev.start.you_holder"), "rose", 3.2f);
+                    else ui.Banner(Loc.T("ev.start.other", NameUp(u)), "candle", 3.2f);
                     break;
                 }
                 case EvType.Enter:
-                    sfx.Play("boom"); Hear(Map.DoorIn.x, Map.DoorIn.y, 1400, "A porta da frente abriu", Ui.Rose, "creak", .35f);
-                    ui.Banner(G.unice == me ? "Quem mexeu nas minhas coisas?!" : "A Unice chegou em casa!", "rose", 2.4f);
+                    sfx.Play("boom"); Hear(Map.DoorIn.x, Map.DoorIn.y, 1400, Loc.T("ev.enter.sound"), Ui.Rose, "creak", .35f);
+                    ui.Banner(G.unice == me ? Loc.T("ev.enter.unice") : Loc.T("ev.enter.others"), "rose", 2.4f);
                     break;
                 case EvType.Giggle:
                 {
-                    float x = v.a, y = v.b; var r = Map.RoomOf(x, y);
-                    world.Ripple(x, y, "giggle"); ui.Fx(x, y - 30, "hi hi hi!", Ui.Rose, 18, 1.8f, true);
-                    Hear(x, y, 2200, "Risadinha", Ui.Rose, "giggle", .3f);
-                    if (me != null && me.IsUnice && G.Live) ui.Banner($"Risadinha {r.inPhrase}!", "rose", 2);
-                    else if (me != null && G.doll.holder == me) ui.Banner("A boneca riu! Troque de esconderijo", "rose", 2.4f);
-                    else ui.Toast($"A boneca riu {r.inPhrase}");
+                    float x = v.a, y = v.b; var laugher = E(v.c); var r = Map.RoomOf(x, y);
+                    bool isHolder = laugher != null && laugher == G.doll.holder;
+                    world.Ripple(x, y, "giggle"); ui.Fx(x, y - 30, Loc.T("ev.giggle.fx"), Ui.Rose, 18, 1.8f, true);
+                    Hear(x, y, 2200, Loc.T("ev.giggle.sound"), Ui.Rose, "giggle", .3f);
+                    if (me != null && me.IsUnice && G.Live) ui.Banner(Loc.T("ev.giggle.unice", Loc.RoomIn(r)), "rose", 2);
+                    else if (laugher == me) ui.Banner(Loc.T(isHolder ? "ev.giggle.holder" : "ev.giggle.laughed"), "rose", 2.4f);
+                    else if (isHolder) ui.Toast(Loc.T("ev.giggle.toast_doll", Loc.RoomIn(r)));
+                    else ui.Toast(Loc.T("ev.giggle.toast_who", NameUp(laugher), Loc.RoomIn(r)));
                     break;
                 }
                 case EvType.Pass:
                 {
                     var A = E(v.a); var B = E(v.b); if (A == null || B == null) break;
-                    Hear(A.x, A.y, 220, "Cochicho", Ui.Rose, "swish");
-                    if (TeamView || Seen(A.x, A.y)) ui.Fx((A.x + B.x) / 2, (A.y + B.y) / 2 - 26, "psiu!", Ui.Rose, 14, 1);
-                    if (B == me) ui.Banner("Você recebeu a boneca!", "rose", 2);
-                    else if (A == me) ui.Banner($"Boneca com {B.name}", "rose", 1.5f);
-                    else if (TeamView) ui.Toast($"{A.name} passou a boneca para {B.name}");
+                    Hear(A.x, A.y, 220, Loc.T("ev.pass.sound"), Ui.Rose, "swish");
+                    if (TeamView || Seen(A.x, A.y)) ui.Fx((A.x + B.x) / 2, (A.y + B.y) / 2 - 26, Loc.T("ev.pass.fx"), Ui.Rose, 14, 1);
+                    if (B == me) ui.Banner(Loc.T("ev.pass.you_got"), "rose", 2);
+                    else if (A == me) ui.Banner(Loc.T("ev.pass.you_gave", B.name), "rose", 1.5f);
+                    else if (TeamView) ui.Toast(Loc.T("ev.pass.toast", A.name, B.name));
                     break;
                 }
                 case EvType.Open:
                 {
                     if (v.a < 0 || v.a >= Map.Spots.Length) break;
                     var s = Map.Spots[v.a];
-                    Hear(s.Cx, s.Cy, 450, "Um móvel rangeu", Ui.Candle, "creak");
-                    if (v.b == 0 && Seen(s.Cx, s.Cy)) ui.Fx(s.ax, s.ay - 24, "vazio", Ui.Muted, 14, 1);
+                    Hear(s.Cx, s.Cy, 450, Loc.T("ev.open.sound"), Ui.Candle, "creak");
+                    if (v.b == 0 && Seen(s.Cx, s.Cy)) ui.Fx(s.ax, s.ay - 24, Loc.T("ev.open.empty"), Ui.Muted, 14, 1);
                     break;
                 }
                 case EvType.Catch:
                 {
                     var Hh = E(v.b); var Un = E(v.a); bool withDoll = v.c != 0; float x = v.d, y = v.e; if (Hh == null) break;
-                    sfx.Play("sting"); ui.Fx(x, y - 26, withDoll ? "É MINHA!" : "PEGO!", Ui.Blood, withDoll ? 24 : 20, 1.8f, true);
-                    if (Hh == me) ui.Banner(withDoll ? "A Unice pegou a boneca de volta com você!" : "A Unice te pegou! Você sai da rodada", "blood", 2.6f);
-                    else if (Un == me && !withDoll) ui.Banner($"{Hh.name} não estava com a boneca", "candle", 2);
-                    else if (!withDoll) ui.Toast($"A Unice pegou {Hh.name} {Map.RoomOf(x, y).inPhrase}");
+                    sfx.Play("sting"); ui.Fx(x, y - 26, Loc.T(withDoll ? "ev.catch.mine" : "ev.catch.gotcha"), Ui.Blood, withDoll ? 24 : 20, 1.8f, true);
+                    if (Hh == me) ui.Banner(Loc.T(withDoll ? "ev.catch.you_doll" : "ev.catch.you_out"), "blood", 2.6f);
+                    else if (Un == me && !withDoll) ui.Banner(Loc.T("ev.catch.not_holder", Hh.name), "candle", 2);
+                    else if (!withDoll) ui.Toast(Loc.T("ev.catch.toast", Hh.name, Loc.RoomIn(Map.RoomOf(x, y))));
                     break;
                 }
                 case EvType.End:
                 {
                     bool unWin = v.a != 0;
                     if (me != null) sfx.Play(unWin == me.IsUnice ? "win" : "lose");
-                    if (!unWin) ui.Banner("O tempo acabou!", "moss", 1.6f);
+                    if (!unWin) ui.Banner(Loc.T("ev.end.time"), "moss", 1.6f);
                     heartI = 0;
                     break;
                 }
                 case EvType.Host:
-                    if (!G.isHost || U.CleanName(v.s) != myName) ui.Toast($"{U.CleanName(v.s)} agora é o anfitrião da sala.");
-                    else ui.Toast("Você agora é o anfitrião. Deixe o jogo aberto.");
+                    if (!G.isHost || U.CleanName(v.s) != myName) ui.Toast(Loc.T("ev.host.other", U.CleanName(v.s)));
+                    else ui.Toast(Loc.T("ev.host.you"));
                     break;
-                case EvType.Left: { var e = E(v.a); if (e != null) ui.Toast($"{e.name} saiu. Um robô assumiu no lugar."); break; }
+                case EvType.Left: { var e = E(v.a); if (e != null) ui.Toast(Loc.T("ev.left", e.name)); break; }
             }
         }
 
@@ -360,13 +363,13 @@ namespace Unice
             {
                 if (G.ph != Phase.Hunt || p.stun > 0) return;
                 var s = Game.NearSpotFurn(p);
-                if (s == null) { ui.Toast("Chegue perto de um móvel com contorno tracejado para olhar dentro."); return; }
+                if (s == null) { ui.Toast(Loc.T("act.unice.need_near")); return; }
                 SendAction(Act.Open, s.si); return;
             }
             if (p.hidden != null) { sfx.Play("creak"); SendAction(Act.Exit); return; }
             var f = Game.NearSpotFurn(p);
-            if (f == null) { ui.Toast("Chegue perto de um móvel com contorno tracejado para se esconder."); return; }
-            if (f.occ != null) { ui.Toast($"{f.occ.name} já está escondido ali."); sfx.Play("bad"); return; }
+            if (f == null) { ui.Toast(Loc.T("act.hide.need_near")); return; }
+            if (f.occ != null) { ui.Toast(Loc.T("act.hide.occupied", f.occ.name)); sfx.Play("bad"); return; }
             sfx.Play("creak"); freeze = .35f; SendAction(Act.Hide, f.si);
         }
 
@@ -374,11 +377,18 @@ namespace Unice
         public void TryPass()
         {
             var p = me; if (p == null || p.outOfRound || p.IsUnice || !G.Live || paused) return;
-            if (G.doll.holder != p) { ui.Toast("Você não está com a boneca."); return; }
-            if (p.hidden != null) { ui.Toast("Saia do esconderijo para passar a boneca."); return; }
-            if (p.passCd > 0) { ui.Toast($"Você acabou de receber a boneca. Espere {Mathf.CeilToInt(p.passCd)} s."); sfx.Play("bad"); return; }
-            if (G.PassTarget(p) == null) { ui.Toast("Ninguém perto o bastante. Encoste em alguém para passar."); return; }
+            if (G.doll.holder != p) { ui.Toast(Loc.T("act.pass.no_doll")); return; }
+            if (p.passCd > 0) { ui.Toast(Loc.T("act.pass.cooldown", Mathf.CeilToInt(p.passCd))); sfx.Play("bad"); return; }
+            if (G.PassTarget(p) == null) { ui.Toast(Loc.T("act.pass.no_target")); return; }
             SendAction(Act.Pass);
+        }
+
+        /// <summary>R: laugh on purpose. Anyone can, but it gives away your position to the Unice like the doll's own giggle.</summary>
+        public void TryLaugh()
+        {
+            var p = me; if (p == null || p.outOfRound || p.IsUnice || !G.Live || paused) return;
+            if (p.laughCd > 0) { ui.Toast(Loc.T("act.laugh.cooldown", Mathf.CeilToInt(p.laughCd))); sfx.Play("bad"); return; }
+            SendAction(Act.Laugh);
         }
 
         void LocalSounds(float dt)
@@ -388,11 +398,11 @@ namespace Unice
                 if (e == me || e.outOfRound || e.hidden != null || !e.moving || e.x < 0) continue;
                 stepT.TryGetValue(e.idx, out float st); st -= dt; stepT[e.idx] = st;
                 if (st > 0) continue;
-                if (e.IsUnice) { stepT[e.idx] = .45f; if (TeamView) Hear(e.x, e.y, 380, "Bengala batendo", Ui.Rose, "cane"); }
+                if (e.IsUnice) { stepT[e.idx] = .45f; if (TeamView) Hear(e.x, e.y, 380, Loc.T("sound.cane"), Ui.Rose, "cane"); }
                 else if (e.loud)
                 {
                     stepT[e.idx] = .42f;
-                    float g = Hear(e.x, e.y, Rules.NoiseR, "Passos correndo", Ui.Candle, "step");
+                    float g = Hear(e.x, e.y, Rules.NoiseR, Loc.T("sound.running"), Ui.Candle, "step");
                     if (g > 0 && me != null && me.IsUnice) world.Ripple(e.x, e.y, "step");
                 }
             }
@@ -434,7 +444,7 @@ namespace Unice
                 {
                     G.isHost = false; lastApplied = null;
                     foreach (var p in net.Peers) if (p.isMe) p.lastSnap = null;
-                    ui.Toast($"{U.CleanName(h.pres.name)} é o anfitrião agora.");
+                    ui.Toast(Loc.T("net.host_changed", U.CleanName(h.pres.name)));
                 }
                 return;
             }
@@ -475,15 +485,15 @@ namespace Unice
         public async void EnterRoom(bool create, string joinCode)
         {
             if (busy) return;
-            if (backend == null) { SetNet("O modo online não está instalado nesta versão. Jogue sozinho com robôs.", true); return; }
+            if (backend == null) { SetNet(Loc.T("net.unavailable"), true); return; }
             busy = true; SaveProfile();
-            SetNet(create ? "Criando a sala…" : "Procurando a sala…");
+            SetNet(Loc.T(create ? "net.creating" : "net.joining"));
             try
             {
                 await backend.InitAsync();
                 if (create) await backend.CreateAsync(); else await backend.JoinAsync(joinCode);
             }
-            catch (Exception x) { busy = false; SetNet(x is NetException ? x.Message : "A conexão falhou. Confira a internet e tente de novo.", true); Debug.LogWarning(x); return; }
+            catch (Exception x) { busy = false; SetNet(x is NetException ? x.Message : Loc.T("net.conn_failed"), true); Debug.LogWarning(x); return; }
             ResetRoomState();
             net = backend; code = backend.Code; myId = backend.MyId;
             if (voice != null) { try { await voice.JoinRoomAsync(code); } catch (Exception x) { Debug.LogWarning(x); } }
@@ -494,7 +504,7 @@ namespace Unice
                 float t0 = Time.realtimeSinceStartup;
                 while (Online && Time.realtimeSinceStartup - t0 < 8 && FindHost() == null) await Task.Delay(250);
                 if (!Online) { busy = false; return; }
-                if (FindHost() == null) { busy = false; LeaveRoom(); SetNet("A sala não respondeu. Confira o código ou peça um novo.", true); return; }
+                if (FindHost() == null) { busy = false; LeaveRoom(); SetNet(Loc.T("net.no_answer"), true); return; }
                 PullSnap();
             }
             busy = false; SetNet("");

@@ -49,7 +49,7 @@ namespace Unice
             touch = Ig(E(safe, "layer")); BuildTouch();
             BuildMessages();
             BuildHome(); BuildWait(); BuildResult(); BuildPause();
-            RefreshWhisperBtns();
+            RefreshToggleBtns();
         }
 
         // ---------- tiny builders ----------
@@ -71,6 +71,15 @@ namespace Unice
             return E(sc, "sheet");
         }
 
+        // ---------- localized text built once (menus, rules, static labels) ----------
+        // Most text is re-applied every tick from Render*/Update* via Loc.T(...) and already follows a language
+        // change automatically. These two are for text built ONCE in a Build* method: they remember the key so
+        // a language switch can re-apply it later via Relocalize().
+        readonly List<Action> relocalize = new List<Action>();
+        Label LL(VisualElement p, string key, params string[] cls) { var l = L(p, Loc.T(key), cls); relocalize.Add(() => l.text = Loc.T(key)); return l; }
+        Button BB(VisualElement p, string key, Action click, params string[] cls) { var b = B(p, Loc.T(key), click, cls); relocalize.Add(() => b.text = Loc.T(key)); return b; }
+        void Relocalize() { foreach (var a in relocalize) a(); RefreshToggleBtns(); wSig = null; plSig = null; }
+
         public bool Typing
         {
             get
@@ -82,7 +91,7 @@ namespace Unice
 
         // ---------- main menu (over the house map) ----------
         VisualElement home, menuMain, menuOnline, menuHelp, menuKid, kidSlot, custom; TextField nameIn, codeIn; Label netLbl;
-        Button createBtn, joinBtn, soundBtn, micBtn, whisperBtn, localBtn, onlineBtn; string page = "main";
+        Button createBtn, joinBtn, soundBtn, micBtn, whisperBtn, langBtn, localBtn, onlineBtn; string page = "main";
 
         void BuildHome()
         {
@@ -91,58 +100,60 @@ namespace Unice
 
             menuMain = E(home, "menu-page");
             L(menuMain, "Unice", "menu-title");
-            L(menuMain, "ESCONDE-ESCONDE NUMA CASA ANTIGA", "menu-sub");
+            LL(menuMain, "menu.sub", "menu-sub");
             var grid = E(menuMain, "menu-grid");
-            localBtn = B(grid, "LOCAL", () => app.PlaySolo(), "mbtn");
-            onlineBtn = B(grid, "ONLINE", () => { app.SetNet(""); Page("online"); }, "mbtn");
-            B(grid, "COMO JOGAR", () => Page("help"), "mbtn", "mbtn-sm");
-            B(grid, "MINHA CRIANÇA", () => Page("kid"), "mbtn", "mbtn-sm");
+            localBtn = BB(grid, "menu.local", () => app.PlaySolo(), "mbtn");
+            onlineBtn = BB(grid, "menu.online", () => { app.SetNet(""); Page("online"); }, "mbtn");
+            BB(grid, "menu.howto", () => Page("help"), "mbtn", "mbtn-sm");
+            BB(grid, "menu.mykid", () => Page("kid"), "mbtn", "mbtn-sm");
 
             // online: create a room (the code is generated for you) or join one with a code
-            var on = Panel(out menuOnline, "Online");
-            L(on, "Jogue com seus amigos. Quem cria a sala recebe um código automático para compartilhar.", "mnote");
-            createBtn = B(on, "CRIAR SALA", () => app.EnterRoom(true, null), "mbtn", "mbtn-wide");
-            L(on, "OU ENTRE COM O CÓDIGO DE UM AMIGO", "menu-or");
+            var on = Panel(out menuOnline, "menu.online_title");
+            LL(on, "menu.online_desc", "mnote");
+            createBtn = BB(on, "menu.create_room", () => app.EnterRoom(true, null), "mbtn", "mbtn-wide");
+            LL(on, "menu.or_join", "menu-or");
             var jr = E(on, "row");
             codeIn = new TextField { maxLength = 10 }; codeIn.AddToClassList("mfield"); codeIn.AddToClassList("grow"); jr.Add(codeIn);
-            joinBtn = B(jr, "ENTRAR", JoinFromInput, "mbtn", "mbtn-join");
+            joinBtn = BB(jr, "menu.join", JoinFromInput, "mbtn", "mbtn-join");
             netLbl = L(on, "", "mnote", "mnet");
-            B(on, "Voltar", () => Page("main"), "mbtn", "mbtn-back");
+            BB(on, "menu.back", () => Page("main"), "mbtn", "mbtn-back");
 
             // how to play
-            var hp = Panel(out menuHelp, "Como jogar");
+            var hp = Panel(out menuHelp, "menu.howto_title");
             var sc = new ScrollView(ScrollViewMode.Vertical); sc.AddToClassList("mscroll"); hp.Add(sc);
-            void Rule(string t, string b, string cls) { var x = E(sc, "mrule"); var tl = L(x, t, "mrule-t"); if (cls != null) tl.AddToClassList(cls); L(x, b, "mnote"); }
-            Rule("A Unice", "é a velha dona da casa e morre de ciúmes da boneca e das coisas dela. Um jogador vira a Unice e caça quem pegou a boneca.", "mrule-rose");
-            Rule("O time vence", "se o relógio zerar e a Unice não tiver pegado a boneca de volta.", "mrule-moss");
-            Rule("A Unice vence", "se pegar quem está com a boneca. Pegar outra pessoa só tira ela da rodada.", "mrule-rose");
-            Rule("30 segundos", "para se esconder antes de a Unice chegar em casa pela porta da frente. Escute a bengala.", null);
-            Rule("No escuro", "No esconderijo você enxerga só um pouquinho em volta e ouve o resto: passos, rangidos e risadas.", null);
-            Rule("A boneca ri", "a cada 10 s escondida e entrega o lugar. Troque de esconderijo ou passe a boneca para alguém bem perto.", "mrule-rose");
-            Rule("Rodízio", "A primeira Unice é sorteada. Quem é pego com a boneca vira a próxima.", null);
-            Rule("Controles", "Joystick para andar, Devagar para não fazer barulho, Esconder/Sair e Passar a boneca. No teclado: WASD, Shift, E e Q.", null);
-            B(hp, "Voltar", () => Page("main"), "mbtn", "mbtn-back");
+            void Rule(string tKey, string bKey, string cls) { var x = E(sc, "mrule"); var tl = LL(x, tKey, "mrule-t"); if (cls != null) tl.AddToClassList(cls); LL(x, bKey, "mnote"); }
+            Rule("rule.unice.t", "rule.unice.b", "mrule-rose");
+            Rule("rule.teamwin.t", "rule.teamwin.b", "mrule-moss");
+            Rule("rule.unicewin.t", "rule.unicewin.b", "mrule-rose");
+            Rule("rule.hidetime.t", "rule.hidetime.b", null);
+            Rule("rule.dark.t", "rule.dark.b", null);
+            Rule("rule.gigglerule.t", "rule.gigglerule.b", "mrule-rose");
+            Rule("rule.laugh.t", "rule.laugh.b", "mrule-rose");
+            Rule("rule.rotation.t", "rule.rotation.b", null);
+            Rule("rule.controls.t", "rule.controls.b", null);
+            BB(hp, "menu.back", () => Page("main"), "mbtn", "mbtn-back");
 
             // my child: the same customization as in the waiting room
-            var kp = Panel(out menuKid, "Minha criança");
+            var kp = Panel(out menuKid, "menu.mykid_title");
             var ks = new ScrollView(ScrollViewMode.Vertical); ks.AddToClassList("mscroll"); kp.Add(ks);
             kidSlot = E(ks, "mkid");
-            B(kp, "Pronto", () => Page("main"), "mbtn", "mbtn-back");
+            BB(kp, "menu.ready", () => Page("main"), "mbtn", "mbtn-back");
             custom = BuildCustom();
 
             var foot = E(home, "menu-foot");
-            soundBtn = B(foot, "Som: ligado", ToggleSound, "mpill");
-            micBtn = B(foot, "Microfone: desligado", ToggleMic, "mpill");
-            whisperBtn = B(foot, "Voz: normal", ToggleWhisper, "mpill");
-            B(home, "Sair", () => Application.Quit(), "mbtn", "mexit");
+            soundBtn = B(foot, "", ToggleSound, "mpill");
+            micBtn = B(foot, "", ToggleMic, "mpill");
+            whisperBtn = B(foot, "", ToggleWhisper, "mpill");
+            langBtn = B(foot, "", CycleLang, "mpill");
+            BB(home, "menu.quit", () => Application.Quit(), "mbtn", "mexit");
             Page("main");
         }
 
-        VisualElement Panel(out VisualElement page, string title)
+        VisualElement Panel(out VisualElement page, string titleKey)
         {
             page = E(home, "menu-page");
             var p = E(page, "mpanel");
-            L(p, title, "mpanel-t");
+            LL(p, titleKey, "mpanel-t");
             return p;
         }
 
@@ -160,14 +171,14 @@ namespace Unice
         VisualElement BuildCustom()
         {
             var c = new VisualElement();
-            L(c, "SEU NOME", "lbl");
+            LL(c, "lbl.name", "lbl");
             nameIn = Field(c, app.myName, 12);
             nameIn.RegisterValueChangedCallback(e => { app.myName = U.CleanName(e.newValue); app.SaveProfile(); });
-            L(c, "SUA CRIANÇA", "lbl").style.marginTop = 10;
+            LL(c, "lbl.kid", "lbl").style.marginTop = 10;
             var pr = E(c, "row");
             var pv = E(pr, "preview"); pv.style.alignItems = Align.Center; pv.style.justifyContent = Justify.Center;
             preview = new Doll(100); pv.Add(preview);
-            B(pr, "Sortear visual", () => { app.SetKit(Kit.Random()); RenderOpts(); wSig = null; }, "btn", "btn-ghost");
+            BB(pr, "menu.randomize", () => { app.SetKit(Kit.Random()); RenderOpts(); wSig = null; }, "btn", "btn-ghost");
             opts = E(c); opts.style.marginTop = 10;
             BuildOpts();
             return c;
@@ -176,60 +187,70 @@ namespace Unice
         void JoinFromInput()
         {
             var c = U.CleanCode(codeIn.value);
-            if (c.Length < 4) { app.SetNet("Digite o código da sala que seu amigo mandou.", true); return; }
+            if (c.Length < 4) { app.SetNet(Loc.T("menu.need_code"), true); return; }
             app.EnterRoom(false, c);
         }
 
-        void ToggleSound()
-        {
-            app.sfx.On = !app.sfx.On;
-            string t = app.sfx.On ? "Som: ligado" : "Som: desligado";
-            soundBtn.text = t; pauseSound.text = t;
-        }
+        void ToggleSound() { app.sfx.On = !app.sfx.On; RefreshToggleBtns(); }
 
         /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden.</summary>
-        void ToggleMic()
-        {
-            app.MicOn = !app.MicOn;
-            string t = app.MicOn ? "Microfone: ligado" : "Microfone: desligado";
-            micBtn.text = t; pauseMic.text = t; waitMic.text = t;
-            RefreshWhisperBtns();
-        }
+        void ToggleMic() { app.MicOn = !app.MicOn; RefreshToggleBtns(); }
 
-        /// <summary>Personal choice: "sussurro" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
-        void ToggleWhisper() { app.Whisper = !app.Whisper; RefreshWhisperBtns(); }
+        /// <summary>Personal choice: "whisper" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
+        void ToggleWhisper() { app.Whisper = !app.Whisper; RefreshToggleBtns(); }
 
-        void RefreshWhisperBtns()
+        void CycleLang() { Loc.Set((Lang)(((int)Loc.Current + 1) % 3)); Relocalize(); }
+
+        /// <summary>Re-applies every toggle/language button's text, in every screen it appears, from current state.</summary>
+        void RefreshToggleBtns()
         {
-            string t = app.Whisper ? "Voz: sussurro" : "Voz: normal";
+            string snd = Loc.T(app.sfx.On ? "menu.sound_on" : "menu.sound_off");
+            soundBtn.text = snd; pauseSound.text = snd;
+            string mic = Loc.T(app.MicOn ? "menu.mic_on" : "menu.mic_off");
+            micBtn.text = mic; pauseMic.text = mic; waitMic.text = mic;
+            string t = Loc.T(app.Whisper ? "menu.voice_whisper" : "menu.voice_normal");
             whisperBtn.text = t; whisperBtn.SetEnabled(app.MicOn);
             waitWhisper.text = t; waitWhisper.SetEnabled(app.MicOn);
             pauseWhisper.text = t; pauseWhisper.SetEnabled(app.MicOn);
+            langBtn.text = $"{Loc.T("menu.lang_prefix")}: {Loc.Current.ToString().ToUpperInvariant()}";
         }
 
         // ---------- waiting room (full screen, made for a phone on its side) ----------
-        VisualElement wait, wList, hostOpts, opts; Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal;
-        Button copyBtn, actBtn, leave2, waitMic, waitWhisper; Doll preview; string wSig; bool lobbyHost, waitCanGo;
+        VisualElement wait, wList, hostOpts, opts, sidePartida, sideAparencia; VisualElement sideTabPartida, sideTabAparencia;
+        Label wTitle, wCode, wNote, wCount, wStatus, optsInfo, botsVal, roundsVal, hideVal, huntVal, giggleVal;
+        Button copyBtn, actBtn, leave2, waitMic, waitWhisper; Doll preview; string wSig, sideTab = "tab.match"; bool lobbyHost, waitCanGo;
         static readonly int[] RoundChoices = { 3, 5, 7 };
 
         void BuildWait()
         {
             wait = E(root, "lobby");
             var top = E(wait, "lobby-top");
-            leave2 = B(top, "Voltar", () => app.LeaveRoom(), "mbtn", "mbtn-top");
+            leave2 = B(top, "", () => app.LeaveRoom(), "mbtn", "mbtn-top");
             var head = E(top, "lobby-head");
             wTitle = L(head, "", "lobby-title"); wCode = L(head, "", "lobby-code");
-            copyBtn = B(head, "Copiar código", CopyCode, "mpill");
-            waitMic = B(top, "Microfone: desligado", ToggleMic, "mpill");
-            waitWhisper = B(top, "Voz: normal", ToggleWhisper, "mpill");
+            copyBtn = BB(head, "lobby.copy_code", CopyCode, "mpill");
+            waitMic = B(top, "", ToggleMic, "mpill");
+            waitWhisper = B(top, "", ToggleWhisper, "mpill");
             wCount = L(top, "", "lobby-count");
             var body = E(wait, "lobby-body");
             wList = E(body, "lobby-players");
             var side = E(body, "mpanel", "lobby-side");
-            hostOpts = E(side);
-            botsVal = Stepper(hostOpts, "ROBÔS", d => { int max = Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count); G.bots = Mathf.Clamp(Math.Min(G.bots, max) + d, 0, max); wSig = null; });
-            roundsVal = Stepper(hostOpts, "RODADAS", d => { int i = Array.IndexOf(RoundChoices, G.rounds); G.rounds = RoundChoices[Mathf.Clamp((i < 0 ? 1 : i) + d, 0, RoundChoices.Length - 1)]; wSig = null; });
-            optsInfo = L(side, "", "mnote");
+            var sideTabs = E(side, "tabbar");
+            sideTabPartida = BB(sideTabs, "tab.match", () => { sideTab = "tab.match"; RefreshSideTab(); }, "tabbtn");
+            sideTabAparencia = BB(sideTabs, "tab.appearance", () => { sideTab = "tab.appearance"; RefreshSideTab(); }, "tabbtn");
+            var sidePartidaSv = new ScrollView(ScrollViewMode.Vertical); sidePartidaSv.style.flexGrow = 1; sidePartidaSv.style.maxHeight = 320;
+            sidePartidaSv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            side.Add(sidePartidaSv); sidePartida = sidePartidaSv;
+            hostOpts = E(sidePartida);
+            botsVal = Stepper(hostOpts, "lobby.bots_plural", d => { int max = Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count); G.bots = Mathf.Clamp(Math.Min(G.bots, max) + d, 0, max); wSig = null; });
+            roundsVal = Stepper(hostOpts, "lobby.rounds_label", d => { int i = Array.IndexOf(RoundChoices, G.rounds); G.rounds = RoundChoices[Mathf.Clamp((i < 0 ? 1 : i) + d, 0, RoundChoices.Length - 1)]; wSig = null; });
+            hideVal = Stepper(hostOpts, "lobby.hide_label", d => { G.hideTime = Mathf.Clamp(G.hideTime + d * 5, 15, 60); wSig = null; });
+            huntVal = Stepper(hostOpts, "lobby.hunt_label", d => { G.roundTime = Mathf.Clamp(G.roundTime + d * 15, 60, 240); wSig = null; });
+            giggleVal = Stepper(hostOpts, "lobby.giggle_label", d => { G.giggleEvery = Mathf.Clamp(G.giggleEvery + d * 5, 5, 20); wSig = null; });
+            optsInfo = L(sidePartida, "", "mnote");
+            var sideAparenciaSv = new ScrollView(ScrollViewMode.Vertical); sideAparenciaSv.style.flexGrow = 1; sideAparenciaSv.style.maxHeight = 320;
+            sideAparenciaSv.horizontalScrollerVisibility = ScrollerVisibility.Hidden;
+            side.Add(sideAparenciaSv); sideAparencia = sideAparenciaSv;
             wStatus = L(side, "", "mnote", "lobby-status");
             actBtn = B(side, "", () =>
             {
@@ -238,12 +259,21 @@ namespace Unice
                 app.StartMatch(Math.Min(G.bots, Math.Max(0, Rules.MaxPlayers - app.LobbyHumans().Count)), G.rounds);
             }, "mbtn", "mbtn-go");
             wNote = L(wait, "", "lobby-note");
+            RefreshSideTab();
         }
 
-        Label Stepper(VisualElement p, string label, Action<int> change)
+        void RefreshSideTab()
+        {
+            Show(sidePartida, sideTab == "tab.match"); Show(sideAparencia, sideTab == "tab.appearance");
+            sideTabPartida.EnableInClassList("tabbtn-on", sideTab == "tab.match");
+            sideTabAparencia.EnableInClassList("tabbtn-on", sideTab == "tab.appearance");
+            if (sideTab == "tab.appearance" && custom.parent != sideAparencia) { sideAparencia.Add(custom); RenderOpts(); }
+        }
+
+        Label Stepper(VisualElement p, string labelKey, Action<int> change)
         {
             var s = E(p, "mstep");
-            L(s, label, "mstep-l");
+            LL(s, labelKey, "mstep-l");
             B(s, "‹", () => change(-1), "mstep-btn");
             var v = L(s, "", "mstep-v");
             B(s, "›", () => change(1), "mstep-btn");
@@ -253,24 +283,37 @@ namespace Unice
         void CopyCode()
         {
             GUIUtility.systemCopyBuffer = app.code;
-            copyBtn.text = "Copiado!";
-            copyBtn.schedule.Execute(() => copyBtn.text = "Copiar código").ExecuteLater(1800);
+            copyBtn.text = Loc.T("lobby.copied");
+            copyBtn.schedule.Execute(() => copyBtn.text = Loc.T("lobby.copy_code")).ExecuteLater(1800);
         }
 
-        static readonly (string label, int slot, string[] list, bool color)[] OptRows =
+        static readonly (string labelKey, int slot, string[] list, bool color, string tabKey)[] OptRows =
         {
-            ("PELE", 0, Kit.Skins, true), ("CABELO", 1, Kit.Hairs, false), ("COR DO CABELO", 2, Kit.HairColors, true), ("ROUPA", 3, Kit.Outfits, false),
-            ("COR DA ROUPA", 4, Kit.OutfitColors, true), ("CHAPÉU", 5, Kit.Hats, false), ("ACESSÓRIO", 6, Kit.Accessories, false)
+            ("opt.skin", 0, Kit.Skins, true, "tab.color"), ("opt.haircolor", 2, Kit.HairColors, true, "tab.color"), ("opt.outfitcolor", 4, Kit.OutfitColors, true, "tab.color"),
+            ("opt.hair", 1, Kit.Hairs, false, "tab.hair"), ("opt.outfit", 3, Kit.Outfits, false, "tab.outfit"),
+            ("opt.hat", 5, Kit.Hats, false, "tab.hat"), ("opt.accessory", 6, Kit.Accessories, false, "tab.accessory")
         };
+        static readonly string[] OptTabs = { "tab.color", "tab.hair", "tab.outfit", "tab.hat", "tab.accessory" };
         readonly List<(int slot, int v, VisualElement el)> swatches = new List<(int, int, VisualElement)>();
         readonly Dictionary<int, Label> cycleVals = new Dictionary<int, Label>();
+        readonly List<(string tab, VisualElement el)> optRowEls = new List<(string, VisualElement)>();
+        readonly Dictionary<string, VisualElement> optTabBtns = new Dictionary<string, VisualElement>();
+        string optTab = OptTabs[0];
 
         void BuildOpts()
         {
-            foreach (var (label, slot, list, color) in OptRows)
+            var tabBar = E(opts, "tabbar");
+            foreach (var tk in OptTabs)
             {
-                var row = E(opts, "opt");
-                L(row, label, "opt-l");
+                var btn = B(tabBar, "", () => { optTab = tk; RenderOpts(); }, "tabbtn");
+                relocalize.Add(() => btn.text = Loc.T(tk).ToUpperInvariant());
+                optTabBtns[tk] = btn;
+            }
+            var rows = E(opts);
+            foreach (var (labelKey, slot, list, color, tab) in OptRows)
+            {
+                var row = E(rows, "opt");
+                LL(row, labelKey, "opt-l");
                 if (color)
                 {
                     var sws = E(row, "sws");
@@ -290,6 +333,7 @@ namespace Unice
                     cycleVals[slot] = L(cy, "", "cy-val");
                     B(cy, "›", () => Cycle(1), "cy-btn");
                 }
+                optRowEls.Add((tab, row));
             }
             RenderOpts();
         }
@@ -297,42 +341,44 @@ namespace Unice
         void RenderOpts()
         {
             foreach (var (slot, v, el) in swatches) el.EnableInClassList("sw-on", app.kit[slot] == v);
-            foreach (var (label, slot, list, color) in OptRows) if (!color) cycleVals[slot].text = list[app.kit[slot]];
+            foreach (var (labelKey, slot, list, color, tab) in OptRows) if (!color) cycleVals[slot].text = Loc.KitOpt(slot, app.kit[slot]);
+            foreach (var (tab, el) in optRowEls) Show(el, tab == optTab);
+            foreach (var kv in optTabBtns) kv.Value.EnableInClassList("tabbtn-on", kv.Key == optTab);
         }
 
         void RenderWait()
         {
             var hs = app.LobbyHumans(); var host = app.Online ? app.FindHost() : null; string hostId = host != null ? host.id : app.Online ? null : app.myId;
             int maxBots = Math.Max(0, Rules.MaxPlayers - hs.Count), bots = Math.Min(G.bots, maxBots);
-            bool allReady = hs.Where(h => h.id != hostId).All(h => h.rdy);
-            string sig = string.Join("|", hs.Select(h => h.id + h.name + Kit.Pack(h.k) + h.rdy)) + hostId + G.isHost + bots + G.rounds + app.rdy + app.code;
+            string sig = string.Join("|", hs.Select(h => h.id + h.name + Kit.Pack(h.k) + h.rdy)) + hostId + G.isHost + bots + G.rounds + G.hideTime + G.roundTime + G.giggleEvery + app.rdy + app.code;
             if (sig == wSig) return; wSig = sig;
             bool on = app.Online;
-            Txt(wTitle, on ? "SALA" : "PARTIDA LOCAL"); Txt(wCode, on ? app.code : ""); Show(wCode, on); Show(copyBtn, on);
+            Txt(wTitle, Loc.T(on ? "lobby.room" : "lobby.local")); Txt(wCode, on ? app.code : ""); Show(wCode, on); Show(copyBtn, on);
             Txt(wCount, $"{hs.Count + bots}/{Rules.MaxPlayers}");
-            Txt(wNote, on ? "Mande o código para seus amigos: eles tocam em Online, digitam o código e Entrar." : "Para mudar o visual da sua criança, use Minha Criança no menu inicial.");
+            Txt(wNote, Loc.T(on ? "lobby.note_online" : "lobby.note_local"));
             wList.Clear();
             foreach (var h in hs)
             {
                 var card = E(wList, "pcard"); if (h.me) card.AddToClassList("pcard-me");
                 var d = new Doll(62); d.Set(h.k); card.Add(d);
                 L(card, h.name, "pcard-name");
-                var st = L(card, h.id == hostId ? "ANFITRIÃO" : h.rdy ? "PRONTO" : "ESPERANDO", "pcard-st");
+                var st = L(card, Loc.T(h.id == hostId ? "lobby.host" : h.rdy ? "lobby.ready" : "lobby.waiting"), "pcard-st");
                 if (h.id == hostId || h.rdy) st.AddToClassList("pcard-ok");
             }
-            if (bots > 0) { var bc = E(wList, "pcard", "pcard-bots"); L(bc, "+" + bots, "pcard-plus"); L(bc, bots > 1 ? "ROBÔS" : "ROBÔ", "pcard-st"); }
+            if (bots > 0) { var bc = E(wList, "pcard", "pcard-bots"); L(bc, "+" + bots, "pcard-plus"); L(bc, Loc.T(bots > 1 ? "lobby.bots_plural" : "lobby.bot_singular"), "pcard-st"); }
             Txt(botsVal, bots.ToString()); Txt(roundsVal, G.rounds.ToString());
+            Txt(hideVal, $"{G.hideTime:0}s"); Txt(huntVal, $"{G.roundTime:0}s"); Txt(giggleVal, $"{G.giggleEvery:0}s");
             Show(hostOpts, G.isHost);
-            Txt(optsInfo, G.isHost ? "" : $"Robôs: {bots} · Rodadas: {G.rounds}\nO anfitrião escolhe.");
+            Txt(optsInfo, G.isHost ? "" : Loc.T("lobby.info", bots, G.rounds, G.hideTime, G.roundTime, G.giggleEvery));
             Show(optsInfo, !G.isHost);
             int waiting = hs.Count(h => h.id != hostId && !h.rdy);
-            lobbyHost = G.isHost; waitCanGo = allReady && hs.Count + bots >= 2;
-            Txt(wStatus, G.isHost ? (allReady ? (hs.Count + bots < 2 ? "Adicione pelo menos um robô." : "Todos prontos!") : $"Esperando {waiting} jogador(es) ficar pronto.")
-                                  : "O anfitrião começa quando todos estiverem prontos.");
-            actBtn.text = G.isHost ? "COMEÇAR" : app.rdy ? "CANCELAR" : "ESTOU PRONTO";
+            lobbyHost = G.isHost; waitCanGo = hs.Count + bots >= 2;
+            Txt(wStatus, G.isHost ? (hs.Count + bots < 2 ? Loc.T("lobby.need_bot") : waiting > 0 ? Loc.T("lobby.can_start", waiting) : Loc.T("lobby.all_ready"))
+                                  : Loc.T("lobby.host_will_start"));
+            actBtn.text = Loc.T(G.isHost ? "lobby.start" : app.rdy ? "lobby.cancel" : "lobby.im_ready");
             actBtn.SetEnabled(!G.isHost || waitCanGo);
             actBtn.EnableInClassList("mbtn-on", !G.isHost && app.rdy);
-            leave2.text = on ? "Sair" : "Voltar";
+            leave2.text = Loc.T(on ? "lobby.leave" : "menu.back");
         }
 
         // ---------- result / final (full screen, no scrolling) ----------
@@ -353,35 +399,35 @@ namespace Unice
             var res = G.res ?? new[] { 0, -1, -1, -1 };
             bool unWin = res[0] == 1; var who = G.EntAt(res[1]); var Un = G.unice; var me = app.me; var nx = G.EntAt(res[3]);
             bool? won = me != null ? unWin == me.IsUnice : (bool?)null;
-            string title = unWin ? (Un == me ? "Sua boneca voltou para você!" : "A Unice pegou a boneca de volta") : (Un == me ? "O tempo acabou" : "O time venceu!");
+            string title = Loc.T(unWin ? (Un == me ? "res.doll_back_you" : "res.doll_back_unice") : (Un == me ? "res.timeout_unice" : "res.team_won"));
             var spot = res[2] >= 0 && res[2] < Map.Spots.Length ? Map.Spots[res[2]] : null;
-            string reason = who == null ? "" : unWin ? $"{app.NameUp(Un)} tomou a boneca de {app.NameOf(who)} {Map.RoomOf(who.x, who.y).inPhrase}."
-                                                     : $"A boneca terminou com {app.NameOf(who)}{(spot != null ? " " + spot.spot : "")}.";
+            string reason = who == null ? "" : unWin ? Loc.T("res.reason_won", app.NameUp(Un), app.NameOf(who), Loc.RoomIn(Map.RoomOf(who.x, who.y)))
+                                                     : Loc.T("res.reason_lost", app.NameOf(who), spot != null ? " " + Loc.Spot(spot) : "");
             if (final)
             {
                 int top = G.ents.Count > 0 ? G.ents.Max(e => e.score) : 0; var ws = G.ents.Where(e => e.score == top).ToList();
                 bool iWon = me != null && ws.Contains(me);
-                string head = iWon ? (ws.Count > 1 ? "Empate no topo!" : "Você venceu a partida!") : $"{string.Join(" e ", ws.Select(w => w.name))} {(ws.Count > 1 ? "venceram" : "venceu")}";
-                L(resHead, $"FIM DAS {G.rounds} RODADAS", "res-eyebrow");
+                string head = iWon ? Loc.T(ws.Count > 1 ? "res.tie" : "res.you_won") : Loc.T("res.winners", string.Join(" e ", ws.Select(w => w.name)), Loc.T(ws.Count > 1 ? "res.won_plural" : "res.won_single"));
+                L(resHead, Loc.T("res.final_header", G.rounds), "res-eyebrow");
                 L(resHead, head, "res-title", iWon ? "res-win" : "res-lose");
-                L(resHead, $"Última rodada: {title} {reason}", "res-reason");
+                L(resHead, Loc.T("res.last_round", title, reason), "res-reason");
                 Cards(me, ws);
-                L(resSide, "PLACAR FINAL", "mstep-l", "res-lbl");
-                againBtn = B(resSide, "NOVA PARTIDA", () => app.NewMatchLobby(), "mbtn", "mbtn-go");
-                waitHost = L(resSide, "Esperando o anfitrião começar uma nova partida.", "mnote", "lobby-status");
-                B(resSide, app.Online ? "Sair da sala" : "Voltar ao início", () => app.LeaveRoom(), "mbtn", "mbtn-back");
+                L(resSide, Loc.T("res.final_score"), "mstep-l", "res-lbl");
+                againBtn = B(resSide, Loc.T("res.new_match"), () => app.NewMatchLobby(), "mbtn", "mbtn-go");
+                waitHost = L(resSide, Loc.T("res.waiting_host"), "mnote", "lobby-status");
+                B(resSide, Loc.T(app.Online ? "res.leave_room" : "res.back_home"), () => app.LeaveRoom(), "mbtn", "mbtn-back");
             }
             else
             {
-                L(resHead, $"RODADA {G.r} DE {G.rounds}", "res-eyebrow");
+                L(resHead, Loc.T("res.round_header", G.r, G.rounds), "res-eyebrow");
                 var t = L(resHead, title, "res-title"); if (won != null) t.AddToClassList(won.Value ? "res-win" : "res-lose");
                 L(resHead, reason, "res-reason");
                 Cards(me, null);
-                L(resSide, "PRÓXIMA UNICE", "mstep-l", "res-lbl");
+                L(resSide, Loc.T("res.next_unice"), "mstep-l", "res-lbl");
                 var nu = E(resSide, "res-next"); var d = new Doll(46); d.SetUnice(); nu.Add(d); L(nu, app.NameUp(nx), "res-next-name");
-                L(resSide, unWin ? "Quem é pego com a boneca vira a Unice." : "O time venceu, então houve sorteio.", "mnote", "lobby-status");
-                var nr = E(resSide, "res-count"); L(nr, "Próxima rodada em", "mnote"); nextIn = L(nr, "", "res-count-n"); L(nr, "s", "mnote");
-                L(resSide, "Unice: +3 ao pegar a boneca, +1 por captura.\nTime: +2 cada se o tempo acabar, +1 para quem termina com a boneca.", "res-rules");
+                L(resSide, Loc.T(unWin ? "res.next_rule_won" : "res.next_rule_timeout"), "mnote", "lobby-status");
+                var nr = E(resSide, "res-count"); L(nr, Loc.T("res.next_in"), "mnote"); nextIn = L(nr, "", "res-count-n"); L(nr, Loc.T("res.seconds_suffix"), "mnote");
+                L(resSide, Loc.T("res.scoring_rules"), "res-rules");
             }
         }
 
@@ -392,9 +438,9 @@ namespace Unice
             foreach (var e in G.ents.OrderByDescending(e => e.score))
             {
                 var card = E(resCards, "pcard"); if (e == me) card.AddToClassList("pcard-me"); if (winners != null && winners.Contains(e)) card.AddToClassList("pcard-win");
-                L(card, (++i) + "º", "pcard-rank");
+                L(card, Loc.Ordinal(++i), "pcard-rank");
                 var d = new Doll(50); d.Set(e.k); card.Add(d);
-                L(card, e.name + (e.bot ? " · robô" : ""), "pcard-name");
+                L(card, e.name + (e.bot ? Loc.T("res.bot_tag") : ""), "pcard-name");
                 L(card, e.score.ToString(), "pcard-pts");
             }
         }
@@ -405,23 +451,23 @@ namespace Unice
         void BuildPause()
         {
             var sh = Sheet(root, out pauseOv);
-            pauseTitle = L(sh, "Pausado", "title", "title-md");
+            pauseTitle = L(sh, "", "title", "title-md");
             pauseNote = L(sh, "", "muted");
             var r = E(sh, "row", "gap", "wrap");
-            B(r, "Continuar", () => app.TogglePause(), "btn");
-            pauseSound = B(r, "Som: ligado", ToggleSound, "btn", "btn-ghost");
-            pauseMic = B(r, "Microfone: desligado", ToggleMic, "btn", "btn-ghost");
-            pauseWhisper = B(r, "Voz: normal", ToggleWhisper, "btn", "btn-ghost");
-            pauseLeave = B(r, "Sair", () => app.LeaveRoom(), "btn", "btn-link");
+            BB(r, "pause.continue", () => app.TogglePause(), "btn");
+            pauseSound = B(r, "", ToggleSound, "btn", "btn-ghost");
+            pauseMic = B(r, "", ToggleMic, "btn", "btn-ghost");
+            pauseWhisper = B(r, "", ToggleWhisper, "btn", "btn-ghost");
+            pauseLeave = B(r, "", () => app.LeaveRoom(), "btn", "btn-link");
             Show(pauseOv, false);
         }
 
         public void ShowPause(bool on, bool online)
         {
             Show(pauseOv, on);
-            pauseTitle.text = online ? "Menu" : "Pausado";
-            pauseNote.text = online ? "A partida continua para os outros enquanto este menu está aberto." : "A partida está parada.";
-            pauseLeave.text = online ? "Sair da sala" : "Sair da partida";
+            pauseTitle.text = Loc.T(online ? "pause.online_title" : "pause.title");
+            pauseNote.text = Loc.T(online ? "pause.note_online" : "pause.note_local");
+            pauseLeave.text = Loc.T(online ? "res.leave_room" : "pause.leave_match");
         }
 
         // ---------- HUD ----------
@@ -432,27 +478,27 @@ namespace Unice
         void BuildHud()
         {
             var tl = E(hud, "hud-card", "hud-tl"); Ig(tl);
-            var rr = E(tl, "row"); L(rr, "RODADA ", "hud-lbl"); hRound = L(rr, "", "hud-lbl");
+            var rr = E(tl, "row"); LL(rr, "hud.round", "hud-lbl"); hRound = L(rr, "", "hud-lbl");
             hClock = L(tl, "0:30", "clock"); hPhase = L(tl, "", "phase"); hWhere = L(tl, "", "where"); hRoom = L(tl, "", "roomline");
 
             roleCard = E(hud, "hud-card", "hud-tr"); Ig(roleCard);
             hRole = L(roleCard, "", "role-t"); hGoal = L(roleCard, "", "role-g");
-            var dr = E(roleCard, "row"); dr.style.marginTop = 8; L(dr, "A BONECA ", "hud-lbl"); hDollWho = L(dr, "", "hud-lbl");
+            var dr = E(roleCard, "row"); dr.style.marginTop = 8; LL(dr, "hud.doll", "hud-lbl"); hDollWho = L(dr, "", "hud-lbl");
             gigWrap = E(roleCard, "meter"); gigFill = E(gigWrap, "meter-fill");
             hDollNote = L(roleCard, "", "note");
             noiseBox = E(roleCard); noiseBox.style.marginTop = 8;
-            var nr = E(noiseBox, "row"); L(nr, "SEU BARULHO ", "hud-lbl"); hNoiseTxt = L(nr, "", "hud-lbl");
+            var nr = E(noiseBox, "row"); LL(nr, "hud.noise", "hud-lbl"); hNoiseTxt = L(nr, "", "hud-lbl");
             var nm = E(noiseBox, "meter", "meter-noise"); noiseFill = E(nm, "meter-fill");
             foreach (var l in roleCard.Query<Label>().ToList()) Ig(l);
             foreach (var l in tl.Query<Label>().ToList()) Ig(l);
 
             var btns = E(hud, "hud-btns"); Ig(btns);
-            B(btns, "Mapa", () => { Show(plist, plist.style.display == DisplayStyle.None); plSig = null; }, "hud-btn");
-            B(btns, "Menu", () => app.TogglePause(), "hud-btn");
+            BB(btns, "hud.map_btn", () => { Show(plist, plist.style.display == DisplayStyle.None); plSig = null; }, "hud-btn");
+            BB(btns, "hud.menu_btn", () => app.TogglePause(), "hud-btn");
             plist = E(hud, "hud-card", "plist"); Ig(plist);
-            L(plist, "PLANTA DA CASA", "hud-lbl");
+            LL(plist, "hud.house_plan", "hud-lbl");
             mini = Ig(E(plist, "mini")); mini.generateVisualContent += DrawMini;
-            L(plist, "JOGADORES", "hud-lbl").style.marginTop = 8;
+            LL(plist, "hud.players", "hud-lbl").style.marginTop = 8;
             plRows = Ig(E(plist));
             Show(plist, false);
         }
@@ -463,30 +509,31 @@ namespace Unice
             Txt(hRound, $"{G.r}/{G.rounds}");
             Txt(hClock, U.Mmss(live ? G.tl : 0));
             hClock.EnableInClassList("clock-low", G.ph == Phase.Hunt && G.tl <= 15);
-            Txt(hPhase, G.ph == Phase.Hide ? "Hora de se esconder" : G.ph == Phase.Hunt ? (Un == me ? "Você está procurando" : "A Unice está procurando") : G.ph == Phase.Result ? "Rodada encerrada" : "");
-            Txt(hWhere, me != null && !me.outOfRound && me.x > 0 && live ? $"Você está {Map.RoomOf(me.x, me.y).inPhrase}" : "");
-            Txt(hRoom, app.Online ? $"Sala {app.code}{(G.isHost ? " · você é o anfitrião" : "")}" : "Modo sozinho");
+            string phaseKey = G.ph == Phase.Hide ? "hud.phase_hide" : G.ph == Phase.Hunt ? (Un == me ? "hud.phase_hunt_you" : "hud.phase_hunt_other") : G.ph == Phase.Result ? "hud.phase_result" : null;
+            Txt(hPhase, phaseKey != null ? Loc.T(phaseKey) : "");
+            Txt(hWhere, me != null && !me.outOfRound && me.x > 0 && live ? Loc.T("hud.where", Loc.RoomIn(Map.RoomOf(me.x, me.y))) : "");
+            Txt(hRoom, app.Online ? Loc.T("hud.room_online", app.code) + (G.isHost ? Loc.T("hud.room_host_suffix") : "") : Loc.T("hud.room_solo"));
             string role, goal, cls = "";
-            if (me == null) { role = "Assistindo"; goal = "Você entra na próxima rodada."; }
-            else if (me.IsUnice) { role = "Você é a Unice"; cls = "role-unice"; goal = G.ph == Phase.Hide ? "Pegaram sua boneca e estão se escondendo. Você chega pela porta da frente quando o tempo acabar." : "Ache quem está com a sua boneca. Encostar pega; o botão Olhar abre esconderijos."; }
-            else if (me.outOfRound) { role = "A Unice te pegou"; cls = "role-out"; goal = "Você saiu desta rodada. A câmera acompanha a boneca."; }
-            else if (h == me) { role = "A boneca está com você"; cls = "role-holder"; goal = $"Escondida, ela ri a cada {Rules.GiggleEvery:0} s: mude de lugar ou passe para alguém perto."; }
-            else { role = "Você se esconde"; goal = me.hidden != null ? "No esconderijo você vê pouco. Preste atenção nos sons." : "Fuja da Unice e proteja quem está com a boneca."; }
+            if (me == null) { role = Loc.T("hud.role.watch"); goal = Loc.T("hud.goal.watch"); }
+            else if (me.IsUnice) { role = Loc.T("hud.role.unice"); cls = "role-unice"; goal = Loc.T(G.ph == Phase.Hide ? "hud.goal.unice_hide" : "hud.goal.unice_hunt"); }
+            else if (me.outOfRound) { role = Loc.T("hud.role.caught"); cls = "role-out"; goal = Loc.T("hud.goal.caught"); }
+            else if (h == me) { role = Loc.T("hud.role.holder"); cls = "role-holder"; goal = Loc.T("hud.goal.holder", G.giggleEvery.ToString("0")); }
+            else { role = Loc.T("hud.role.hiding"); goal = Loc.T(me.hidden != null ? "hud.goal.hiding_spot" : "hud.goal.hiding_out"); }
             Txt(hRole, role); Txt(hGoal, goal);
             foreach (var c in new[] { "role-unice", "role-out", "role-holder" }) roleCard.EnableInClassList(c, c == cls);
             float pct = 0; string note;
             if (h != null && tv)
             {
-                Txt(hDollWho, h == me ? "COM VOCÊ" : "COM " + h.name.ToUpperInvariant());
-                pct = G.ph == Phase.Hunt ? 1 - G.doll.giggleT / Rules.GiggleEvery : 0;
-                note = G.ph == Phase.Hide ? "Ela só começa a rir quando a Unice entrar." : h.hidden != null ? $"Escondida {h.hidden.spot}: risadinha em {Mathf.CeilToInt(G.doll.giggleT)} s." : "Fora do esconderijo ela fica quieta, mas quem carrega pode ser visto.";
-                if (h == me && me.passCd > 0) note += $" Você pode repassar em {Mathf.CeilToInt(me.passCd)} s.";
+                Txt(hDollWho, h == me ? Loc.T("hud.doll_with_you") : Loc.T("hud.doll_with", h.name.ToUpperInvariant()));
+                pct = G.ph == Phase.Hunt ? 1 - G.doll.giggleT / G.giggleEvery : 0;
+                note = G.ph == Phase.Hide ? Loc.T("hud.giggle_wait_enter") : h.hidden != null ? Loc.T("hud.giggle_in", Loc.Spot(h.hidden), Mathf.CeilToInt(G.doll.giggleT)) : Loc.T("hud.giggle_quiet");
+                if (h == me && me.passCd > 0) note += Loc.T("hud.repass_in", Mathf.CeilToInt(me.passCd));
                 Show(gigWrap, true);
             }
             else
             {
-                Txt(hDollWho, h != null ? "ESCONDIDA" : "");
-                note = G.doll.hasLast ? $"Última risadinha {Map.RoomOf(G.doll.lastX, G.doll.lastY).inPhrase}, há {Mathf.Max(0, Mathf.FloorToInt(G.t - G.doll.lastT))} s." : $"Com alguém escondido, ela ri a cada {Rules.GiggleEvery:0} s.";
+                Txt(hDollWho, h != null ? Loc.T("hud.doll_hidden") : "");
+                note = G.doll.hasLast ? Loc.T("hud.giggle_last", Loc.RoomIn(Map.RoomOf(G.doll.lastX, G.doll.lastY)), Mathf.Max(0, Mathf.FloorToInt(G.t - G.doll.lastT))) : Loc.T("hud.giggle_every", G.giggleEvery.ToString("0"));
                 Show(gigWrap, false);
             }
             gigFill.style.width = Length.Percent(Mathf.Clamp01(pct) * 100);
@@ -495,23 +542,23 @@ namespace Unice
             if (me != null)
             {
                 noiseFill.style.width = Length.Percent(Mathf.Clamp01(me.noise) * 100);
-                Txt(hNoiseTxt, me.hidden != null ? "ESCONDIDO" : me.noise > .5f ? "PASSOS ALTOS" : me.moving ? "SILÊNCIO" : "PARADO");
+                Txt(hNoiseTxt, Loc.T(me.hidden != null ? "hud.noise_hidden" : me.noise > .5f ? "hud.noise_loud" : me.moving ? "hud.noise_quiet" : "hud.noise_stopped"));
             }
             if (plist.style.display == DisplayStyle.None) return;
-            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv;
+            string sig = string.Join("|", G.ents.Select(e => $"{e.pid},{e.role},{e.outOfRound},{e.hidden != null},{e.moving},{e.sneak},{e == h},{e.score},{Kit.Pack(e.k)}")) + me?.pid + me?.role + G.ph + tv + Loc.Current;
             if (sig == plSig) return; plSig = sig;
             var hostP = app.Online ? app.FindHost() : null; string hostId = hostP != null ? hostP.id : app.Online ? null : app.myId;
             plRows.Clear();
             foreach (var e in G.ents)
             {
-                string st = e.IsUnice ? "é a Unice" : e.outOfRound ? "fora da rodada" : tv ? (e.hidden != null ? "no esconderijo" : e.moving ? (e.sneak ? "andando devagar" : "correndo") : "parado") : "em algum lugar";
+                string st = Loc.T(e.IsUnice ? "hud.st_unice" : e.outOfRound ? "hud.st_out" : tv ? (e.hidden != null ? "hud.st_hidden" : e.moving ? (e.sneak ? "hud.st_sneaking" : "hud.st_running") : "hud.st_still") : "hud.st_somewhere");
                 var row = Ig(E(plRows, "plrow")); if (e.outOfRound) row.AddToClassList("plout");
                 var d = new Doll(24); if (e.IsUnice && live) d.SetUnice(); else d.Set(e.k); row.Add(d);
                 var col = Ig(E(row, "grow")); col.style.marginLeft = 8;
                 var nl = Ig(E(col, "row"));
-                Ig(L(nl, e.name + (e == me ? " (você)" : ""), "plname"));
-                if (e.bot) Ig(L(nl, "robô", "tag"));
-                if (app.Online && e.pid == hostId) Ig(L(nl, "anfitrião", "tag"));
+                Ig(L(nl, e.name + (e == me ? Loc.T("hud.you_suffix") : ""), "plname"));
+                if (e.bot) Ig(L(nl, Loc.T("hud.bot_tag"), "tag"));
+                if (app.Online && e.pid == hostId) Ig(L(nl, Loc.T("hud.host_tag"), "tag"));
                 Ig(L(col, st, "plst"));
                 if (tv && e == h) { var di = Ig(E(row)); di.style.width = 18; di.style.height = 24; di.style.backgroundImage = new StyleBackground(Art.Centered("doll", 1)); }
                 Ig(L(row, e.score.ToString(), "pts")).style.marginLeft = 8;
@@ -564,7 +611,7 @@ namespace Unice
         void BuildMessages()
         {
             blackout = Ig(E(safe, "layer", "blackout"));
-            count = Ig(L(blackout, "", "count")) as Label; countSub = Ig(L(blackout, "Você está voltando para casa. Eles estão se escondendo com a sua boneca…", "count-sub")) as Label;
+            count = Ig(L(blackout, "", "count")) as Label; countSub = Ig(LL(blackout, "game.countdown_sub", "count-sub")) as Label;
             pill = Ig(E(safe, "pill")); pillTxt = Ig(L(pill, "", "pill-in")) as Label;
             captionBox = Ig(E(safe, "caption")); caption = Ig(L(captionBox, "", "caption-in")) as Label;
             promptBox = Ig(E(safe, "prompt")); prompt = Ig(L(promptBox, "", "prompt-in")) as Label;
@@ -616,7 +663,7 @@ namespace Unice
         readonly List<Label> nameTags = new List<Label>();
 
         // ---------- touch ----------
-        VisualElement joyZone, joyBase, joyKnob, actE, actQ, actS; Label actELbl;
+        VisualElement joyZone, joyBase, joyKnob, actE, actQ, actS, actR; Label actELbl;
         public Vector2 Joy { get; private set; }
         public bool SneakOn { get; private set; }
         int joyPointer = -1; Vector2 joyCenter;
@@ -631,7 +678,7 @@ namespace Unice
                 if (joyPointer >= 0) return;
                 joyPointer = e.pointerId; joyZone.CapturePointer(e.pointerId);
                 var lp = (Vector2)e.localPosition; joyCenter = lp;
-                joyBase.style.left = lp.x - 85; joyBase.style.bottom = StyleKeyword.Auto; joyBase.style.top = lp.y - 85;
+                joyBase.style.left = lp.x - 102; joyBase.style.bottom = StyleKeyword.Auto; joyBase.style.top = lp.y - 102;
                 MoveJoy(lp);
             });
             joyZone.RegisterCallback<PointerMoveEvent>(e => { if (e.pointerId == joyPointer) MoveJoy(e.localPosition); });
@@ -641,24 +688,25 @@ namespace Unice
             joyZone.RegisterCallback<PointerCaptureOutEvent>(e => { joyPointer = -1; ResetJoy(); });
 
             var acts = E(touch, "acts");
-            actS = ActBtn(acts, "Devagar", "act-s", () => { SneakOn = !SneakOn; actS.EnableInClassList("act-on", SneakOn); });
-            actQ = ActBtn(acts, "Passar", "act-q", () => app.TryPass());
-            actE = ActBtn(acts, "Esconder", null, () => app.DoAct()); actELbl = actE.Q<Label>();
+            actS = ActBtn(acts, "touch.sneak", "act-s", () => { SneakOn = !SneakOn; actS.EnableInClassList("act-on", SneakOn); });
+            actR = ActBtn(acts, "prompt.laugh", "act-r", () => app.TryLaugh());
+            actQ = ActBtn(acts, "touch.pass", "act-q", () => app.TryPass());
+            actE = ActBtn(acts, "prompt.hide_short", null, () => app.DoAct()); actELbl = actE.Q<Label>();
             ResetJoy();
         }
 
-        VisualElement ActBtn(VisualElement p, string text, string cls, Action down)
+        VisualElement ActBtn(VisualElement p, string key, string cls, Action down)
         {
             var b = E(p, "act"); if (cls != null) b.AddToClassList(cls);
             b.style.alignItems = Align.Center; b.style.justifyContent = Justify.Center;
-            Ig(L(b, text));
+            Ig(LL(b, key));
             b.RegisterCallback<PointerDownEvent>(e => { down(); e.StopPropagation(); });
             return b;
         }
 
         void MoveJoy(Vector2 lp)
         {
-            var d = lp - joyCenter; float m = d.magnitude; const float R = 70;
+            var d = lp - joyCenter; float m = d.magnitude; const float R = 84;
             if (m > R) d *= R / m;
             joyKnob.style.translate = new Translate(d.x, d.y);
             Joy = d / R;
@@ -697,7 +745,7 @@ namespace Unice
             {
                 bool ok = app.NetAvailable && !app.busy;
                 createBtn.SetEnabled(ok); joinBtn.SetEnabled(ok); localBtn.SetEnabled(!app.busy); onlineBtn.SetEnabled(!app.busy);
-                Txt(netLbl, app.netText.Length > 0 ? app.netText : app.NetAvailable ? "Salas online prontas. Crie uma ou entre com um código." : "O modo online não está instalado nesta versão. Você ainda pode jogar sozinho com robôs.");
+                Txt(netLbl, app.netText.Length > 0 ? app.netText : Loc.T(app.NetAvailable ? "menu.net_ready" : "menu.net_unavailable"));
                 netLbl.EnableInClassList("net-err", app.netErr && app.netText.Length > 0);
             }
             if (want == "wait") RenderWait();
@@ -707,32 +755,37 @@ namespace Unice
 
         void UpdatePrompt()
         {
-            var p = app.me; var parts = new List<string>(); string eLbl = null; bool qShow = false, qOk = false;
+            var p = app.me; var parts = new List<string>(); string eLbl = null; bool qShow = false, qOk = false, rShow = false, rOk = false;
             string K(string key) => mobile ? "" : $"<b>{key}</b> ";
             bool active = p != null && G.Live && !p.outOfRound;
             if (active)
             {
-                if (p.IsUnice) { if (G.ph == Phase.Hunt && p.stun <= 0) { var s = Game.NearSpotFurn(p); if (s != null) { parts.Add($"{K("E")}Olhar {s.spot}"); eLbl = "Olhar"; } } }
-                else if (p.hidden != null) { parts.Add($"{K("E")}Sair do esconderijo"); eLbl = "Sair"; }
+                if (p.IsUnice) { if (G.ph == Phase.Hunt && p.stun <= 0) { var s = Game.NearSpotFurn(p); if (s != null) { parts.Add($"{K("E")}{Loc.T("prompt.look", Loc.Spot(s))}"); eLbl = "prompt.look_short"; } } }
                 else
                 {
-                    var s = Game.NearSpotFurn(p);
-                    if (s != null) { if (s.occ != null) parts.Add($"{s.occ.name} está {s.spot}"); else { parts.Add($"{K("E")}Esconder {s.spot}"); eLbl = "Esconder"; } }
+                    if (p.hidden != null) { parts.Add($"{K("E")}{Loc.T("prompt.exit_hide")}"); eLbl = "prompt.exit_short"; }
+                    else
+                    {
+                        var s = Game.NearSpotFurn(p);
+                        if (s != null) { if (s.occ != null) parts.Add(Loc.T("prompt.occupied", s.occ.name, Loc.Spot(s))); else { parts.Add($"{K("E")}{Loc.T("prompt.hide", Loc.Spot(s))}"); eLbl = "prompt.hide_short"; } }
+                    }
                     if (G.doll.holder == p)
                     {
                         qShow = true; var m = G.PassTarget(p);
-                        if (m != null) { qOk = p.passCd <= 0; parts.Add(p.passCd > 0 ? $"Passar em {Mathf.CeilToInt(p.passCd)} s" : $"{K("Q")}Passar a boneca para {m.name}"); }
+                        if (m != null) { qOk = p.passCd <= 0; parts.Add(p.passCd > 0 ? Loc.T("prompt.pass_in", Mathf.CeilToInt(p.passCd)) : $"{K("Q")}{Loc.T("prompt.pass_to", m.name)}"); }
                     }
+                    rShow = true; rOk = p.laughCd <= 0;
+                    parts.Add(p.laughCd > 0 ? Loc.T("prompt.laugh_in", Mathf.CeilToInt(p.laughCd)) : $"{K("R")}{Loc.T("prompt.laugh")}");
                 }
             }
             string txt = string.Join("    ", parts);
             if (prompt.text != txt) { prompt.text = txt; Show(promptBox, txt.Length > 0); }
             if (!mobile) return;
-            Show(actE, active); Show(actQ, qShow); Show(actS, active && !p.IsUnice);
+            Show(actE, active); Show(actQ, qShow); Show(actR, rShow); Show(actS, active && !p.IsUnice);
             if (active)
             {
-                Txt(actELbl, eLbl ?? (p.IsUnice ? "Olhar" : "Esconder"));
-                actE.style.opacity = eLbl != null ? 1 : .45f; actQ.style.opacity = qOk ? 1 : .45f;
+                Txt(actELbl, Loc.T(eLbl ?? (p.IsUnice ? "prompt.look_short" : "prompt.hide_short")));
+                actE.style.opacity = eLbl != null ? 1 : .45f; actQ.style.opacity = qOk ? 1 : .45f; actR.style.opacity = rOk ? 1 : .45f;
             }
         }
 
@@ -767,7 +820,7 @@ namespace Unice
                 if (a <= 0) { Show(tag, false); continue; }
                 var e = G.ents[i]; bool Un = e.IsUnice;
                 Show(tag, true);
-                Txt(tag, Un ? (e == me ? "Unice (você)" : $"Unice · {e.name}") : e.name);
+                Txt(tag, Un ? (e == me ? Loc.T("tag.unice_you") : Loc.T("tag.unice_named", e.name)) : e.name);
                 tag.style.color = Un ? Rose : e == me ? Candle : Ink; tag.style.opacity = a;
                 tag.style.fontSize = 12 * pxPerHouse;
                 var pp = ToPanel(e.x, e.y + (Un ? -66 : -54)); tag.style.left = pp.x; tag.style.top = pp.y;
@@ -809,7 +862,7 @@ namespace Unice
             bool hidePh = G.ph == Phase.Hide; int n = Mathf.CeilToInt(G.tl);
             Show(blackout, hidePh && me != null && me.IsUnice);
             Show(pill, hidePh && (me == null || !me.IsUnice));
-            if (hidePh) { Txt(count, n.ToString()); Txt(pillTxt, $"A Unice entra em {n} s"); }
+            if (hidePh) { Txt(count, n.ToString()); Txt(pillTxt, Loc.T("game.unice_enters_in", n)); }
         }
         bool cuesDrawn;
         static readonly Vector2[] PrevDirs = { new Vector2(.01f, 1), new Vector2(1, .2f), new Vector2(.01f, -1), new Vector2(-1, .2f) };

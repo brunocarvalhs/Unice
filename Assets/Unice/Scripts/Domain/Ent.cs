@@ -28,7 +28,7 @@ namespace Unice
         public Role role;
         public bool outOfRound, moving, sneak, loud, talking;
         public Furn hidden;
-        public float passCd, spd, noiseT, noise, stun, tired, chaseT;
+        public float passCd, laughCd, spd, noiseT, noise, stun, tired, chaseT;
         public int face = 1;        // 1 facing right, -1 facing left (drawing)
 
         // AI state (host only)
@@ -48,7 +48,7 @@ namespace Unice
 
         public void ResetRound()
         {
-            x = y = tx = ty = -600; fx = 0; fy = 1; role = Role.Hider; outOfRound = false; hidden = null; passCd = 0; moving = sneak = loud = talking = false; spd = 0;
+            x = y = tx = ty = -600; fx = 0; fy = 1; role = Role.Hider; outOfRound = false; hidden = null; passCd = 0; laughCd = 0; moving = sneak = loud = talking = false; spd = 0;
             noiseT = noise = stun = tired = chaseT = 0;
             lastSeenU = -99; leaveAt = 0; dashUntil = 0; giggleSeen = -1; prevSpot = null;
             ResetAI();

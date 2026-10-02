@@ -6,7 +6,7 @@ namespace Unice
 {
     public enum Phase : byte { Home, Lobby, Hide, Hunt, Result, Final }
     public enum EvType : byte { None, Start, Enter, Giggle, Pass, Open, Catch, End, Final, Host, Left, Lobby }
-    public enum Act : byte { None, Hide, Exit, Pass, Open, Catch }
+    public enum Act : byte { None, Hide, Exit, Pass, Open, Catch, Laugh }
 
     public struct GameEvent
     {
@@ -32,7 +32,7 @@ namespace Unice
 
     public static class Rules
     {
-        public const float RoundTime = 120, HideTime = 30, ResultTime = 9, GiggleEvery = 10, PassCd = 5, PassR = 60, CatchR = 30, Stun = 2.5f;
+        public const float RoundTime = 120, HideTime = 30, ResultTime = 9, GiggleEvery = 10, PassCd = 5, LaughCd = 5, PassR = 60, CatchR = 30, Stun = 2.5f;
         public const int MaxPlayers = 8;
         public const float SpdRun = 150, SpdSneak = 78, SpdUnice = 152, SpdTired = 112, SpdPatrol = 138, SpdUnicePlayer = 165;
         public const float ViewHider = 300, ViewHidden = 110, ViewUnice = 300, ViewSpect = 520;
@@ -49,6 +49,8 @@ namespace Unice
         public Phase ph = Phase.Home;
         public int ep, r, rounds = 5, bots = 3, evSeq;
         public float hb, tl, t;
+        // host-configurable match settings (defaults match Rules); synced to peers in the snapshot
+        public float hideTime = Rules.HideTime, roundTime = Rules.RoundTime, giggleEvery = Rules.GiggleEvery;
         public readonly List<Ent> ents = new List<Ent>();
         public Ent unice, nextU;
         public readonly DollState doll = new DollState();
@@ -117,9 +119,17 @@ namespace Unice
         void Giggle()
         {
             var h = doll.holder;
-            doll.giggleT = Rules.GiggleEvery; doll.hasLast = true; doll.lastX = h.x; doll.lastY = h.y; doll.lastT = t; doll.lastSpot = h.hidden;
-            Ev(EvType.Giggle, (int)MathF.Round(h.x), (int)MathF.Round(h.y));
+            doll.giggleT = giggleEvery; doll.hasLast = true; doll.lastX = h.x; doll.lastY = h.y; doll.lastT = t; doll.lastSpot = h.hidden;
+            Ev(EvType.Giggle, (int)MathF.Round(h.x), (int)MathF.Round(h.y), h.idx);
             if (h.bot) h.leaveAt = t + U.Rand(.3f, 1);
+        }
+        /// <summary>Anyone can laugh on purpose; the Unice hears it exactly like the doll's own giggle.</summary>
+        void Laugh(Ent e)
+        {
+            e.laughCd = Rules.LaughCd;
+            doll.hasLast = true; doll.lastX = e.x; doll.lastY = e.y; doll.lastT = t; doll.lastSpot = e.hidden;
+            if (doll.holder == e) doll.giggleT = giggleEvery;
+            Ev(EvType.Giggle, (int)MathF.Round(e.x), (int)MathF.Round(e.y), e.idx);
         }
 
         public void DoAction(Ent e, Act type, int arg)
@@ -129,7 +139,8 @@ namespace Unice
             {
                 if (type == Act.Hide) { var s = arg >= 0 && arg < Map.Spots.Length ? Map.Spots[arg] : null; if (s != null && e.hidden == null && s.occ == null && Map.RectDist(s, e.x, e.y) < 60) Hide(e, s); }
                 else if (type == Act.Exit) ExitSpot(e);
-                else if (type == Act.Pass && doll.holder == e && e.hidden == null && e.passCd <= 0) { var m = PassTarget(e, 20); if (m != null) PassDoll(e, m); }
+                else if (type == Act.Pass && doll.holder == e && e.passCd <= 0) { var m = PassTarget(e, 20); if (m != null) PassDoll(e, m); }
+                else if (type == Act.Laugh && e.laughCd <= 0) Laugh(e);
             }
             else if (ph == Phase.Hunt && e.stun <= 0)
             {
@@ -180,8 +191,8 @@ namespace Unice
             u.role = Role.Unice; u.turns++; unice = u;
             var hs = ents.Where(e => e != u).ToList();
             for (int i = 0; i < hs.Count; i++) { hs[i].x = hs[i].tx = 620 + i * 70; hs[i].y = hs[i].ty = 474; }
-            doll.holder = U.Pick(Eligible(hs)); doll.giggleT = Rules.GiggleEvery; doll.hasLast = false; doll.lastSpot = null;
-            ph = Phase.Hide; tl = Rules.HideTime; t = 0; res = null;
+            doll.holder = U.Pick(Eligible(hs)); doll.giggleT = giggleEvery; doll.hasLast = false; doll.lastSpot = null;
+            ph = Phase.Hide; tl = hideTime; t = 0; res = null;
             Ev(EvType.Start, r, u.idx, doll.holder.idx);
         }
 
@@ -404,10 +415,10 @@ namespace Unice
             if (ph == Phase.Hide)
             {
                 tl -= dt;
-                if (tl <= 0) { var u = unice; ph = Phase.Hunt; tl = Rules.RoundTime; u.x = Map.DoorIn.x; u.y = Map.DoorIn.y; u.fx = 0; u.fy = -1; u.tp++; Ev(EvType.Enter); }
+                if (tl <= 0) { var u = unice; ph = Phase.Hunt; tl = roundTime; u.x = Map.DoorIn.x; u.y = Map.DoorIn.y; u.fx = 0; u.fy = -1; u.tp++; Ev(EvType.Enter); }
             }
             else { tl -= dt; if (tl <= 0) { EndRound(false, null); return; } }
-            foreach (var e in ents) { if (e.passCd > 0) e.passCd -= dt; if (e.stun > 0) e.stun -= dt; }
+            foreach (var e in ents) { if (e.passCd > 0) e.passCd -= dt; if (e.laughCd > 0) e.laughCd -= dt; if (e.stun > 0) e.stun -= dt; }
             foreach (var e in ents)
             {
                 if (!e.bot) continue;

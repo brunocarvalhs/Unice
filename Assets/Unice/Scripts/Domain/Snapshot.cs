@@ -6,7 +6,7 @@ namespace Unice
     /// <summary>The host's view of the match, packed small enough to send ~15 times a second.</summary>
     public sealed partial class Game
     {
-        const byte SnapVersion = 1;
+        const byte SnapVersion = 3;
 
         public byte[] WriteSnapshot()
         {
@@ -14,6 +14,7 @@ namespace Unice
             using var w = new BinaryWriter(ms);
             w.Write(SnapVersion);
             w.Write(ep); w.Write(hb); w.Write((byte)ph); w.Write((byte)r); w.Write((byte)rounds); w.Write((byte)bots); w.Write(tl); w.Write(t);
+            w.Write(hideTime); w.Write(roundTime); w.Write(giggleEvery);
             w.Write((sbyte)(unice != null ? unice.idx : -1)); w.Write((sbyte)(nextU != null ? nextU.idx : -1));
             w.Write(res != null);
             if (res != null) for (int i = 0; i < 4; i++) w.Write((sbyte)res[i]);
@@ -27,7 +28,7 @@ namespace Unice
                 if (e.bot) f |= 1; if (e.outOfRound) f |= 2; if (e.moving) f |= 4; if (e.loud) f |= 8; if (e.IsUnice) f |= 16; if (e.tired > 0) f |= 32; if (e.sneak) f |= 64;
                 w.Write(f);
                 w.Write((short)MathF.Round(e.x)); w.Write((short)MathF.Round(e.y)); w.Write((short)MathF.Round(MathF.Atan2(e.fy, e.fx) * 1000));
-                w.Write((sbyte)(e.hidden != null ? e.hidden.si : -1)); w.Write(MathF.Max(0, e.passCd)); w.Write((short)e.score); w.Write((byte)e.turns); w.Write(MathF.Max(0, e.stun)); w.Write(e.tp);
+                w.Write((sbyte)(e.hidden != null ? e.hidden.si : -1)); w.Write(MathF.Max(0, e.passCd)); w.Write(MathF.Max(0, e.laughCd)); w.Write((short)e.score); w.Write((byte)e.turns); w.Write(MathF.Max(0, e.stun)); w.Write(e.tp);
             }
             w.Write(evSeq); w.Write((byte)evs.Count);
             foreach (var v in evs)
@@ -50,6 +51,7 @@ namespace Unice
             if (rd.ReadByte() != SnapVersion) return me;
             ep = rd.ReadInt32(); hb = rd.ReadSingle(); ph = (Phase)Math.Min((int)rd.ReadByte(), (int)Phase.Final); if (ph == Phase.Home) ph = Phase.Lobby;
             r = rd.ReadByte(); rounds = rd.ReadByte(); bots = rd.ReadByte(); tl = rd.ReadSingle(); t = rd.ReadSingle();
+            hideTime = rd.ReadSingle(); roundTime = rd.ReadSingle(); giggleEvery = rd.ReadSingle();
             int ui = rd.ReadSByte(), nx = rd.ReadSByte();
             if (rd.ReadBoolean()) { res = new int[4]; for (int i = 0; i < 4; i++) res[i] = rd.ReadSByte(); } else res = null;
             int hi = rd.ReadSByte(); float gT = rd.ReadSingle(); bool hasLast = rd.ReadBoolean();
@@ -62,12 +64,12 @@ namespace Unice
             {
                 string pid = rd.ReadString(), name = U.CleanName(rd.ReadString()); int kit = rd.ReadInt32(); byte f = rd.ReadByte();
                 float x = rd.ReadInt16(), y = rd.ReadInt16(), ang = rd.ReadInt16() / 1000f; int si = rd.ReadSByte();
-                float passCd = rd.ReadSingle(); int score = rd.ReadInt16(), turns = rd.ReadByte(); float stun = rd.ReadSingle(); int tp = rd.ReadInt32();
+                float passCd = rd.ReadSingle(); float laughCd = rd.ReadSingle(); int score = rd.ReadInt16(), turns = rd.ReadByte(); float stun = rd.ReadSingle(); int tp = rd.ReadInt32();
                 Ent e = i < ents.Count ? ents[i] : null; bool first = false;
                 if (e == null || e.pid != pid) { e = new Ent(i, pid, name, Kit.Unpack(kit), false); if (i < ents.Count) ents[i] = e; else ents.Add(e); first = true; }
                 e.name = name; e.k = Kit.Unpack(kit); e.bot = (f & 1) != 0; e.outOfRound = (f & 2) != 0; e.role = (f & 16) != 0 ? Role.Unice : Role.Hider; e.tired = (f & 32) != 0 ? 1 : 0;
                 e.hidden = si >= 0 && si < Map.Spots.Length ? Map.Spots[si] : null; if (e.hidden != null) e.hidden.occ = e;
-                e.passCd = passCd; e.score = score; e.turns = turns; e.stun = stun;
+                e.passCd = passCd; e.laughCd = laughCd; e.score = score; e.turns = turns; e.stun = stun;
                 bool isMe = pid == myId;
                 if (isMe)
                 {
@@ -129,7 +131,7 @@ namespace Unice
                 p.hasPos = r.ReadBoolean();
                 if (p.hasPos) { p.x = r.ReadSingle(); p.y = r.ReadSingle(); p.fx = r.ReadSingle(); p.fy = r.ReadSingle(); p.sneak = r.ReadBoolean(); }
                 if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.fx) || float.IsNaN(p.fy)) p.hasPos = false;
-                p.aSeq = r.ReadInt32(); byte a = r.ReadByte(); p.aType = a <= (byte)Act.Catch ? (Act)a : Act.None; p.aArg = r.ReadInt16();
+                p.aSeq = r.ReadInt32(); byte a = r.ReadByte(); p.aType = a <= (byte)Act.Laugh ? (Act)a : Act.None; p.aArg = r.ReadInt16();
                 p.talking = r.ReadBoolean();
                 return true;
             }

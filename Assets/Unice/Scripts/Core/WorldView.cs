@@ -135,8 +135,8 @@ namespace Unice
             shadow = Art.MakeSR("shadow", go.transform, Art.Centered("shadow", 5.6f), 0); shadow.color = new Color(0, 0, 0, .45f);
             ring = Art.MakeSR("ring", go.transform, Art.Centered("ring", 8), 1); ring.color = new Color(.94f, .69f, .34f, .7f);
             ring.transform.localScale = new Vector3(1, .34f, 1);
-            for (int i = 0; i < Order.Length; i++) layers[Order[i]] = Art.MakeSR(Order[i], go.transform, null, 10 + i);
-            unice = Art.MakeSR("unice", go.transform, null, 40);
+            for (int i = 0; i < Order.Length; i++) { var sr = Art.MakeSR(Order[i], go.transform, null, 10 + i); sr.sharedMaterial = Art.PixelMat; layers[Order[i]] = sr; }
+            unice = Art.MakeSR("unice", go.transform, null, 40); unice.sharedMaterial = Art.PixelMat;
             doll = Art.MakeSR("doll", go.transform, Art.Centered("doll", Art.M.charScale), 50);
             doll.transform.localPosition = new Vector3(.12f, .46f, 0);
             go.SetActive(false);

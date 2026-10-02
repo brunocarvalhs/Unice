@@ -3,11 +3,12 @@ using System.Collections.Generic;
 
 namespace Unice
 {
+    /// <summary>A room's display name/phrase lives in Core's Loc table, keyed by <see cref="id"/> — Domain stays engine/text-free.</summary>
     public sealed class Room
     {
-        public string id, name, inPhrase;
+        public string id;
         public float x, y, w, h;
-        public Room(string id, string name, string inPhrase, float x, float y, float w, float h) { this.id = id; this.name = name; this.inPhrase = inPhrase; this.x = x; this.y = y; this.w = w; this.h = h; }
+        public Room(string id, float x, float y, float w, float h) { this.id = id; this.x = x; this.y = y; this.w = w; this.h = h; }
     }
 
     public struct RectF
@@ -22,10 +23,11 @@ namespace Unice
     }
 
     /// <summary>A piece of furniture. When <see cref="spot"/> is set, a child can hide in it.</summary>
+    /// <summary>When hideable, its flavor phrase ("under the bed") lives in Core's Loc table as "spot." + type.</summary>
     public sealed class Furn
     {
         public int id, si = -1;
-        public string type, spot;
+        public string type;
         public char side;
         public float x, y, w, h, ax, ay;
         // round state (host)
@@ -42,18 +44,18 @@ namespace Unice
 
         public static readonly Room[] Rooms =
         {
-            new Room("master", "Quarto Principal", "no Quarto Principal", 40, 40, 440, 350),
-            new Room("bath", "Banheiro", "no Banheiro", 504, 40, 220, 350),
-            new Room("kids", "Quarto das Crianças", "no Quarto das Crianças", 748, 40, 420, 350),
-            new Room("library", "Biblioteca", "na Biblioteca", 1192, 40, 488, 350),
-            new Room("hall", "Corredor", "no Corredor", 40, 414, 1640, 120),
-            new Room("living", "Sala de Estar", "na Sala de Estar", 40, 558, 520, 342),
-            new Room("dining", "Sala de Jantar", "na Sala de Jantar", 584, 558, 480, 342),
-            new Room("kitchen", "Cozinha", "na Cozinha", 1088, 558, 592, 342),
-            new Room("estufa", "Estufa", "na Estufa", 40, 924, 520, 216),
-            new Room("entrance", "Hall de Entrada", "no Hall de Entrada", 584, 924, 480, 216),
-            new Room("pantry", "Despensa", "na Despensa", 1088, 924, 300, 216),
-            new Room("laundry", "Lavanderia", "na Lavanderia", 1412, 924, 268, 216),
+            new Room("master", 40, 40, 440, 350),
+            new Room("bath", 504, 40, 220, 350),
+            new Room("kids", 748, 40, 420, 350),
+            new Room("library", 1192, 40, 488, 350),
+            new Room("hall", 40, 414, 1640, 120),
+            new Room("living", 40, 558, 520, 342),
+            new Room("dining", 584, 558, 480, 342),
+            new Room("kitchen", 1088, 558, 592, 342),
+            new Room("estufa", 40, 924, 520, 216),
+            new Room("entrance", 584, 924, 480, 216),
+            new Room("pantry", 1088, 924, 300, 216),
+            new Room("laundry", 1412, 924, 268, 216),
         };
 
         public static readonly float[,] DV = { { 260, 390 }, { 614, 390 }, { 958, 390 }, { 1436, 390 }, { 300, 534 }, { 824, 534 }, { 1384, 534 }, { 300, 900 }, { 824, 900 }, { 1238, 900 }, { 1546, 900 } };
@@ -90,35 +92,35 @@ namespace Unice
 
             object[][] F =
             {
-                new object[] { "bed", 170, 40, 150, 175, "debaixo da cama", 's' },
-                new object[] { "wardrobe", 40, 240, 58, 120, "no guarda-roupa", 'e' },
+                new object[] { "bed", 170, 40, 150, 175, 's' },
+                new object[] { "wardrobe", 40, 240, 58, 120, 'e' },
                 new object[] { "dresser", 390, 40, 80, 42 },
-                new object[] { "tub", 600, 40, 124, 66, "atrás da cortina da banheira", 's' },
+                new object[] { "tub", 600, 40, 124, 66, 's' },
                 new object[] { "sink", 504, 56, 50, 56 },
-                new object[] { "bunk", 748, 40, 92, 175, "debaixo do beliche", 'e' },
-                new object[] { "chest", 990, 40, 100, 54, "no baú de brinquedos", 's' },
+                new object[] { "bunk", 748, 40, 92, 175, 'e' },
+                new object[] { "chest", 990, 40, 100, 54, 's' },
                 new object[] { "dollhouse", 1060, 296, 92, 70 },
                 new object[] { "shelves", 1250, 40, 380, 40 },
-                new object[] { "desk", 1350, 180, 160, 70, "debaixo da escrivaninha", 's' },
-                new object[] { "clock", 1624, 150, 56, 64, "dentro do relógio de pêndulo", 'w' },
+                new object[] { "desk", 1350, 180, 160, 70, 's' },
+                new object[] { "clock", 1624, 150, 56, 64, 'w' },
                 new object[] { "armchair", 1230, 300, 60, 60 },
-                new object[] { "closet", 1090, 414, 90, 34, "no armário do corredor", 's' },
+                new object[] { "closet", 1090, 414, 90, 34, 's' },
                 new object[] { "commode", 480, 414, 80, 30 },
-                new object[] { "sofa", 150, 650, 200, 56, "atrás do sofá", 'n' },
+                new object[] { "sofa", 150, 650, 200, 56, 'n' },
                 new object[] { "fireplace", 40, 760, 40, 110 },
-                new object[] { "piano", 400, 790, 140, 90, "debaixo do piano", 'n' },
-                new object[] { "table", 700, 680, 250, 100, "debaixo da mesa de jantar", 's' },
+                new object[] { "piano", 400, 790, 140, 90, 'n' },
+                new object[] { "table", 700, 680, 250, 100, 's' },
                 new object[] { "cabinet", 584, 558, 46, 100 },
-                new object[] { "sinkcab", 1150, 558, 150, 44, "no armário da pia", 's' },
+                new object[] { "sinkcab", 1150, 558, 150, 44, 's' },
                 new object[] { "stove", 1570, 558, 110, 60 },
                 new object[] { "ktable", 1340, 700, 130, 80 },
-                new object[] { "ferns", 40, 1030, 110, 110, "atrás das samambaias", 'e' },
+                new object[] { "ferns", 40, 1030, 110, 110, 'e' },
                 new object[] { "planters", 380, 1090, 170, 44 },
-                new object[] { "stairs", 900, 924, 110, 76, "debaixo da escada", 's' },
-                new object[] { "coats", 620, 1090, 110, 50, "no armário de casacos", 'n' },
-                new object[] { "barrel", 1310, 950, 60, 60, "dentro do barril", 'w' },
+                new object[] { "stairs", 900, 924, 110, 76, 's' },
+                new object[] { "coats", 620, 1090, 110, 50, 'n' },
+                new object[] { "barrel", 1310, 950, 60, 60, 'w' },
                 new object[] { "pshelves", 1100, 1098, 280, 42 },
-                new object[] { "hamper", 1606, 1060, 66, 66, "no cesto de roupa suja", 'w' },
+                new object[] { "hamper", 1606, 1060, 66, 66, 'w' },
                 new object[] { "tank", 1600, 930, 74, 56 },
             };
             var furn = new List<Furn>(); var spots = new List<Furn>();
@@ -128,7 +130,7 @@ namespace Unice
                 var f = new Furn { id = i, type = (string)a[0], x = Convert.ToSingle(a[1]), y = Convert.ToSingle(a[2]), w = Convert.ToSingle(a[3]), h = Convert.ToSingle(a[4]) };
                 if (a.Length > 5)
                 {
-                    f.spot = (string)a[5]; f.side = (char)a[6];
+                    f.side = (char)a[5];
                     const float o = 22;
                     switch (f.side)
                     {

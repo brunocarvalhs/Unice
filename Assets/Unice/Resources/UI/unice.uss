@@ -77,6 +77,9 @@
 .sws { flex-direction: row; flex-wrap: wrap; flex-grow: 1; }
 .sw { width: 30px; height: 30px; border-radius: 15px; margin: 0 6px 4px 0; border-width: 2px; border-color: rgba(43, 30, 26, 0.25); padding: 0; min-height: 30px; }
 .sw-on { border-width: 3px; border-color: rgb(43, 30, 26); }
+.tabbar { flex-direction: row; flex-wrap: wrap; margin-bottom: 10px; }
+.tabbtn { background-color: rgba(0, 0, 0, 0.3); color: rgb(173, 154, 140); border-width: 0; border-radius: 8px; padding: 7px 12px; margin: 0 6px 6px 0; min-height: 34px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); }
+.tabbtn-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
 
 /* scores */
 .srow { flex-direction: row; align-items: center; padding: 4px 10px; margin-bottom: 5px; background-color: rgba(255, 255, 255, 0.28); border-radius: 3px; }
@@ -135,12 +138,13 @@
 .pause { background-color: rgba(10, 6, 9, 0.7); align-items: center; justify-content: center; }
 
 /* touch controls */
-.joy { position: absolute; left: 36px; bottom: 30px; width: 170px; height: 170px; border-radius: 85px; background-color: rgba(36, 26, 33, 0.55); border-width: 2px; border-color: rgba(173, 154, 140, 0.35); }
-.joy-knob { position: absolute; left: 55px; top: 55px; width: 60px; height: 60px; border-radius: 30px; background-color: rgba(241, 231, 216, 0.75); }
+.joy { position: absolute; left: 36px; bottom: 30px; width: 204px; height: 204px; border-radius: 102px; background-color: rgba(36, 26, 33, 0.55); border-width: 2px; border-color: rgba(173, 154, 140, 0.35); }
+.joy-knob { position: absolute; left: 66px; top: 66px; width: 72px; height: 72px; border-radius: 36px; background-color: rgba(241, 231, 216, 0.75); }
 .acts { position: absolute; right: 30px; bottom: 30px; flex-direction: row; align-items: flex-end; }
-.act { width: 92px; height: 92px; border-radius: 46px; background-color: rgba(36, 26, 33, 0.75); border-width: 2px; border-color: rgba(241, 231, 216, 0.4); color: rgb(241, 231, 216); font-size: 15px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); margin-left: 14px; padding: 0; white-space: normal; -unity-text-align: middle-center; }
-.act-q { border-color: rgb(239, 115, 148); color: rgb(239, 115, 148); width: 76px; height: 76px; border-radius: 38px; }
-.act-s { width: 72px; height: 72px; border-radius: 36px; font-size: 12px; }
+.act { width: 108px; height: 108px; border-radius: 54px; background-color: rgba(36, 26, 33, 0.75); border-width: 2px; border-color: rgba(241, 231, 216, 0.4); color: rgb(241, 231, 216); font-size: 16px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); margin-left: 14px; padding: 0; white-space: normal; -unity-text-align: middle-center; }
+.act-q { border-color: rgb(239, 115, 148); color: rgb(239, 115, 148); width: 90px; height: 90px; border-radius: 45px; }
+.act-r { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); width: 86px; height: 86px; border-radius: 43px; font-size: 14px; }
+.act-s { width: 86px; height: 86px; border-radius: 43px; font-size: 13px; }
 .act-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
 
 /* ---------- main menu over the house map ---------- */
