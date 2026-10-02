@@ -60,7 +60,7 @@ namespace Unice
             }
             catch (Exception x)
             {
-                Debug.LogWarning(x);
+                Metrics.Error(x, "net");
                 if (x.ToString().Contains("UnityProjectNotLinkedException"))
                     throw new NetException("O projeto ainda não está ligado ao Unity Cloud. No Unity: Edit > Project Settings > Services, escolha a organização e ligue um projeto.");
                 throw new NetException("Não consegui falar com os serviços online. Confira a internet e tente de novo.");
@@ -71,7 +71,7 @@ namespace Unice
         {
             NM.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
             try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions { MaxPlayers = Rules.MaxPlayers, IsPrivate = true }.WithDistributedAuthorityNetwork()); }
-            catch (Exception x) { Debug.LogWarning(x); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
+            catch (Exception x) { Metrics.Error(x, "net"); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
             await Connected();
             return session.Code;
         }
@@ -80,7 +80,7 @@ namespace Unice
         {
             NM.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
             try { session = await MultiplayerService.Instance.JoinSessionByCodeAsync(code); }
-            catch (Exception x) { Debug.LogWarning(x); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
+            catch (Exception x) { Metrics.Error(x, "net"); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
             await Connected();
         }
 
@@ -112,7 +112,7 @@ namespace Unice
             if (s != null)
             {
                 s.RemovedFromSession -= OnRemoved; s.Deleted -= OnRemoved;
-                try { await s.LeaveAsync(); } catch (Exception x) { Debug.LogWarning(x); }
+                try { await s.LeaveAsync(); } catch (Exception x) { Metrics.Error(x, "net"); }
             }
             if (NM != null && NM.IsListening) NM.Shutdown();
         }

@@ -19,6 +19,7 @@ namespace Unice
             Current = l;
             PlayerPrefs.SetInt("unice.lang", (int)l);
             PlayerPrefs.Save();
+            Metrics.SetLang();
         }
 
         static Lang Load() => (Lang)Mathf.Clamp(PlayerPrefs.GetInt("unice.lang", (int)Lang.Pt), 0, 2);

@@ -43,6 +43,7 @@ namespace Unice
         public float heartI, beat;
 
         int lastEv = -1; byte[] lastS, lastApplied;
+        Phase lastPh = (Phase)255;
         float pubT, freeze, catchCd, acc, ownT, clockT, heartT, camX = 860, camY = 590, shakeT, shakeMag;
         const float ShakeDur = .35f;
         int aSeq, aArg, tickS; Act aType;
@@ -61,6 +62,7 @@ namespace Unice
             if (I != null && I != this) { Destroy(gameObject); return; }
             I = this; DontDestroyOnLoad(gameObject);
             Application.targetFrameRate = 60; Screen.sleepTimeout = SleepTimeout.NeverSleep;
+            Metrics.Init();
             profile = new ProfileStore();
             cam = Camera.main;
             if (cam == null) { cam = new GameObject("Camera").AddComponent<Camera>(); cam.tag = "MainCamera"; }
@@ -107,10 +109,10 @@ namespace Unice
                         }
                         else window.Call<AndroidJavaObject>("getDecorView").Call("setSystemUiVisibility", 5894);   // immersive sticky
                     }
-                    catch (Exception x) { Debug.LogWarning(x); }
+                    catch (Exception x) { Metrics.Error(x); }
                 }));
             }
-            catch (Exception x) { Debug.LogWarning(x); }
+            catch (Exception x) { Metrics.Error(x); }
 #endif
         }
 
@@ -133,6 +135,7 @@ namespace Unice
             else if (!G.isHost && G.Live && me != null) UpdatePlayer(dt);
             if (G.isHost) { me = G.ents.FirstOrDefault(e => e.pid == myId); HandleEvents(); }
             world.SyncMap();
+            if (G.ph != lastPh) { lastPh = G.ph; Metrics.Screen(G.ph.ToString().ToLowerInvariant()); }
             if (freeze > 0) freeze -= dt;
             if (catchCd > 0) catchCd -= dt;
             if (me != null || G.ph != Phase.Home) { view = Viewer(); hasView = true; }
@@ -198,7 +201,7 @@ namespace Unice
         }
 
         /// <summary>Solo: freezes the match. Online the match keeps going; the menu only covers the screen.</summary>
-        public void TogglePause() { paused = !paused && G.Live; ui.ShowPause(paused, Online); }
+        public void TogglePause() { paused = !paused && G.Live; ui.ShowPause(paused, Online); if (paused) Metrics.Log("pause", ("online", Online)); }
 
         void OnApplicationPause(bool p) { if (p && G.Live && !Online && !paused) TogglePause(); }
 
@@ -260,9 +263,11 @@ namespace Unice
         {
             if (lastEv < 0) { lastEv = G.evSeq; return; }
             foreach (var e in G.evs.ToArray())
-                if (e.seq > lastEv) { lastEv = e.seq; try { OnEvent(e); } catch (Exception x) { Debug.LogWarning(x); } }
+                if (e.seq > lastEv) { lastEv = e.seq; try { OnEvent(e); } catch (Exception x) { Metrics.Error(x, "event " + e.type); } }
             if (G.evSeq < lastEv - 50) lastEv = G.evSeq;
         }
+
+        string MyRole => me == null ? "spectator" : me.IsUnice ? "unice" : me == G.doll.holder ? "holder" : "hider";
 
         public string NameOf(Ent e) => e == null ? Loc.T("app.someone") : e == me ? Loc.T("app.you") : e.name;
         public string NameUp(Ent e) => e == null ? Loc.T("app.someone.up") : e == me ? Loc.T("app.you.up") : e.name;
@@ -275,6 +280,7 @@ namespace Unice
                 case EvType.Start:
                 {
                     var u = E(v.b); var h = E(v.c);
+                    Metrics.Log("round_start", ("round", v.a), ("rounds", G.rounds), ("role", MyRole), ("online", Online), ("map", G.mapId));
                     if (me == null) ui.Banner(Loc.T("ev.start.watch", v.a, NameUp(u)), "info", 3);
                     else if (me == u) ui.Banner(Loc.T("ev.start.you_unice"), "rose", 3.2f);
                     else if (me == h) ui.Banner(Loc.T("ev.start.you_holder"), "rose", 3.2f);
@@ -318,6 +324,7 @@ namespace Unice
                 case EvType.Catch:
                 {
                     var Hh = E(v.b); var Un = E(v.a); bool withDoll = v.c != 0; float x = v.d, y = v.e; if (Hh == null) break;
+                    if (Hh == me || Un == me) Metrics.Log("catch", ("side", Hh == me ? "caught" : "catcher"), ("with_doll", withDoll), ("time_left", (int)G.tl), ("room", Map.RoomOf(x, y).id));
                     sfx.Play("sting"); ui.Fx(x, y - 26, Loc.T(withDoll ? "ev.catch.mine" : "ev.catch.gotcha"), Ui.Blood, withDoll ? 24 : 20, 1.8f, true);
                     world.Ripple(x, y, "catch");
                     shakeT = ShakeDur; shakeMag = withDoll ? 16f : 10f;
@@ -331,11 +338,16 @@ namespace Unice
                 case EvType.End:
                 {
                     bool unWin = v.a != 0;
+                    Metrics.Log("round_end", ("round", G.r), ("unice_won", unWin), ("role", me == null ? "spectator" : me.IsUnice ? "unice" : "hider"),
+                        ("won", me != null && unWin == me.IsUnice), ("caught", me != null && me.outOfRound), ("online", Online));
                     if (me != null) sfx.Play(unWin == me.IsUnice ? "win" : "lose");
                     if (!unWin) ui.Banner(Loc.T("ev.end.time"), "moss", 1.6f);
                     heartI = 0;
                     break;
                 }
+                case EvType.Final:
+                    if (me != null) Metrics.Log("match_end", ("rounds", G.rounds), ("score", me.score), ("place", 1 + G.ents.Count(e => e.score > me.score)), ("players", G.ents.Count), ("online", Online));
+                    break;
                 case EvType.Host:
                     if (!G.isHost || U.CleanName(v.s) != myName) ui.Toast(Loc.T("ev.host.other", U.CleanName(v.s)));
                     else ui.Toast(Loc.T("ev.host.you"));
@@ -379,13 +391,13 @@ namespace Unice
                 if (G.ph != Phase.Hunt || p.stun > 0) return;
                 var s = Game.NearSpotFurn(p);
                 if (s == null) { ui.Toast(Loc.T("act.unice.need_near")); return; }
-                SendAction(Act.Open, s.si); return;
+                SendAction(Act.Open, s.si); Metrics.Log("player_action", ("type", "open")); return;
             }
-            if (p.hidden != null) { sfx.Play("creak"); SendAction(Act.Exit); return; }
+            if (p.hidden != null) { sfx.Play("creak"); SendAction(Act.Exit); Metrics.Log("player_action", ("type", "exit")); return; }
             var f = Game.NearSpotFurn(p);
             if (f == null) { ui.Toast(Loc.T("act.hide.need_near")); return; }
             if (f.occ != null) { ui.Toast(Loc.T("act.hide.occupied", f.occ.name)); sfx.Play("bad"); return; }
-            sfx.Play("creak"); freeze = .35f; SendAction(Act.Hide, f.si);
+            sfx.Play("creak"); freeze = .35f; SendAction(Act.Hide, f.si); Metrics.Log("player_action", ("type", "hide"), ("spot", f.type));
         }
 
         /// <summary>Q: hand the doll to someone right next to you.</summary>
@@ -395,7 +407,7 @@ namespace Unice
             if (G.doll.holder != p) { ui.Toast(Loc.T("act.pass.no_doll")); return; }
             if (p.passCd > 0) { ui.Toast(Loc.T("act.pass.cooldown", Mathf.CeilToInt(p.passCd))); sfx.Play("bad"); return; }
             if (G.PassTarget(p) == null) { ui.Toast(Loc.T("act.pass.no_target")); return; }
-            SendAction(Act.Pass);
+            SendAction(Act.Pass); Metrics.Log("player_action", ("type", "pass"));
         }
 
         /// <summary>R: laugh on purpose. Anyone can, but it gives away your position to the Unice like the doll's own giggle.</summary>
@@ -403,7 +415,7 @@ namespace Unice
         {
             var p = me; if (p == null || p.outOfRound || p.IsUnice || !G.Live || paused) return;
             if (p.laughCd > 0) { ui.Toast(Loc.T("act.laugh.cooldown", Mathf.CeilToInt(p.laughCd))); sfx.Play("bad"); return; }
-            SendAction(Act.Laugh);
+            SendAction(Act.Laugh); Metrics.Log("player_action", ("type", "laugh"));
         }
 
         void LocalSounds(float dt)
@@ -475,7 +487,7 @@ namespace Unice
             if (h == null || h.lastSnap == lastApplied) return;
             lastApplied = h.lastSnap;
             try { me = G.ApplySnapshot(h.lastSnap, myId, me); lastS = h.lastSnap; }
-            catch (Exception x) { Debug.LogWarning("snapshot: " + x.Message); return; }
+            catch (Exception x) { Metrics.Error(x, "snapshot"); return; }
             HandleEvents();
         }
 
@@ -508,10 +520,15 @@ namespace Unice
                 await backend.InitAsync();
                 if (create) await backend.CreateAsync(); else await backend.JoinAsync(joinCode);
             }
-            catch (Exception x) { busy = false; SetNet(x is NetException ? x.Message : Loc.T("net.conn_failed"), true); Debug.LogWarning(x); return; }
+            catch (Exception x)
+            {
+                busy = false; SetNet(x is NetException ? x.Message : Loc.T("net.conn_failed"), true);
+                if (x is NetException) Debug.LogWarning(x.Message); else Metrics.Error(x, "room");   // NetException = already reported by the backend
+                Metrics.Log("room_error", ("mode", create ? "create" : "join"), ("error", x.GetType().Name)); return;
+            }
             ResetRoomState();
             net = backend; code = backend.Code; myId = backend.MyId;
-            if (voice != null) { try { await voice.JoinRoomAsync(code); } catch (Exception x) { Debug.LogWarning(x); } }
+            if (voice != null) { try { await voice.JoinRoomAsync(code); } catch (Exception x) { Metrics.Error(x); } }
             Publish();
             if (create) { G.isHost = true; G.ep = 1; G.ph = Phase.Lobby; }
             else
@@ -519,22 +536,24 @@ namespace Unice
                 float t0 = Time.realtimeSinceStartup;
                 while (Online && Time.realtimeSinceStartup - t0 < 8 && FindHost() == null) await Task.Delay(250);
                 if (!Online) { busy = false; return; }
-                if (FindHost() == null) { busy = false; LeaveRoom(); SetNet(Loc.T("net.no_answer"), true); return; }
+                if (FindHost() == null) { busy = false; LeaveRoom(); SetNet(Loc.T("net.no_answer"), true); Metrics.Log("room_error", ("mode", "join"), ("error", "no_host")); return; }
                 PullSnap();
             }
             busy = false; SetNet("");
+            Metrics.Log(create ? "room_create" : "room_join", ("voice", voice != null));
         }
 
-        void RoomLost(string why) { if (net == null) return; LeaveRoom(); SetNet(why, true); }
+        void RoomLost(string why) { if (net == null) return; Metrics.Log("room_lost", ("phase", G.ph.ToString().ToLowerInvariant())); LeaveRoom(); SetNet(why, true); }
 
         public async void LeaveRoom()
         {
             var b = net; net = null;
             ResetRoomState(); myId = "me"; ui.ShowPause(false, false);
-            if (voice != null) { try { await voice.LeaveRoomAsync(); } catch (Exception x) { Debug.LogWarning(x); } }
+            if (voice != null) { try { await voice.LeaveRoomAsync(); } catch (Exception x) { Metrics.Error(x); } }
             if (b == null) return;
+            Metrics.Log("room_leave");
             busy = true;
-            try { await b.LeaveAsync(); } catch (Exception x) { Debug.LogWarning(x); }
+            try { await b.LeaveAsync(); } catch (Exception x) { Metrics.Error(x); }
             busy = false;
         }
 
@@ -543,6 +562,7 @@ namespace Unice
             if (busy) return;
             SaveProfile(); ResetRoomState(); net = null; myId = "me"; rdy = true;
             G.isHost = true; G.ep = 1; G.ph = Phase.Lobby;
+            Metrics.Log("solo_start");
         }
 
         public void SaveProfile() => profile.Save();
@@ -575,6 +595,8 @@ namespace Unice
         {
             if (!G.isHost || G.ph != Phase.Lobby) return;
             G.bots = bots; G.rounds = rounds; G.NewMatch(HumansNow());
+            Metrics.Log("match_start", ("humans", G.ents.Count(e => !e.bot)), ("bots", G.ents.Count(e => e.bot)), ("rounds", rounds), ("map", G.mapId), ("online", Online),
+                ("hide_time", (int)G.hideTime), ("round_time", (int)G.roundTime));
         }
 
         public void NewMatchLobby() { if (G.isHost && G.ph == Phase.Final) G.BackToLobby(); }

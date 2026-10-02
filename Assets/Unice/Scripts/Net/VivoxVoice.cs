@@ -43,7 +43,7 @@ namespace Unice
             }
             catch (Exception x)
             {
-                Debug.LogWarning("voice: " + x);
+                Metrics.Error(x, "voice");
                 if (channel != null)
                 {
                     VivoxService.Instance.ChannelJoined -= OnChannelJoined;
@@ -63,7 +63,7 @@ namespace Unice
             VivoxService.Instance.ParticipantRemovedFromChannel -= OnParticipantRemoved;
             if (ch == null) return;
             try { await VivoxService.Instance.LeaveChannelAsync(ch); }
-            catch (Exception x) { Debug.LogWarning("voice: " + x); }
+            catch (Exception x) { Metrics.Error(x, "voice"); }
         }
 
         public void Tick(bool speak, float x, float y, bool hasPos, bool whisper)
@@ -75,7 +75,7 @@ namespace Unice
                 if (whisper != whispering) { whispering = whisper; VivoxService.Instance.SetInputDeviceVolume(whisper ? -50 : 0); }
                 if (hasPos) VivoxService.Instance.Set3DPosition(Ear(x, y), channel);
             }
-            catch (Exception ex) { Debug.LogWarning("voice: " + ex); }
+            catch (Exception ex) { Metrics.Error(ex, "voice"); }
         }
 
         void OnChannelJoined(string name) { if (name == channel) joined = true; }
@@ -114,7 +114,7 @@ namespace Unice
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             try { if (!UnityEngine.Android.Permission.HasUserAuthorizedPermission(UnityEngine.Android.Permission.Microphone)) UnityEngine.Android.Permission.RequestUserPermission(UnityEngine.Android.Permission.Microphone); }
-            catch (Exception x) { Debug.LogWarning("voice: " + x); }
+            catch (Exception x) { Metrics.Error(x, "voice"); }
 #endif
         }
 
