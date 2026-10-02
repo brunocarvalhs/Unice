@@ -104,7 +104,7 @@ namespace Unice
             if (IsOnline) { room.sync.ElectHost(); if (!game.isHost) room.sync.ApplyHostSnapshot(); }
 
             if (game.isHost && game.phase != Phase.Home && !(paused && !IsOnline))
-                game.HostStep(dt, IsOnline ? room.connection.Peers : null, myPlayerId, stepDt => { if (myCharacter != null) player.Move(stepDt); }, room.HumansForNextRound);
+                game.host.Step(dt, IsOnline ? room.connection.Peers : null, myPlayerId, stepDt => { if (myCharacter != null) player.Move(stepDt); }, room.HumansForNextRound);
             else if (!game.isHost && game.IsLive && myCharacter != null)
                 player.Move(dt);
 

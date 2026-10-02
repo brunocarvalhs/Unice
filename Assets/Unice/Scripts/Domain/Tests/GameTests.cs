@@ -5,8 +5,8 @@ namespace Unice
 {
     /// <summary>
     /// Characterization tests for Game's main flows (NewMatch, StartRound, ApplyAction, EndRound via its public
-    /// triggers, TakeOverAsHost). Pins down CURRENT behavior of the straight-ported web rules; does not change Game.cs.
-    /// HostStep's Result-phase transition is already covered by GameHostStepTests.cs and is not repeated here.
+    /// triggers, MatchHost.TakeOver). Pins down CURRENT behavior of the straight-ported web rules; does not change Game.cs.
+    /// MatchHost.Step's Result-phase transition is already covered by MatchHostTests.cs and is not repeated here.
     /// </summary>
     [TestFixture]
     public class GameTests
@@ -250,7 +250,7 @@ namespace Unice
             Assert.AreEqual(tpBefore + 1, unice.teleportSeq);
         }
 
-        // ---------- TakeOverAsHost ----------
+        // ---------- MatchHost.TakeOver ----------
 
         [Test]
         public void TakeOver_PromotesToHostAndReconcilesPeerState()
@@ -263,11 +263,11 @@ namespace Unice
             foreach (var e in g.characters) { e.targetX = e.x + 1; e.targetY = e.y + 1; } // distinct from current x/y, so the reset is observable
             var peers = new List<PeerInfo> { new PeerInfo { id = "h1", presence = new Presence { actionSeq = 5 } } }; // h2 is gone
 
-            g.TakeOverAsHost(peers, me, "Ana");
+            g.host.TakeOver(peers, me, "Ana");
 
             Assert.IsTrue(g.isHost);
             Assert.AreEqual(1, g.epoch);
-            Assert.AreEqual(5, g.lastActionSeq["h1"]);
+            Assert.AreEqual(5, g.host.lastActionSeq["h1"]);
             Assert.IsTrue(h2.isBot, "a human peer missing from the room becomes a bot");
             Assert.IsTrue(bot.isBot, "an existing bot stays a bot");
             Assert.AreEqual(h2.targetX, h2.x); Assert.AreEqual(h2.targetY, h2.y, "non-local ents snap to their last known target");

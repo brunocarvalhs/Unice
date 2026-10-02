@@ -54,7 +54,7 @@ namespace Unice
         {
             roomCode = ""; ready = false;
             app.myCharacter = null; app.paused = false; app.eventFeed.Reset(); app.player.Reset(); sync.Reset();
-            game.characters.Clear(); game.isHost = false; game.events.Clear(); game.lastActionSeq.Clear(); game.eventSeq = 0;
+            game.characters.Clear(); game.isHost = false; game.events.Clear(); game.host.Reset(); game.eventSeq = 0;
             game.round = 0; game.unice = null; game.doll.holder = null; game.phase = Phase.Home;
             joinTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }

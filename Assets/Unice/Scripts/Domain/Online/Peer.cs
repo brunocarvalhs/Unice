@@ -2,7 +2,7 @@ namespace Unice
 {
     /// <summary>
     /// What a player tells everyone else about themselves, ~15 times a second (the web version's "presence").
-    /// The host reads it to move that player's character and apply their actions; see <see cref="Game.ApplyPeerInputs"/>.
+    /// The host reads it to move that player's character and apply their actions; see <see cref="MatchHost.ApplyPeerInputs"/>.
     /// </summary>
     public struct Presence
     {

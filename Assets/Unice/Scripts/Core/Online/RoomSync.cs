@@ -42,7 +42,7 @@ namespace Unice
             }
             if (host != null || lastGoodSnapshot == null) return;   // there is a host, or there's no match to continue
             var oldest = HostElection.FindOldestPresent(peers, Time.realtimeSinceStartup);
-            if (oldest != null && oldest.isMe) game.TakeOverAsHost(peers, app.myCharacter, app.myName);
+            if (oldest != null && oldest.isMe) game.host.TakeOver(peers, app.myCharacter, app.myName);
         }
 
         /// <summary>Guest: applies the host's newest snapshot, then plays its new events.</summary>

@@ -5,7 +5,7 @@ namespace Unice
 {
     /// <summary>
     /// Characterization tests for Game's bot-AI and host-input paths (UniceBot/HiderBot/Patrol/UniceBot.OnArrived/UniceBot.FinishSpotCheck/
-    /// UniceBot.SetGoal/UncheckedSpotNear/FleePoint/BotPath.CanSee/UniceBot.HearNoise, plus the public CanMove/BackToLobby/ApplyPeerInputs/NearestSpot).
+    /// UniceBot.SetGoal/UncheckedSpotNear/FleePoint/BotPath.CanSee/UniceBot.HearNoise, plus the public CanMove/BackToLobby/MatchHost.ApplyPeerInputs/NearestSpot).
     /// These are RNG-driven heuristics: tests assert INVARIANTS that must hold regardless of the random draws
     /// (e.g. "stays inside the house"), or force edge conditions that make the outcome deterministic (e.g. an
     /// empty path so FollowPath "arrives" on the very next tick, or a goal placed exactly on a free spot's
@@ -74,7 +74,7 @@ namespace Unice
             Assert.IsNull(Game.NearestSpot(inTheOpenHall));
         }
 
-        // ---------- ApplyPeerInputs (host applying what peers sent) ----------
+        // ---------- MatchHost.ApplyPeerInputs (host applying what peers sent) ----------
 
         [Test]
         public void ReadInputs_PeerMissing_TurnsTheEntIntoABotAndRaisesLeftWhileLive()
@@ -83,7 +83,7 @@ namespace Unice
             g.phase = Phase.Hunt;
             var h2 = g.characters.Find(e => e.playerId == "h2");
 
-            g.ApplyPeerInputs(new List<PeerInfo>(), "h1", 0.05f);
+            g.host.ApplyPeerInputs(new List<PeerInfo>(), "h1", 0.05f);
 
             Assert.IsTrue(h2.isBot, "a human peer that's gone from the room becomes a bot so the match keeps going");
             var ev = g.events[g.events.Count - 1];
@@ -101,10 +101,10 @@ namespace Unice
 
             try
             {
-                g.ApplyPeerInputs(new List<PeerInfo> { peer }, "h1", 0.05f);
+                g.host.ApplyPeerInputs(new List<PeerInfo> { peer }, "h1", 0.05f);
 
                 Assert.AreSame(spot, h2.hidingSpot);
-                Assert.AreEqual(1, g.lastActionSeq["h2"]);
+                Assert.AreEqual(1, g.host.lastActionSeq["h2"]);
             }
             finally { spot.occupant = null; }
         }
@@ -122,7 +122,7 @@ namespace Unice
                 new PeerInfo { id = "h3", presence = new Presence { actionSeq = 0, hasPosition = true, teleportSeq = 5, x = 2000, y = 2000, faceX = 1, faceY = 0 } }, // way beyond the 260 jump threshold
             };
 
-            g.ApplyPeerInputs(peers, "h1", 0.1f);
+            g.host.ApplyPeerInputs(peers, "h1", 0.1f);
 
             Assert.AreEqual(150, h2.x); Assert.AreEqual(100, h2.y); Assert.AreEqual(1, h2.faceX); Assert.AreEqual(0, h2.faceY); Assert.IsTrue(h2.sneaking);
             Assert.AreEqual(100, h3.x); Assert.AreEqual(100, h3.y, "an impossible jump is rejected, not applied");

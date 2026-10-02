@@ -25,7 +25,8 @@ Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos rea
 ## Project Structure
 ```
 Assets/Unice/Scripts/Domain/  → regras puras, sem UnityEngine (assembly Unice.Domain, testado em Edit Mode)
-  Match/    → Game (regras e partida; Game.Snapshot = estado enviado host→convidados), Character, Rules, Kit,
+  Match/    → Game (regras e partida; Game.Snapshot = estado enviado host→convidados), MatchHost (passo do host,
+              comandos dos outros jogadores, assumir como host), Character, Rules, Kit,
               GameEvent, RoundResult, DollState, Phase, PlayerAction
     Bots/   → HiderBot, UniceBot (IA dos bots), BotBrain (memória do bot), BotGoal, BotPath (andar pelo caminho)
   Maps/     → Map (geometria, colisão, linha de visão), Navigation (busca de caminho), MapParts, definições dos mapas

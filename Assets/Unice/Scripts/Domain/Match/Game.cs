@@ -5,8 +5,8 @@ using System.Linq;
 namespace Unice
 {
     /// <summary>
-    /// The match and its rules. The host runs it (rules, bots, timers) and broadcasts snapshots; everyone else mirrors them
-    /// (see Game.Snapshot.cs). A straight port of the web version, so both play the same: keep the numbers and the order of
+    /// The match and its rules. The host runs it (rules, bots, timers — driven by <see cref="MatchHost"/>) and broadcasts snapshots;
+    /// everyone else mirrors them (see Game.Snapshot.cs). A straight port of the web version, so both play the same: keep the numbers and the order of
     /// the checks when changing anything here.
     /// </summary>
     public sealed partial class Game
@@ -40,8 +40,8 @@ namespace Unice
         public RoundResult roundResult;
         /// <summary>True on the one device that runs the match.</summary>
         public bool isHost;
-        /// <summary>Host: the last action number applied per player, so each action happens once.</summary>
-        public readonly Dictionary<string, int> lastActionSeq = new Dictionary<string, int>();
+        /// <summary>What only the host does: the match step, other players' inputs, taking over (see <see cref="MatchHost"/>).</summary>
+        public readonly MatchHost host;
 
         const int MaxEvents = 10;
         /// <summary>How close (house pixels) a player must be to a spot to hide in it or open it.</summary>
@@ -54,6 +54,7 @@ namespace Unice
 
         public Game()
         {
+            host = new MatchHost(this);
             hiderBot = new HiderBot(this);
             uniceBot = new UniceBot(this);
         }
@@ -333,24 +334,7 @@ namespace Unice
             float newY = character.y + dy; if (Map.CanStand(character.x, newY)) character.y = newY;
         }
 
-        // ---------- host tick ----------
-        /// <summary>Host only: one fixed step of the whole match.</summary>
-        public void HostStep(float dt, IReadOnlyList<PeerInfo> peers, string myPlayerId, Action<float> moveMyCharacter, Func<List<Human>> humansNow)
-        {
-            hostClock += dt;
-            if (peers != null) ApplyPeerInputs(peers, myPlayerId, dt);
-            if (IsLive) { moveMyCharacter?.Invoke(dt); Simulate(dt); }
-            else if (phase == Phase.Result)
-            {
-                timeLeft -= dt;
-                if (timeLeft <= 0)
-                {
-                    if (round >= totalRounds) { phase = Phase.Final; AddEvent(GameEventType.Final); }
-                    else StartRound(humansNow());
-                }
-            }
-        }
-
+        // ---------- the round (host) ----------
         /// <summary>One step of a live round: timers, bots, noise, touch catches and the doll's giggle.</summary>
         public void Simulate(float dt)
         {
@@ -409,64 +393,6 @@ namespace Unice
             phase = Phase.Hunt; timeLeft = huntTime;
             unice.x = Map.Entrance.x; unice.y = Map.Entrance.y; unice.faceX = 0; unice.faceY = -1; unice.teleportSeq++;
             AddEvent(GameEventType.Enter);
-        }
-
-        /// <summary>Host only: apply what the other players sent (their position and their last action).</summary>
-        public void ApplyPeerInputs(IReadOnlyList<PeerInfo> peers, string myPlayerId, float dt)
-        {
-            foreach (var character in characters)
-            {
-                if (character.isBot || character.playerId == myPlayerId) continue;
-                PeerInfo peer = null;
-                foreach (var candidate in peers) if (candidate.id == character.playerId) { peer = candidate; break; }
-                if (peer == null)
-                {
-                    // the player left: a bot finishes the match in their place
-                    character.isBot = true; character.ResetBot();
-                    if (IsLive) AddEvent(GameEventType.Left, actor: character.index);
-                    continue;
-                }
-
-                var presence = peer.presence;
-                character.talking = presence.talking;
-                int lastSeq = lastActionSeq.TryGetValue(peer.id, out int seq) ? seq : 0;
-                if (presence.actionSeq > lastSeq) { lastActionSeq[peer.id] = presence.actionSeq; ApplyAction(character, presence.action, presence.actionArg); }
-
-                // positions sent before the last teleport are stale
-                if (presence.hasPosition && presence.teleportSeq >= character.teleportSeq && CanMove(character))
-                {
-                    float jump = Geometry.Distance(presence.x, presence.y, character.x, character.y);
-                    if (jump < 260 && Map.CanStand(presence.x, presence.y))
-                    {
-                        character.speed += (jump / dt - character.speed) * .25f;
-                        character.x = presence.x; character.y = presence.y;
-                    }
-                    else { character.speed *= .7f; character.teleportSeq++; }   // impossible jump (lag spike): send the player back to where the host has them
-                    float faceLength = MathF.Sqrt(presence.faceX * presence.faceX + presence.faceY * presence.faceY);
-                    if (faceLength > .1f) { character.faceX = presence.faceX / faceLength; character.faceY = presence.faceY / faceLength; }
-                    character.sneaking = presence.sneaking;
-                }
-                else character.speed *= .7f;
-                character.moving = character.speed > 15;
-                character.loud = !character.IsUnice && character.moving && !character.sneaking && character.speed > 60;
-            }
-        }
-
-        /// <summary>The host left: this device continues the match from the last snapshot it received.</summary>
-        public void TakeOverAsHost(IReadOnlyList<PeerInfo> peers, Character myCharacter, string myName)
-        {
-            isHost = true; epoch += 1; lastActionSeq.Clear();
-            foreach (var peer in peers) lastActionSeq[peer.id] = peer.presence.actionSeq;   // don't replay actions the old host already applied
-            foreach (var character in characters)
-            {
-                if (character != myCharacter) { character.x = character.targetX; character.y = character.targetY; }
-                bool stillHere = peers.Any(peer => peer.id == character.playerId);
-                if (!character.isBot && !stillHere) character.isBot = true;
-                character.ResetBot();
-            }
-            foreach (var spot in Map.Spots) spot.reservedBy = null;
-            if (doll.hasLastGiggle) doll.lastGiggleSpot = doll.holder != null ? doll.holder.hidingSpot : null;
-            AddEvent(GameEventType.Host, text: myName);
         }
     }
 }
