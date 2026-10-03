@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Unice main manifest (Player Settings > Publishing Settings > Custom Main Manifest).
+  Based on Unity 6's template (PlaybackEngines/AndroidPlayer/Apk/UnityManifest.xml), GameActivity entry only.
+
+  Privacy: the game shows no ads. Firebase Analytics would otherwise add the advertising ID permissions and collect the
+  ad ID; they are removed here so the Play Console can declare "no advertising ID". See docs/SECURITY.md.
+-->
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- added by Firebase Analytics (Google Play services / Privacy Sandbox); not used: the game has no ads -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
+
+    <application>
+        <!-- Firebase Analytics: never collect the advertising ID -->
+        <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false" />
+
+        <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+                  android:theme="@style/BaseUnityGameActivityTheme">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.app.lib_name" android:value="game" />
+        </activity>
+    </application>
+</manifest>
