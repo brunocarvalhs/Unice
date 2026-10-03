@@ -18,8 +18,9 @@ Este diretório reúne os workflows de CI/CD do projeto Unity.
 
 ### `release.yml`
 
-- gera build de release para Android
-- produz AAB e envia para o Google Play
+- gera build de release para Android (AAB, `versionCode` calculado da tag semântica)
+- envia para a faixa de **teste interno** do Google Play como **rascunho** — a promoção para teste fechado/produção é feita à mão no Play Console
+- o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)
 - exige signing keystore e secrets do Google Play
 
 ### `pulls.yml`
@@ -27,6 +28,11 @@ Este diretório reúne os workflows de CI/CD do projeto Unity.
 - roda em pull requests
 - executa os testes do Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
 - publica artefatos de resultado e coverage (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
+
+## Segurança
+
+- Todas as ações estão fixadas por SHA de commit (comentário com a versão ao lado). Para atualizar uma ação, troque o SHA pelo da nova versão.
+- Mais detalhes em `docs/SECURITY.md`.
 
 ## Secrets necessários
 

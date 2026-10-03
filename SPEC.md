@@ -94,6 +94,7 @@ Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda)
 
 ## Boundaries
 - **Sempre fazer:** manter paridade com a versão web ao tocar em `Game.cs`/`Rules`/`Bots`; validar build Android (CI) antes de merge; seguir as convenções de Code Style (nomes descritivos, uma responsabilidade por classe, comentários); rodar os testes Edit Mode; atualizar `docs/ANALYTICS.md` ao mudar eventos e `docs/ARCHITECTURE_AUDIT.md`/Project Structure ao mudar a estrutura.
+- **Sempre fazer (segurança):** manter as ações do GitHub fixadas por SHA; nunca enviar para a faixa de produção pelo CI; conferir as permissões do AAB depois de mudar pacotes (`docs/SECURITY.md`).
 - **Perguntar antes:** mudar versão do Unity ou de pacotes em `Packages/manifest.json`; alterar `ProjectSettings/` (ex.: `GvhProjectSettings.xml`, `ProjectSettings.asset`) fora do escopo pedido; mudar workflows de CI/CD; adicionar nova plataforma de build; mudar o backend de rede (`NgoBackend`/Unity Services Multiplayer).
 - **Nunca fazer:** commitar segredos/chaves do Firebase ou assinatura Android; editar `Library/`, `Temp/`, pastas geradas pelo Unity; remover testes sem aprovação; quebrar o "straight port" das regras sem alinhar com a versão web primeiro; mudar o formato do snapshot/presença sem subir a versão (`Game.SnapshotVersion` / `PresenceCodec.Version`).
 

@@ -14,6 +14,13 @@ Todas as alterações relevantes do projeto serão documentadas neste arquivo.
 - A IA dos bots, a busca de caminho e a parte do host saíram de `Game`/`Map` para classes próprias (`Bots/`, `Navigation`, `MatchHost`).
 - **Formato do snapshot de rede na versão 5:** aparelhos com builds anteriores não jogam na mesma sala que este.
 
+### Segurança e Google Play
+- Release vai para a faixa de **teste interno como rascunho** (antes ia direto para produção) e gera AAB de fato (`androidExportType`).
+- Ações do GitHub fixadas por SHA em todos os workflows.
+- Removidos o ID de publicidade (manifesto próprio), o Unity IAP e o Firebase App Check, que não eram usados.
+- Botão "Silenciar"/"Ouvir" para outros jogadores no chat de voz. **Formato da presença na versão 2** (builds anteriores não jogam com este).
+- Checklist de privacidade e do Play Console em `docs/SECURITY.md`.
+
 ### Corrigido
 - Campo do código da sala: agora aceita só letras maiúsculas e números enquanto se digita, e sobe acima do teclado do celular para o texto ficar visível.
 
