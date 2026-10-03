@@ -4,7 +4,7 @@ Este diretório reúne os workflows de CI/CD do projeto Unity.
 
 ## Workflows
 
-Fluxo: `tests` → `build`. O build só roda se os testes passarem.
+Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). Cada etapa só roda se a anterior passar.
 
 ### `version.yml`
 
@@ -14,7 +14,8 @@ Fluxo: `tests` → `build`. O build só roda se os testes passarem.
 
 ### `tests.yml`
 
-- testes Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
+- `validate` (segundos, sem Unity): `actionlint` nos workflows e checagem de `.meta` faltando/órfão em `Assets/`
+- `Edit Mode tests`: testes Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
 - reutilizável (`workflow_call`): chamado por `debug.yml` e `release.yml`; também pode ser rodado sozinho pela aba Actions
 - publica o check **Edit Mode test results** no commit/PR, mais os artefatos `unity-test-results` e `unity-coverage` (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
 
@@ -27,7 +28,7 @@ Fluxo: `tests` → `build`. O build só roda se os testes passarem.
 
 ### `release.yml`
 
-- roda em tags `v*.*.*`: `tests` → build
+- roda em tags `v*.*.*`: `tests` → build do AAB → `publish` (envio ao Google Play em job separado, dá para rodar de novo sem rebuild)
 - gera build de release para Android (AAB, `versionCode` calculado da tag semântica)
 - envia para a faixa de **teste interno** do Google Play como **rascunho** — a promoção para teste fechado/produção é feita à mão no Play Console
 - o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)

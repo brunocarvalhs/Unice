@@ -11,6 +11,11 @@ name: Debug APK
       - master
   workflow_dispatch:
 
+# A new push to the same branch/PR cancels the older run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     uses: ./.github/workflows/tests.yml

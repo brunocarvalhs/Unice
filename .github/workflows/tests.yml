@@ -1,14 +1,46 @@
 name: Tests
 
-# Edit Mode tests. Called by debug.yml (push/PR) and release.yml before they build, so a red test never
+# Validate + Edit Mode tests. Called by debug.yml (push/PR) and release.yml before they build, so a red test never
 # produces an APK/AAB. Can also be run alone from the Actions tab.
 "on":
   workflow_call:
   workflow_dispatch:
 
 jobs:
+  # Fast checks with no Unity (seconds): fail here before spending ~20 min on the Unity image.
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color # 1.7.12
+
+      # A missing .meta makes Unity assign a new GUID and silently break references; an orphan one is a leftover.
+      - name: Check .meta files
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Files inside folder-assets (.androidlib, .bundle, .framework…) and hidden/~ paths don't get .meta files.
+          skip='(^|/)\.|~(/|$)|\.(androidlib|bundle|framework|xcframework|plugin)/'
+          status=0
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *.meta) [ -e "${f%.meta}" ] || { echo "::error file=$f::orphan .meta (asset was deleted)"; status=1; } ;;
+              *) [ -f "$f.meta" ] || { echo "::error file=$f::missing .meta (Unity will assign a new GUID)"; status=1; } ;;
+            esac
+          done < <(git ls-files -z Assets | grep -zvE "$skip")
+          exit $status
+
   edit-mode-tests:
     name: Edit Mode tests
+    needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:

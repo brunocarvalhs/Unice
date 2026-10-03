@@ -20,15 +20,12 @@ jobs:
       checks: write
 
   build-release:
-    name: Build release bundle and upload to the internal test track
+    name: Build release AAB
     needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
       contents: write
-    env:
-      # true once the Play service account secret exists (step-level env isn't visible to that step's `if`)
-      HAS_PLAY_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
 
     steps:
       # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
@@ -101,10 +98,30 @@ jobs:
           path: build/Release/**/*.aab
           if-no-files-found: error
 
+  # Separate job so a failed Play upload can be re-run without rebuilding the AAB.
+  publish:
+    name: Upload to Google Play
+    needs: build-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # true once the Play service account secret exists (step-level env isn't visible to that step's `if`)
+      HAS_PLAY_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+
+    steps:
+      - name: Download AAB artifact
+        if: env.HAS_PLAY_ACCOUNT == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Unice-release-aab
+          path: build/Release
+
       # The very first AAB of a new app must be uploaded by hand in the Play Console (download the
       # "Unice-release-aab" artifact above). Until GOOGLE_PLAY_SERVICE_ACCOUNT_JSON exists, this step is skipped.
       - name: Upload to Google Play
-        if: success() && env.HAS_PLAY_ACCOUNT == 'true'
+        if: env.HAS_PLAY_ACCOUNT == 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
