@@ -189,6 +189,20 @@ namespace Unice
         /// <summary>Real voice activity right now, gated by the whisper toggle — the same rule used locally and sent to the host.</summary>
         internal bool IsTalking => voice != null && voice.IsSpeaking && !Whisper;
 
+        /// <summary>Another player in the room can be muted (they are online with voice, and it isn't this device).</summary>
+        public bool CanMutePlayer(string playerId) => voice != null && playerId != myPlayerId && room.VoiceIdOf(playerId) != null;
+        /// <summary>This device chose not to hear that player.</summary>
+        public bool IsPlayerMuted(string playerId) => voice != null && voice.IsPlayerMuted(room.VoiceIdOf(playerId));
+        /// <summary>Stops or resumes hearing a player, on this device only (the moderation the store requires for voice chat).</summary>
+        public void TogglePlayerMuted(string playerId)
+        {
+            var voiceId = room.VoiceIdOf(playerId);
+            if (voice == null || voiceId == null) return;
+            bool muted = !voice.IsPlayerMuted(voiceId);
+            voice.SetPlayerMuted(voiceId, muted);
+            Metrics.Log("player_muted", ("muted", muted));
+        }
+
         /// <summary>Esc / Android back: pause in a match, leave the room elsewhere, quit from home.</summary>
         public void Back()
         {

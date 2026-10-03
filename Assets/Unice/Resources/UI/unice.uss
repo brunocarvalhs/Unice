@@ -230,3 +230,7 @@
 .res-count { flex-direction: row; align-items: center; justify-content: center; margin-top: 10px; }
 .res-count-n { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 46px; color: rgb(240, 176, 87); margin: 0 10px; }
 .res-rules { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; color: rgb(173, 154, 140); white-space: normal; -unity-text-align: middle-center; margin-top: 12px; }
+
+/* "Mute"/"Unmute" for another player's voice (waiting room cards, in-game player list) */
+.mute-btn { font-size: 12px; letter-spacing: 1px; padding: 1px 10px; margin: 3px 0 0 0; min-height: 0; border-width: 1px; }
+.mute-btn-on { color: rgb(239, 115, 148); border-color: rgb(239, 115, 148); }

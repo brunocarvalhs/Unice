@@ -159,6 +159,14 @@ namespace Unice
             return humans;
         }
 
+        /// <summary>The voice id another player sent in their presence (null if unknown or without voice).</summary>
+        public string VoiceIdOf(string playerId)
+        {
+            if (!IsOnline) return null;
+            var peer = connection.Peers.FirstOrDefault(candidate => candidate.id == playerId);
+            return peer?.presence.voiceId;
+        }
+
         /// <summary>Host, in the waiting room: starts the match.</summary>
         public void StartMatch(int bots, int rounds)
         {

@@ -169,6 +169,8 @@ namespace Unice
             ["lobby.host"] = new[] { "ANFITRIÃO", "HOST", "ANFITRIÓN" },
             ["lobby.ready"] = new[] { "PRONTO", "READY", "LISTO" },
             ["lobby.waiting"] = new[] { "ESPERANDO", "WAITING", "ESPERANDO" },
+            ["voice.mute_player"] = new[] { "Silenciar", "Mute", "Silenciar" },
+            ["voice.unmute_player"] = new[] { "Ouvir", "Unmute", "Escuchar" },
             ["lobby.bots_plural"] = new[] { "ROBÔS", "BOTS", "BOTS" },
             ["lobby.bot_singular"] = new[] { "ROBÔ", "BOT", "BOT" },
             ["lobby.rounds_label"] = new[] { "RODADAS", "ROUNDS", "RONDAS" },

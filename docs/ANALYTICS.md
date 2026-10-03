@@ -47,6 +47,7 @@ Todo o envio passa por `Assets/Unice/Scripts/Core/Analytics/Metrics.cs`.
 | `match_end` | Placar final | `rounds`, `score`, `place` (1 = venceu), `players`, `online` | `EventFeed.OnMatchEnd` |
 | `player_action` | O jogador usa uma ação | `type` (`hide`/`exit`/`open`/`pass`/`laugh`), `spot` (tipo do móvel, só em `hide`) | `PlayerControl` |
 | `pause` | Abriu o menu de pausa | `online` | `App.TogglePause` |
+| `player_muted` | Silenciou ou voltou a ouvir outro jogador | `muted` (1 = silenciou) | `App.TogglePlayerMuted` |
 
 ## Como verificar
 

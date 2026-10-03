@@ -18,6 +18,12 @@ namespace Unice
         /// match position (otherwise everyone stays at the same spot, e.g. the waiting room). <paramref name="whisper"/>: transmit quieter.
         /// </summary>
         void Tick(bool speak, float x, float y, bool hasPosition, bool whisper);
+
+        /// <summary>This device's id in the voice channel (sent in its presence), or null before it joins voice.</summary>
+        string VoicePlayerId { get; }
+        /// <summary>Stops (or resumes) hearing one player, on this device only. Remembered while the app runs, even if they rejoin.</summary>
+        void SetPlayerMuted(string voicePlayerId, bool muted);
+        bool IsPlayerMuted(string voicePlayerId);
     }
 
     public static class VoiceRegistry

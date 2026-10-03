@@ -37,7 +37,7 @@ namespace Unice
 
             var me = app.myCharacter; var holder = game.doll.holder; var perspective = app.perspective;
             bool teamInfo = perspective.ShowsTeamInfo, spectating = me == null || me.outOfRound;
-            string signature = string.Join("|", game.characters.Select(character => $"{character.playerId},{character.role},{character.outOfRound},{character.hidingSpot != null},{character.moving},{character.sneaking},{character == holder},{character.score},{Kit.Pack(character.kit)}"))
+            string signature = string.Join("|", game.characters.Select(character => $"{character.playerId},{character.role},{character.outOfRound},{character.hidingSpot != null},{character.moving},{character.sneaking},{character == holder},{character.score},{Kit.Pack(character.kit)},{app.IsPlayerMuted(character.playerId)},{app.CanMutePlayer(character.playerId)}"))
                              + me?.playerId + me?.role + game.phase + teamInfo + Localization.Current + spectating + perspective.spectateTargetId;
             if (signature == renderedSignature) return;
             renderedSignature = signature;
@@ -79,6 +79,7 @@ namespace Unice
                 var dollIcon = IgnorePointer(AddElement(row));
                 dollIcon.style.width = 18; dollIcon.style.height = 24; dollIcon.style.backgroundImage = new StyleBackground(Art.Centered("doll", 1));
             }
+            if (!character.isBot && character != me) MuteButton.Add(row, app, character.playerId, Invalidate);
             IgnorePointer(AddLabel(row, character.score.ToString(), "pts")).style.marginLeft = 8;
         }
 

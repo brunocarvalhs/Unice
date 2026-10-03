@@ -106,7 +106,7 @@ namespace Unice
             var host = app.IsOnline ? app.FindHost() : null;
             string hostId = host != null ? host.id : app.IsOnline ? null : app.myPlayerId;
             int bots = matchOptions.BotsInMatch;
-            string signature = string.Join("|", players.Select(player => player.id + player.name + Kit.Pack(player.kit) + player.ready))
+            string signature = string.Join("|", players.Select(player => player.id + player.name + Kit.Pack(player.kit) + player.ready + app.CanMutePlayer(player.id) + app.IsPlayerMuted(player.id)))
                              + hostId + game.isHost + bots + game.totalRounds + game.hideTime + game.huntTime + game.giggleInterval + game.mapId + app.ready + app.roomCode;
             if (signature == renderedSignature) return;
             renderedSignature = signature;
@@ -126,6 +126,7 @@ namespace Unice
                 bool isHost = player.id == hostId;
                 var stateLabel = AddLabel(card, Localization.Get(isHost ? "lobby.host" : player.ready ? "lobby.ready" : "lobby.waiting"), "pcard-st");
                 if (isHost || player.ready) stateLabel.AddToClassList("pcard-ok");
+                if (!player.isMe) MuteButton.Add(card, app, player.id, Invalidate);
             }
             if (bots > 0)
             {

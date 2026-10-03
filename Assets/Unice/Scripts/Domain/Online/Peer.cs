@@ -22,6 +22,8 @@ namespace Unice
         public bool sneaking;
         /// <summary>Voice activity right now (counts as noise for the Unice unless whispering).</summary>
         public bool talking;
+        /// <summary>This player's id in the voice channel (null without voice), so others can mute them.</summary>
+        public string voiceId;
 
         /// <summary>Increases with every action; the host applies <see cref="action"/> once per new value.</summary>
         public int actionSeq;

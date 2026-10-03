@@ -9,7 +9,9 @@ namespace Unice
     /// </summary>
     public static class PresenceCodec
     {
-        const byte Version = 1;
+        const byte Version = 2;
+        /// <summary>Voice ids are short ids from the voice service; anything else is dropped.</summary>
+        const int MaxVoiceIdLength = 64;
 
         public static byte[] Write(in Presence presence)
         {
@@ -21,6 +23,7 @@ namespace Unice
             if (presence.hasPosition) { writer.Write(presence.x); writer.Write(presence.y); writer.Write(presence.faceX); writer.Write(presence.faceY); writer.Write(presence.sneaking); }
             writer.Write(presence.actionSeq); writer.Write((byte)presence.action); writer.Write((short)presence.actionArg);
             writer.Write(presence.talking);
+            writer.Write(presence.voiceId ?? "");
             writer.Flush();
             return stream.ToArray();
         }
@@ -48,9 +51,19 @@ namespace Unice
                 presence.action = action <= (byte)PlayerAction.Laugh ? (PlayerAction)action : PlayerAction.None;
                 presence.actionArg = reader.ReadInt16();
                 presence.talking = reader.ReadBoolean();
+                presence.voiceId = CleanVoiceId(reader.ReadString());
                 return true;
             }
             catch (Exception) { return false; }
+        }
+
+        /// <summary>Keeps a voice id only if it looks like one (letters, digits, '-' and '_', not too long); otherwise null.</summary>
+        public static string CleanVoiceId(string voiceId)
+        {
+            if (string.IsNullOrEmpty(voiceId) || voiceId.Length > MaxVoiceIdLength) return null;
+            foreach (char c in voiceId)
+                if (!(char.IsLetterOrDigit(c) && c < 128) && c != '-' && c != '_') return null;
+            return voiceId;
         }
     }
 }

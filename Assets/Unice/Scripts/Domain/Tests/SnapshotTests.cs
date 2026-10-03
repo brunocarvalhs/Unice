@@ -152,7 +152,7 @@ namespace Unice
             {
                 name = "Ana", kit = Kit.Pack(new[] { 1, 1, 1, 1, 1, 1, 1 }), joinTime = 123456789L, ready = true, teleportSeq = 5,
                 hasPosition = true, x = 10.5f, y = 20.5f, faceX = 0.6f, faceY = 0.8f, sneaking = true, talking = true,
-                actionSeq = 9, action = PlayerAction.Pass, actionArg = 3
+                actionSeq = 9, action = PlayerAction.Pass, actionArg = 3, voiceId = "Ab12-cd_34"
             };
 
             bool ok = PresenceCodec.TryRead(PresenceCodec.Write(p), out var p2);
@@ -163,6 +163,7 @@ namespace Unice
             Assert.IsTrue(p2.hasPosition); Assert.AreEqual(10.5f, p2.x); Assert.AreEqual(20.5f, p2.y); Assert.AreEqual(0.6f, p2.faceX); Assert.AreEqual(0.8f, p2.faceY);
             Assert.IsTrue(p2.sneaking); Assert.AreEqual(9, p2.actionSeq); Assert.AreEqual(PlayerAction.Pass, p2.action); Assert.AreEqual(3, p2.actionArg);
             Assert.IsTrue(p2.talking, "voice-level noise flag round-trips over the wire like sneak does");
+            Assert.AreEqual("Ab12-cd_34", p2.voiceId, "voice id round-trips so others can mute this player");
         }
 
         [Test]
@@ -175,6 +176,24 @@ namespace Unice
             Assert.IsFalse(p2.hasPosition);
             Assert.AreEqual(0, p2.x); Assert.AreEqual(0, p2.y); // position fields are simply skipped on the wire, defaulted on read
         }
+
+        [Test]
+        public void Wire_TryRead_NoVoice_VoiceIdIsNull()
+        {
+            var p = new Presence { name = "A", voiceId = null };
+
+            PresenceCodec.TryRead(PresenceCodec.Write(p), out var p2);
+
+            Assert.IsNull(p2.voiceId);
+        }
+
+        [TestCase("id with spaces")]
+        [TestCase("<script>")]
+        [TestCase("ünïcode")]
+        public void CleanVoiceId_NotAnId_ReturnsNull(string voiceId) => Assert.IsNull(PresenceCodec.CleanVoiceId(voiceId));
+
+        [Test]
+        public void CleanVoiceId_TooLong_ReturnsNull() => Assert.IsNull(PresenceCodec.CleanVoiceId(new string('a', 65)));
 
         [Test]
         public void Wire_TryRead_NaNPosition_StillSucceedsButClearsHasPos()
@@ -191,7 +210,8 @@ namespace Unice
         public void Wire_TryRead_MalformedOrNullData_ReturnsFalse()
         {
             Assert.IsFalse(PresenceCodec.TryRead(new byte[] { 0 }, out _), "wrong version marker");
-            Assert.IsFalse(PresenceCodec.TryRead(new byte[] { 1 }, out _), "truncated right after the version byte");
+            Assert.IsFalse(PresenceCodec.TryRead(new byte[] { 1 }, out _), "previous format version (1) is rejected");
+            Assert.IsFalse(PresenceCodec.TryRead(new byte[] { 2 }, out _), "truncated right after the version byte");
             Assert.IsFalse(PresenceCodec.TryRead(null, out _), "null payload");
         }
     }

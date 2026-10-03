@@ -80,6 +80,7 @@ namespace Unice
                 teleportSeq = me != null ? me.teleportSeq : 0,
                 actionSeq = player.actionSeq, action = player.action, actionArg = player.actionArg,
                 talking = app.IsTalking,
+                voiceId = app.voice?.VoicePlayerId,
             };
             if (me != null && game.CanMove(me))
             {

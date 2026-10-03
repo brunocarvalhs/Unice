@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Services.Core;
 using Unity.Services.Authentication;
@@ -29,8 +30,11 @@ namespace Unice
         GameObject ear;
         /// <summary>This device in the channel; its speech detection drives <see cref="IsSpeaking"/>.</summary>
         VivoxParticipant self;
+        /// <summary>Players this device chose not to hear (by voice id).</summary>
+        readonly HashSet<string> mutedPlayers = new HashSet<string>();
 
         public bool MicOn { get; set; }
+        public string VoicePlayerId => loggedIn ? AuthenticationService.Instance.PlayerId : null;
         public bool IsSpeaking { get; private set; }
 
         public async Task JoinRoomAsync(string channelName)
@@ -85,9 +89,37 @@ namespace Unice
 
         void OnChannelJoined(string name) { if (name == channel) joined = true; }
 
+        public bool IsPlayerMuted(string voicePlayerId) => voicePlayerId != null && mutedPlayers.Contains(voicePlayerId);
+
+        public void SetPlayerMuted(string voicePlayerId, bool muted)
+        {
+            if (string.IsNullOrEmpty(voicePlayerId)) return;
+            if (muted) mutedPlayers.Add(voicePlayerId); else mutedPlayers.Remove(voicePlayerId);
+            if (channel == null) return;
+            try
+            {
+                if (!VivoxService.Instance.ActiveChannels.TryGetValue(channel, out var participants)) return;
+                foreach (var participant in participants)
+                    if (participant.PlayerId == voicePlayerId) ApplyMute(participant);
+            }
+            catch (Exception error) { Metrics.Error(error, "voice"); }
+        }
+
+        void ApplyMute(VivoxParticipant participant)
+        {
+            if (participant.IsSelf) return;
+            if (mutedPlayers.Contains(participant.PlayerId)) participant.MutePlayerLocally(); else participant.UnmutePlayerLocally();
+        }
+
         void OnParticipantAdded(VivoxParticipant participant)
         {
-            if (!participant.IsSelf || participant.ChannelName != channel) return;
+            if (participant.ChannelName != channel) return;
+            if (!participant.IsSelf)
+            {
+                // someone muted earlier who joins (again) stays muted
+                if (mutedPlayers.Contains(participant.PlayerId)) ApplyMute(participant);
+                return;
+            }
             DetachSelf();
             self = participant; self.ParticipantSpeechDetected += OnSelfSpeechDetected; IsSpeaking = self.SpeechDetected;
         }
