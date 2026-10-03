@@ -48,6 +48,8 @@ namespace Unice
                 VivoxService.Instance.ParticipantAddedToChannel += OnParticipantAdded;
                 VivoxService.Instance.ParticipantRemovedFromChannel += OnParticipantRemoved;
                 await VivoxService.Instance.JoinPositionalChannelAsync(channelName, ChatCapability.AudioOnly, ChannelProperties);
+                // LeaveRoomAsync ran while joining: it skipped the channel we weren't in yet, so leave it now
+                if (channel != channelName) { await VivoxService.Instance.LeaveChannelAsync(channelName); return; }
                 VivoxService.Instance.MuteInputDevice();   // Tick() unmutes once allowed to speak
             }
             catch (Exception error)
@@ -70,7 +72,8 @@ namespace Unice
             VivoxService.Instance.ChannelJoined -= OnChannelJoined;
             VivoxService.Instance.ParticipantAddedToChannel -= OnParticipantAdded;
             VivoxService.Instance.ParticipantRemovedFromChannel -= OnParticipantRemoved;
-            if (leaving == null) return;
+            // still joining (or the join failed): nothing to leave yet, JoinRoomAsync leaves once the join lands
+            if (leaving == null || !VivoxService.Instance.ActiveChannels.ContainsKey(leaving)) return;
             try { await VivoxService.Instance.LeaveChannelAsync(leaving); }
             catch (Exception error) { Metrics.Error(error, "voice"); }
         }
