@@ -4,30 +4,34 @@ Este diretório reúne os workflows de CI/CD do projeto Unity.
 
 ## Workflows
 
+Fluxo: `tests` → `build`. O build só roda se os testes passarem.
+
 ### `version.yml`
 
 - dispara em push para `main`, `master` e `develop`
 - gera tags no formato `vX.Y.Z`
 - pode ser executado manualmente com `workflow_dispatch`
 
+### `tests.yml`
+
+- testes Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
+- reutilizável (`workflow_call`): chamado por `debug.yml` e `release.yml`; também pode ser rodado sozinho pela aba Actions
+- publica o check **Edit Mode test results** no commit/PR, mais os artefatos `unity-test-results` e `unity-coverage` (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
+
 ### `debug.yml`
 
+- roda em push para `develop` e em pull requests: `tests` → build
 - gera APK de debug para Android
 - cria artefato com o APK compilado
 - útil para testes e download fácil em dispositivos
 
 ### `release.yml`
 
+- roda em tags `v*.*.*`: `tests` → build
 - gera build de release para Android (AAB, `versionCode` calculado da tag semântica)
 - envia para a faixa de **teste interno** do Google Play como **rascunho** — a promoção para teste fechado/produção é feita à mão no Play Console
 - o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)
 - exige signing keystore e secrets do Google Play
-
-### `pulls.yml`
-
-- roda em pull requests
-- executa os testes do Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
-- publica artefatos de resultado e coverage (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
 
 ## Segurança
 

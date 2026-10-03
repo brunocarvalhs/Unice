@@ -68,7 +68,7 @@ independentes de como o resto está dividido.
 
 ## Test Coverage
 
-- **Atual:** 123 testes Edit Mode, todos passando. `com.unity.testtools.codecoverage` instalado; o workflow `pulls.yml`
+- **Atual:** 123 testes Edit Mode, todos passando. `com.unity.testtools.codecoverage` instalado; o workflow `tests.yml`
   gera o relatório de cobertura como artefato do PR.
   - `Domain/Tests`: `GameTests`, `GameAiTests`, `MatchHostTests`, `SnapshotTests`, `HostElectionTests`, `MapTests`,
     `KitTests`, `CommonTests`, `VoiceRuleTests`.
@@ -89,7 +89,7 @@ independentes de como o resto está dividido.
 2. **Média prioridade — teste do caminho de troca de host.** `RoomSync.ElectHost` + `MatchHost.TakeOver` é o fluxo
    mais sensível e só é verificado à mão. Um `INetBackend` falso (lista de `PeerInfo` controlada pelo teste) permitiria
    testar a troca de host em Edit Mode sem rede.
-3. **Média prioridade — acompanhar a cobertura do `Unice.Domain`** no artefato do `pulls.yml` e fechar o que faltar
+3. **Média prioridade — acompanhar a cobertura do `Unice.Domain`** no artefato do `tests.yml` e fechar o que faltar
    para 85% (provavelmente `Navigation` em casos de borda e os mapas novos).
 4. **Longo prazo / só se mudar algo:** extrair Use Cases explícitos de `Game` só se surgir um segundo orquestrador
    (ex.: modo de jogo diferente). Dividir `Game.cs` mais só se ele voltar a crescer — hoje é o port das regras,

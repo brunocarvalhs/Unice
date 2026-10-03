@@ -61,7 +61,7 @@ A estrutura completa, com o papel de cada pasta, está em `SPEC.md` → Project 
 - No Editor: **Window > General > Test Runner > EditMode > Run All**.
 - Pela linha de comando:
   `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml`
-- Também rodam automaticamente em todo pull request (`pulls.yml`), com relatório de cobertura.
+- Também rodam automaticamente em todo push para `develop`, pull request e release (`tests.yml`, antes do build), com relatório de cobertura.
 
 ## Claude Code (assistente de IA)
 

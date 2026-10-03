@@ -26,11 +26,11 @@ Sucesso = paridade de regras com a versão web, build Android estável via CI, e
 Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos reais:
 
 - **Build debug (CI, push/PR em develop/main/master):** `.github/workflows/debug.yml` → `game-ci/unity-builder@v4`, `targetPlatform: Android`, `customParameters: -quit -batchmode -logFile ...`
-- **Validação de PR:** `.github/workflows/pulls.yml`
+- **Testes no CI:** `.github/workflows/tests.yml` (chamado por `debug.yml` e `release.yml` antes do build)
 - **Release (Google Play):** `.github/workflows/release.yml`
 - **Versionamento (tags):** `.github/workflows/version.yml`
 - **Local:** abrir o projeto no Unity Editor `6000.6.3f1`, abrir a cena principal, Play ou `File > Build Settings` para Android.
-- **Testes:** `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml` (ou Test Runner no Editor). No CI, rodam no `pulls.yml` com cobertura — ver Testing Strategy.
+- **Testes:** `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml` (ou Test Runner no Editor). No CI, rodam no `tests.yml` com cobertura — ver Testing Strategy.
 
 ## Project Structure
 ```
@@ -99,7 +99,7 @@ Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda)
 - **Nunca fazer:** commitar segredos/chaves do Firebase ou assinatura Android; editar `Library/`, `Temp/`, pastas geradas pelo Unity; remover testes sem aprovação; quebrar o "straight port" das regras sem alinhar com a versão web primeiro; mudar o formato do snapshot/presença sem subir a versão (`Game.SnapshotVersion` / `PresenceCodec.Version`).
 
 ## Success Criteria
-- Build Android gerado com sucesso pelos workflows `debug.yml`/`pulls.yml`/`release.yml`.
+- Build Android gerado com sucesso pelos workflows `debug.yml`/`release.yml`.
 - Fluxo completo de partida (Home→Lobby→Hide→Hunt→Result→Final) funcional em host e peers via `NgoBackend`.
 - Analytics e Crashlytics enviando dados de builds em aparelho, sem bloquear o jogo se o Firebase falhar.
 - Testes Edit Mode passando e cobertura do `Unice.Domain` ≥ 85%.

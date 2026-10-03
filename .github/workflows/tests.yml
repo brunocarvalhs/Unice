@@ -1,26 +1,25 @@
-name: Pull Requests
+name: Tests
 
+# Edit Mode tests. Called by debug.yml (push/PR) and release.yml before they build, so a red test never
+# produces an APK/AAB. Can also be run alone from the Actions tab.
 "on":
-  pull_request:
-    branches:
-      - main
-      - master
-      - develop
+  workflow_call:
   workflow_dispatch:
 
 jobs:
-  validate-pr:
-    name: Validate Unity PR
+  edit-mode-tests:
+    name: Edit Mode tests
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: write # publishes the test results as a check on the commit/PR
 
     steps:
-      # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
-      # Drop preinstalled tools this job never uses (.NET, the runner's Android SDK, Haskell, CodeQL, tool cache).
+      # The Unity Docker image is large and the hosted runner can run out of disk pulling it.
       - name: Free disk space
         shell: bash
         run: |
-          df -h /
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
                       /opt/hostedtoolcache /usr/local/share/powershell /usr/share/swift
           sudo docker image prune --all --force > /dev/null
@@ -29,21 +28,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
           lfs: true
 
       - name: Cache Unity Library
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: |
-            Library
-            Temp
-            obj
-          key: unity-pr-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          path: Library
+          key: unity-tests-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
-            unity-pr-${{ runner.os }}-
+            unity-tests-${{ runner.os }}-
 
-      - name: Run Unity tests
+      # game-ci already passes -batchmode -runTests -testPlatform and enables coverage; don't repeat them.
+      - name: Run Edit Mode tests
         uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -55,8 +51,9 @@ jobs:
           testMode: EditMode
           projectPath: .
           artifactsPath: artifacts
-          coveragePath: coverage
-          customParameters: -logFile /tmp/unity-tests.log -runTests -testPlatform EditMode -coverage
+          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+Unice.Domain,+Unice.Core,+Unice.Net
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: Edit Mode test results
 
       - name: Upload test results
         if: always()
@@ -71,13 +68,5 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unity-coverage
-          path: coverage/**
-          if-no-files-found: ignore
-
-      - name: Upload Unity log on failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: unity-pr-log
-          path: /tmp/unity-tests.log
+          path: CodeCoverage/**
           if-no-files-found: ignore

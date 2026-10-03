@@ -38,7 +38,7 @@ grep -c 'classname="Unice.MatchHostTests"' /tmp/unice-results.xml
 
 - `Assets/Unice/Scripts/Domain/Tests` — rules, bots, snapshot, host election, maps (assembly `Unice.Domain.Tests`).
 - `Assets/Unice/Scripts/Core/Tests` — profile (`Unice.Core.Tests`).
-- CI runs the same suites on every pull request (`.github/workflows/pulls.yml`) and publishes a coverage report.
+- CI runs the same suites before every debug/release build (`.github/workflows/tests.yml`), publishes a "Edit Mode test results" check and a coverage artifact.
 
 ## When to report what
 

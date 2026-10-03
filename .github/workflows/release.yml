@@ -12,8 +12,16 @@ name: Release
         default: 'v1.2.3'
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      checks: write
+
   build-release:
     name: Build release bundle and upload to the internal test track
+    needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
