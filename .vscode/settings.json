@@ -67,5 +67,8 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "My project.slnx"
+    "dotnet.defaultSolution": "Unice.slnx",
+    "chat.tools.terminal.autoApprove": {
+        "git remote": true
+    }
 }

@@ -1,0 +1,133 @@
+name: Release
+
+"on":
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create/use (example: v1.2.3)'
+        required: true
+        default: 'v1.2.3'
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      checks: write
+
+  build-release:
+    name: Build release AAB
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+
+    steps:
+      # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
+      # Drop preinstalled tools this job never uses (.NET, the runner's Android SDK, Haskell, CodeQL, tool cache).
+      - name: Free disk space
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+                      /opt/hostedtoolcache /usr/local/share/powershell /usr/share/swift
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            Library
+            Temp
+            obj
+          key: unity-release-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            unity-release-${{ runner.os }}-
+
+      - name: Create tag when triggered manually
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -e
+          tag="${{ github.event.inputs.version }}"
+          if ! git rev-list "$tag" >/dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "$tag"
+            git push origin "$tag"
+          fi
+
+      - name: Build Android release AAB
+        uses: game-ci/unity-builder@4423ee75828dff56037d1d1cfdac6b68e3a6ba00 # v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.6.3f1
+          targetPlatform: Android
+          buildName: Unice
+          buildsPath: build/Release
+          androidExportType: androidAppBundle
+          # versionCode = major*1000000 + minor*1000 + patch of the semantic version from the git tags (game-ci)
+          versioning: Semantic
+          androidKeystoreName: ${{ secrets.ANDROID_KEYSTORE_NAME }}
+          androidKeystoreBase64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          allowDirtyBuild: true
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Unice-release-aab
+          path: build/Release/**/*.aab
+          if-no-files-found: error
+
+  # Separate job so a failed Play upload can be re-run without rebuilding the AAB.
+  publish:
+    name: Upload to Google Play
+    needs: build-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      # true once the Play service account secret exists (step-level env isn't visible to that step's `if`)
+      HAS_PLAY_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
+
+    steps:
+      - name: Download AAB artifact
+        if: env.HAS_PLAY_ACCOUNT == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Unice-release-aab
+          path: build/Release
+
+      # The very first AAB of a new app must be uploaded by hand in the Play Console (download the
+      # "Unice-release-aab" artifact above). Until GOOGLE_PLAY_SERVICE_ACCOUNT_JSON exists, this step is skipped.
+      - name: Upload to Google Play
+        if: env.HAS_PLAY_ACCOUNT == 'true'
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ secrets.GOOGLE_PLAY_PACKAGE_NAME }}
+          releaseFiles: build/Release/**/*.aab
+          # test builds go to the internal testing track as a draft: promote them in the Play Console.
+          # Never "production" from CI. The very first upload of a new app must be done by hand in the Console.
+          track: internal
+          status: draft

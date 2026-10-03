@@ -1,0 +1,41 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace Unice
+{
+    /// <summary>
+    /// Online rooms. Implemented in the Unice.Net assembly, which only compiles once the multiplayer packages are installed,
+    /// so the game always builds and plays solo even without them.
+    /// </summary>
+    public interface INetBackend
+    {
+        /// <summary>Signs in to the online services (once per app run).</summary>
+        Task InitAsync();
+        /// <summary>Creates a room; returns its code.</summary>
+        Task<string> CreateAsync();
+        Task JoinAsync(string roomCode);
+        Task LeaveAsync();
+        bool InRoom { get; }
+        string Code { get; }
+        /// <summary>This device's id in the room.</summary>
+        string LocalId { get; }
+        /// <summary>Everyone connected to the room, this device included.</summary>
+        IReadOnlyList<PeerInfo> Peers { get; }
+        /// <summary>What this device tells the others about its player (sent right away).</summary>
+        void SetPresence(Presence presence);
+        /// <summary>Host only: sends the match snapshot to everyone.</summary>
+        void BroadcastSnapshot(byte[] snapshot, int epoch);
+        /// <summary>Raised when the connection to the room is lost for good. The text explains why, for the player.</summary>
+        event Action<string> Lost;
+    }
+
+    /// <summary>A room operation failed; the message is written for the player.</summary>
+    public class NetException : Exception { public NetException(string message) : base(message) { } }
+
+    public static class NetRegistry
+    {
+        /// <summary>Set by Unice.Net at startup when the multiplayer packages are present.</summary>
+        public static Func<INetBackend> Factory;
+    }
+}

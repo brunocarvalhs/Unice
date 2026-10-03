@@ -1,0 +1,104 @@
+name: Tests
+
+# Validate + Edit Mode tests. Called by debug.yml (push/PR) and release.yml before they build, so a red test never
+# produces an APK/AAB. Can also be run alone from the Actions tab.
+"on":
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  # Fast checks with no Unity (seconds): fail here before spending ~20 min on the Unity image.
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Lint workflows
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 -color # 1.7.12
+
+      # A missing .meta makes Unity assign a new GUID and silently break references; an orphan one is a leftover.
+      - name: Check .meta files
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Files inside folder-assets (.androidlib, .bundle, .framework…) and hidden/~ paths don't get .meta files.
+          skip='(^|/)\.|~(/|$)|\.(androidlib|bundle|framework|xcframework|plugin)/'
+          status=0
+          while IFS= read -r -d '' f; do
+            case "$f" in
+              *.meta) [ -e "${f%.meta}" ] || { echo "::error file=$f::orphan .meta (asset was deleted)"; status=1; } ;;
+              *) [ -f "$f.meta" ] || { echo "::error file=$f::missing .meta (Unity will assign a new GUID)"; status=1; } ;;
+            esac
+          done < <(git ls-files -z Assets | grep -zvE "$skip")
+          exit $status
+
+  edit-mode-tests:
+    name: Edit Mode tests
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      checks: write # publishes the test results as a check on the commit/PR
+
+    steps:
+      # The Unity Docker image is large and the hosted runner can run out of disk pulling it.
+      - name: Free disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+                      /opt/hostedtoolcache /usr/local/share/powershell /usr/share/swift
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+
+      - name: Cache Unity Library
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: Library
+          key: unity-tests-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
+          restore-keys: |
+            unity-tests-${{ runner.os }}-
+
+      # game-ci already passes -batchmode -runTests -testPlatform and enables coverage; don't repeat them.
+      - name: Run Edit Mode tests
+        uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          unityVersion: 6000.6.3f1
+          testMode: EditMode
+          projectPath: .
+          artifactsPath: artifacts
+          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+Unice.Domain,+Unice.Core,+Unice.Net
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          checkName: Edit Mode test results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unity-test-results
+          path: artifacts/**
+          if-no-files-found: ignore
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unity-coverage
+          path: CodeCoverage/**
+          if-no-files-found: ignore

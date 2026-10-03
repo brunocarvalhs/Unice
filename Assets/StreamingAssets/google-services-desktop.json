@@ -1,0 +1,31 @@
+{
+  "project_info": {
+    "project_number": "145259385862",
+    "project_id": "unice-game",
+    "storage_bucket": "unice-game.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:145259385862:ios:fce7c46e0c84b7453a1f87",
+        "android_client_info": {
+          "package_name": "com.brunocarvalhs.unice"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7NMrJW08W_JZxsc3DXqO0pu9qiXjF0mI"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 0
+        },
+        "appinvite_service": {
+          "status": 1
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
