@@ -23,6 +23,17 @@ jobs:
       HAS_PLAY_ACCOUNT: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
 
     steps:
+      # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
+      # Drop preinstalled tools this job never uses (.NET, the runner's Android SDK, Haskell, CodeQL, tool cache).
+      - name: Free disk space
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /usr/local/share/boost \
+                      /opt/hostedtoolcache /usr/local/share/powershell /usr/share/swift
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -64,7 +75,7 @@ jobs:
           unityVersion: 6000.6.3f1
           targetPlatform: Android
           buildName: Unice
-          buildPath: build/Release
+          buildsPath: build/Release
           androidExportType: androidAppBundle
           # versionCode = major*1000000 + minor*1000 + patch of the semantic version from the git tags (game-ci)
           versioning: Semantic
