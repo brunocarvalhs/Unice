@@ -33,6 +33,7 @@ namespace Unice
         [MenuItem("Unice/Configurar projeto")]
         static void Run()
         {
+            if (EditorApplication.isPlayingOrWillChangePlaymode) { Debug.LogWarning("[Unice] Saia do Play mode para configurar o projeto."); return; }
             CreateMaterial();
             CreatePanel();
             ConfigurePlayer();
