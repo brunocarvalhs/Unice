@@ -1,0 +1,41 @@
+name: Build targets
+
+# Reads .github/build-targets.yml. Called by debug.yml and release.yml so both build only the enabled targets.
+"on":
+  workflow_call:
+    outputs:
+      android:
+        description: "'true' when targets.android is enabled"
+        value: ${{ jobs.resolve.outputs.android }}
+
+jobs:
+  resolve:
+    name: Resolve build targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      android: ${{ steps.targets.outputs.android }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: .github/build-targets.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Resolve targets
+        id: targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          file=.github/build-targets.yml
+          # Targets that have build/publish jobs in this pipeline.
+          supported='["android"]'
+          unsupported=$(yq -o=tsv ".targets | to_entries | map(select(.value == true and ([.key] - $supported | length) > 0) | .key) | join(\" \")" "$file")
+          if [ -n "$unsupported" ]; then
+            echo "::error file=$file::enabled targets with no pipeline jobs yet: $unsupported"
+            exit 1
+          fi
+          echo "android=$(yq '.targets.android' "$file")" >> "$GITHUB_OUTPUT"

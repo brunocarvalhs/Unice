@@ -1,7 +1,0 @@
-# Which platforms release.yml builds and publishes on a push to master.
-platforms:
-  android: true
-  # No jobs for these yet: release.yml fails if one is turned on, so it never silently does nothing.
-  ios: false
-  pc: false
-  console: false

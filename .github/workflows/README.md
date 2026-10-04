@@ -12,11 +12,11 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - gera tags no formato `vX.Y.Z`
 - pode ser executado manualmente com `workflow_dispatch`
 
-### `config.yml`
+### `build-targets.yml`
 
-- reutilizável (`workflow_call`): lê `.github/pipeline-config.yml` (`platforms.<nome>: true|false`) e expõe quais plataformas estão ligadas
-- chamado por `debug.yml` e `release.yml`; plataforma desligada = job de build/publish dela pulado
-- por enquanto só `android` tem jobs; ligar `ios`, `pc` ou `console` faz a pipeline falhar até os jobs `build-<plataforma>` → `publish-<plataforma>` existirem
+- reutilizável (`workflow_call`): lê `.github/build-targets.yml` (`targets.<plataforma>: true|false`) e expõe quais alvos estão habilitados
+- chamado por `debug.yml` e `release.yml`; alvo desabilitado = jobs de build/publish dele pulados
+- alvos: `android`, `ios`, `windows`, `macos`, `linux`, `playstation`, `xbox`, `nintendo-switch` — por enquanto só `android` tem jobs; habilitar outro faz a pipeline falhar até os jobs `build-<alvo>` → `publish-<alvo>` existirem
 
 ### `tests.yml`
 
@@ -28,7 +28,7 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 ### `debug.yml`
 
 - roda em push para `develop` e em pull requests: `tests` → build
-- gera APK de debug para Android (se `platforms.android` estiver ligado em `.github/pipeline-config.yml`)
+- gera APK de debug para Android (se `targets.android` estiver habilitado em `.github/build-targets.yml`)
 - cria artefato com o APK compilado
 - útil para testes e download fácil em dispositivos
 
@@ -39,7 +39,7 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - envia para a faixa de **teste interno** do Google Play como **rascunho** — a promoção para teste fechado/produção é feita à mão no Play Console
 - o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)
 - exige signing keystore e secrets do Google Play
-- só builda/publica as plataformas ligadas em `.github/pipeline-config.yml` (ver `config.yml`)
+- só builda/publica as plataformas ligadas em `.github/build-targets.yml` (ver `build-targets.yml`)
 
 ## Segurança
 

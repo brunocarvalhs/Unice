@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  config:
-    uses: ./.github/workflows/config.yml
+  targets:
+    uses: ./.github/workflows/build-targets.yml
     permissions:
       contents: read
 
@@ -29,8 +29,8 @@ jobs:
 
   build-release:
     name: Build release AAB
-    needs: [config, tests]
-    if: needs.config.outputs.android == 'true'
+    needs: [targets, tests]
+    if: needs.targets.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
