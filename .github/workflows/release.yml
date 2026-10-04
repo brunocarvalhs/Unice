@@ -1,17 +1,25 @@
 name: Release
 
+# Every push to master builds the Android AAB and uploads it to Google Play (internal track, draft).
+# Promotion to production stays manual in the Play Console.
 "on":
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - master
+      - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version tag to create/use (example: v1.2.3)'
-        required: true
-        default: 'v1.2.3'
+
+# Queue releases instead of cancelling one halfway through a store upload.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
+  config:
+    uses: ./.github/workflows/config.yml
+    permissions:
+      contents: read
+
   tests:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
@@ -21,11 +29,12 @@ jobs:
 
   build-release:
     name: Build release AAB
-    needs: tests
+    needs: [config, tests]
+    if: needs.config.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
-      contents: write
+      contents: read
 
     steps:
       # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
@@ -55,19 +64,6 @@ jobs:
           key: unity-release-${{ runner.os }}-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
             unity-release-${{ runner.os }}-
-
-      - name: Create tag when triggered manually
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: |
-          set -e
-          tag="${{ github.event.inputs.version }}"
-          if ! git rev-list "$tag" >/dev/null 2>&1; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "$tag"
-            git push origin "$tag"
-          fi
 
       - name: Build Android release AAB
         uses: game-ci/unity-builder@4423ee75828dff56037d1d1cfdac6b68e3a6ba00 # v4

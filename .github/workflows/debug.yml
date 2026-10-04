@@ -17,6 +17,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  config:
+    uses: ./.github/workflows/config.yml
+    permissions:
+      contents: read
+
   tests:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
@@ -26,7 +31,8 @@ jobs:
 
   build-debug-apk:
     name: Build debug APK
-    needs: tests
+    needs: [config, tests]
+    if: needs.config.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
