@@ -25,7 +25,7 @@ Sucesso = paridade de regras com a versão web, build Android estável via CI, e
 ## Commands
 Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos reais:
 
-- **Build debug (CI, push/PR em develop/main/master):** `.github/workflows/debug.yml` → `game-ci/unity-builder@v4`, `targetPlatform: Android`, `customParameters: -quit -batchmode -logFile ...`
+- **Build debug (CI, PR para develop/main/master):** `.github/workflows/debug.yml` → `game-ci/unity-builder@v4`, `targetPlatform: Android`, `customParameters: -quit -batchmode -logFile ...`
 - **Testes no CI:** `.github/workflows/tests.yml` (chamado por `debug.yml` e `release.yml` antes do build)
 - **Release (Google Play):** `.github/workflows/release.yml`
 - **Versionamento (tags):** `.github/workflows/version.yml`

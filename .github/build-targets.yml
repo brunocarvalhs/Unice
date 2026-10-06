@@ -1,0 +1,14 @@
+# Build targets for the CI/CD pipeline (debug.yml and release.yml).
+# true = built on every run and, on master, published to its store.
+targets:
+  mobile:
+    android: true
+    ios: false
+  desktop:
+    windows: false
+    macos: false
+    linux: false
+  console:
+    playstation: false
+    xbox: false
+    nintendo-switch: false

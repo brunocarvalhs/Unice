@@ -1,17 +1,25 @@
 name: Release
 
+# Every push to master builds the Android AAB and uploads it to Google Play (internal track, draft).
+# Promotion to production stays manual in the Play Console.
 "on":
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - master
+      - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version tag to create/use (example: v1.2.3)'
-        required: true
-        default: 'v1.2.3'
+
+# Queue releases instead of cancelling one halfway through a store upload.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
+  targets:
+    uses: ./.github/workflows/build-targets.yml
+    permissions:
+      contents: read
+
   tests:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
@@ -21,11 +29,12 @@ jobs:
 
   build-release:
     name: Build release AAB
-    needs: tests
+    needs: [targets, tests]
+    if: needs.targets.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
-      contents: write
+      contents: read
 
     steps:
       # The Unity Android Docker image is ~20 GB and the hosted runner runs out of disk pulling it.
@@ -56,19 +65,6 @@ jobs:
           restore-keys: |
             unity-release-${{ runner.os }}-
 
-      - name: Create tag when triggered manually
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        run: |
-          set -e
-          tag="${{ github.event.inputs.version }}"
-          if ! git rev-list "$tag" >/dev/null 2>&1; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "$tag"
-            git push origin "$tag"
-          fi
-
       - name: Build Android release AAB
         uses: game-ci/unity-builder@4423ee75828dff56037d1d1cfdac6b68e3a6ba00 # v4
         env:
@@ -89,6 +85,8 @@ jobs:
           androidKeystorePass: ${{ secrets.ANDROID_KEYSTORE_PASS }}
           androidKeyaliasName: ${{ secrets.ANDROID_KEYALIAS_NAME }}
           androidKeyaliasPass: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          # symbols.zip for the IL2CPP native crash stacks (Play Console "native debug symbols")
+          androidSymbolType: public
           allowDirtyBuild: true
 
       - name: Upload AAB artifact
@@ -97,6 +95,17 @@ jobs:
           name: Unice-release-aab
           path: build/Release/**/*.aab
           if-no-files-found: error
+
+      # R8 mapping (AndroidMinifyRelease is on) + native symbols, for deobfuscating crashes in the Play Console.
+      # Separate artifact with warn: a missing file here must not lose the AAB above.
+      - name: Upload mapping and symbols artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Unice-release-debug-files
+          path: |
+            build/Release/**/*.symbols.zip
+            Library/Bee/Android/**/outputs/mapping/release/mapping.txt
+          if-no-files-found: warn
 
   # Separate job so a failed Play upload can be re-run without rebuilding the AAB.
   publish:
