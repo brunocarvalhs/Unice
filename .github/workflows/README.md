@@ -14,7 +14,7 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 
 ### `build-targets.yml`
 
-- reutilizável (`workflow_call`): lê `.github/build-targets.yml` (`targets.<plataforma>: true|false`) e expõe quais alvos estão habilitados
+- reutilizável (`workflow_call`): lê `.github/build-targets.yml` (`targets.<grupo>.<plataforma>: true|false`, grupos `mobile`, `desktop`, `console`) e expõe quais alvos estão habilitados
 - chamado por `debug.yml` e `release.yml`; alvo desabilitado = jobs de build/publish dele pulados
 - alvos: `android`, `ios`, `windows`, `macos`, `linux`, `playstation`, `xbox`, `nintendo-switch` — por enquanto só `android` tem jobs; habilitar outro faz a pipeline falhar até os jobs `build-<alvo>` → `publish-<alvo>` existirem
 
@@ -27,8 +27,8 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 
 ### `debug.yml`
 
-- roda em push para `develop` e em pull requests: `tests` → build
-- gera APK de debug para Android (se `targets.android` estiver habilitado em `.github/build-targets.yml`)
+- roda em pull requests para `develop`/`main`/`master` (e manualmente): `tests` → build — não roda em push, para não duplicar a run do PR
+- gera APK de debug para Android (se `targets.mobile.android` estiver habilitado em `.github/build-targets.yml`)
 - cria artefato com o APK compilado
 - útil para testes e download fácil em dispositivos
 

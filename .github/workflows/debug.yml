@@ -1,9 +1,8 @@
 name: Debug APK
 
+# PRs only: a push to a branch with an open PR used to start a second identical run, and two Unity runs at once
+# hit the Unity Personal activation limit (exit code 137). Direct pushes without a PR: run it from the Actions tab.
 "on":
-  push:
-    branches:
-      - develop
   pull_request:
     branches:
       - develop
