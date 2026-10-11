@@ -36,6 +36,8 @@ namespace Unice
         public static Furniture[] Furniture { get; private set; }
         /// <summary>Only the furniture someone can hide in, in <see cref="Furniture.spotIndex"/> order.</summary>
         public static Furniture[] Spots { get; private set; }
+        /// <summary>The ticking clock (its tick plays from there), or null on a map without one.</summary>
+        public static Furniture Clock { get; private set; }
 
         /// <summary>Rooms plus door openings: where a character can be.</summary>
         static RectF[] walkable;
@@ -90,6 +92,7 @@ namespace Unice
                 furniture.Add(piece);
             }
             Furniture = furniture.ToArray(); Spots = spots.ToArray();
+            Clock = Array.Find(Furniture, piece => piece.type == "clock");
             Navigation.Build();
         }
 

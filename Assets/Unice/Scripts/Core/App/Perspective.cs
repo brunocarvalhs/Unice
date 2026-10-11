@@ -17,9 +17,6 @@ namespace Unice
     /// </summary>
     sealed class Perspective
     {
-        /// <summary>Where a spectator looks when there is no one to follow.</summary>
-        const float DefaultViewX = 860, DefaultViewY = 590;
-
         readonly App app;
         Game game => app.game;
         Character me => app.myCharacter;
@@ -52,7 +49,7 @@ namespace Unice
                 bool onMap = followed != null && followed.x > 0;
                 return new ViewInfo
                 {
-                    x = onMap ? followed.x : DefaultViewX, y = onMap ? followed.y : DefaultViewY,
+                    x = onMap ? followed.x : Map.WorldW / 2, y = onMap ? followed.y : Map.WorldH / 2,   // no one to follow: the middle of the map
                     radius = Rules.SpectatorViewRange, usesLineOfSight = false, spectating = true,
                 };
             }

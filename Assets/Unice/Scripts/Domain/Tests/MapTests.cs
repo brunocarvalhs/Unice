@@ -127,5 +127,28 @@ namespace Unice
             var last = path[path.Count - 1];
             Assert.AreEqual(1300f, last.x); Assert.AreEqual(700f, last.y);
         }
+
+        [Test]
+        public void Clock_House_IsTheGrandfatherClockAt1652_182()
+        {
+            Assert.AreEqual(1652f, Map.Clock.CenterX, "x");
+            Assert.AreEqual(182f, Map.Clock.CenterY, "y");
+        }
+
+        [TestCase("quintal")]
+        [TestCase("praca")]
+        public void Clock_MapWithoutClock_IsNull(string mapId)
+        {
+            Map.Load(Maps.ById(mapId));
+
+            Assert.IsNull(Map.Clock);
+        }
+
+        [Test]
+        public void WorldSize_House_CenterIs860_590()
+        {
+            Assert.AreEqual(860f, Map.WorldW / 2, "x");
+            Assert.AreEqual(590f, Map.WorldH / 2, "y");
+        }
     }
 }
