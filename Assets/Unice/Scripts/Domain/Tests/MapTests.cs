@@ -5,6 +5,10 @@ namespace Unice
     [TestFixture]
     public class MapTests
     {
+        /// <summary>Starts from a fresh house map, whatever fixture ran before (Map is static).</summary>
+        [SetUp]
+        public void SetUp() => Map.Load(MapHouse.Build());
+
         // Map.Furniture[0] is "bed" (x170,y40,w150,h175), first entry of the static furniture table — used below for DistanceToFurniture.
         static Furniture Bed => Map.Furniture[0];
 

@@ -7,6 +7,17 @@ namespace Unice
     [TestFixture]
     public class MatchHostTests
     {
+        /// <summary>Any fixed value works: it only has to be the same on every run.</summary>
+        const int TestSeed = 1234;
+
+        /// <summary>Same map and same dice on every run, whatever fixture ran before (Map and GameRandom are static).</summary>
+        [SetUp]
+        public void SetUp()
+        {
+            Map.Load(MapHouse.Build());
+            GameRandom.Seed(TestSeed);
+        }
+
         static Game NewGameInResult(out List<Game.Human> humans)
         {
             var g = new Game { isHost = true, botCount = 1, totalRounds = 2 };

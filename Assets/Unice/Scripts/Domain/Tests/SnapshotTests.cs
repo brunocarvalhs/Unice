@@ -11,6 +11,17 @@ namespace Unice
     [TestFixture]
     public class SnapshotTests
     {
+        /// <summary>Any fixed value works: it only has to be the same on every run.</summary>
+        const int TestSeed = 1234;
+
+        /// <summary>Same map and same dice on every run, whatever fixture ran before (Map and GameRandom are static).</summary>
+        [SetUp]
+        public void SetUp()
+        {
+            Map.Load(MapHouse.Build());
+            GameRandom.Seed(TestSeed);
+        }
+
         [Test]
         public void WriteThenApply_FullRoundState_RoundTripsFieldByField()
         {
@@ -140,7 +151,7 @@ namespace Unice
             Assert.AreEqual(77, Game.ReadEpoch(bytes));
             Assert.AreEqual(-1, Game.ReadEpoch(null));
             Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 9, 9, 9 })); // shorter than 5 bytes
-            Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 0, 0, 0, 0, 0, 0 })); // wrong version byte (not 1)
+            Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 0, 0, 0, 0, 0, 0 })); // wrong version byte (not SnapshotVersion = 5)
         }
 
         // ---------- PresenceCodec: per-player presence, sent far more often than a full snapshot ----------
