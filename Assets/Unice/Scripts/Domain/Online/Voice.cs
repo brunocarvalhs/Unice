@@ -34,6 +34,14 @@ namespace Unice
 
     public static class VoiceRegistry
     {
+        /// <summary>
+        /// Voice chat off for M1: Brazil's ECA Digital (Lei 15.211/2025) requires user-to-user voice chat to be limited by
+        /// default for minors, with parental consent and age verification, which the game doesn't have yet. With this off,
+        /// <see cref="Factory"/> is never set, so there's no Vivox login, no mic request and no voice UI.
+        /// To turn voice back on: set this to true AND delete the "voice off" removals in Assets/Plugins/Android/AndroidManifest.xml.
+        /// </summary>
+        public const bool Enabled = false;
+
         /// <summary>Set by Unice.Net at startup when com.unity.services.vivox is present.</summary>
         public static Func<IVoiceChat> Factory;
     }

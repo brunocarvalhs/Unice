@@ -81,8 +81,8 @@ namespace Unice
             perspective = new Perspective(this);
             soundscape = new Soundscape(this); heartbeat = new Heartbeat(this); eventFeed = new EventFeed(this);
             room = new RoomSession(this); player = new PlayerControl(this);
+            voice = VoiceRegistry.Factory?.Invoke();   // before the UI: its settings buttons only show voice controls with voice
             ui = new Ui(this);
-            voice = VoiceRegistry.Factory?.Invoke();
             SystemBars.Hide();
         }
 

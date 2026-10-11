@@ -15,7 +15,7 @@ namespace Unice
     public sealed class VivoxVoice : IVoiceChat
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register() => VoiceRegistry.Factory = () => new VivoxVoice();
+        static void Register() => VoiceRegistry.Factory = VoiceRegistry.Enabled ? () => new VivoxVoice() : null;
 
         // ponytail: fixed falloff tuned to the house's scale (world units = house px / 100, see Art.PxPerUnit). Expose as settings if it ever needs per-room tuning.
         static readonly Channel3DProperties ChannelProperties = new Channel3DProperties(

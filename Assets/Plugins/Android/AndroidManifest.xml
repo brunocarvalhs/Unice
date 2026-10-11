@@ -15,6 +15,14 @@
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" tools:node="remove" />
 
+    <!-- voice off (VoiceRegistry.Enabled = false, ECA Digital / Lei 15.211/2025): drop what Vivox's VivoxNative.aar adds,
+         so the store listing declares no microphone. DELETE these lines when voice is turned back on. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH" tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" tools:node="remove" />
+    <uses-feature android:name="android.hardware.microphone" tools:node="remove" />
+
     <application>
         <!-- Firebase Analytics: never collect the advertising ID -->
         <meta-data android:name="google_analytics_adid_collection_enabled" android:value="false" />
