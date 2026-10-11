@@ -32,11 +32,13 @@ namespace Unice
         public string Code => session?.Code ?? "";
         public string LocalId => Network != null ? Network.LocalClientId.ToString() : "";
 
+        /// <summary>Refilled on every read (several times per step), so it allocates nothing: use it right away, don't keep it.</summary>
+        readonly List<PeerInfo> peers = new List<PeerInfo>(Rules.MaxPlayers);
         public IReadOnlyList<PeerInfo> Peers
         {
             get
             {
-                var peers = new List<PeerInfo>(NetPlayer.All.Count);
+                peers.Clear();
                 foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned) peers.Add(player.peerInfo);
                 return peers;
             }

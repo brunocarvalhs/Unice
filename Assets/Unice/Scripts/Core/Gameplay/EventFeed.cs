@@ -32,8 +32,10 @@ namespace Unice
         public void PlayNewEvents()
         {
             if (lastHandledSeq < 0) { lastHandledSeq = game.eventSeq; return; }
-            foreach (var gameEvent in game.events.ToArray())
+            // by index, no copy: presenting an event never adds or removes events (only the host's rules and snapshots do)
+            for (int i = 0, count = game.events.Count; i < count; i++)
             {
+                var gameEvent = game.events[i];
                 if (gameEvent.sequence <= lastHandledSeq) continue;
                 lastHandledSeq = gameEvent.sequence;
                 try { Present(gameEvent); }

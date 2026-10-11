@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -55,6 +54,10 @@ namespace Unice
         /// <summary>Back from the background: the first frame's time is the whole time away, so it is not simulated.</summary>
         bool discardElapsedTime;
         bool keyboardWasVisible;
+        // made once in Awake: a lambda or method group passed in the loop would allocate a new delegate every step/frame
+        Action<float> moveMyCharacter;
+        Func<List<Game.Human>> humansForNextRound;
+        Func<float, float, bool> canSee;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => Instance = null;   // Play mode without domain reload
@@ -84,6 +87,8 @@ namespace Unice
             room = new RoomSession(this); player = new PlayerControl(this);
             voice = VoiceRegistry.Factory?.Invoke();   // before the UI: its settings buttons only show voice controls with voice
             ui = new Ui(this);
+            moveMyCharacter = stepDt => { if (myCharacter != null) player.Move(stepDt); };
+            humansForNextRound = room.HumansForNextRound; canSee = perspective.CanSee;
             SystemBars.Hide();
         }
 
@@ -129,13 +134,14 @@ namespace Unice
             if (IsOnline) { room.sync.ElectHost(); if (!game.isHost) room.sync.ApplyHostSnapshot(); }
 
             if (game.isHost && game.phase != Phase.Home && !(paused && !IsOnline))
-                game.host.Step(dt, IsOnline ? room.connection.Peers : null, myPlayerId, stepDt => { if (myCharacter != null) player.Move(stepDt); }, room.HumansForNextRound);
+                game.host.Step(dt, IsOnline ? room.connection.Peers : null, myPlayerId, moveMyCharacter, humansForNextRound);
             else if (!game.isHost && game.IsLive && myCharacter != null)
                 player.Move(dt);
 
             if (game.isHost)
             {
-                myCharacter = game.characters.FirstOrDefault(character => character.playerId == myPlayerId);
+                myCharacter = null;
+                foreach (var character in game.characters) if (character.playerId == myPlayerId) { myCharacter = character; break; }
                 eventFeed.PlayNewEvents();   // guests play events when a snapshot arrives
             }
             worldView.SyncMap();
@@ -164,7 +170,7 @@ namespace Unice
             bool followView = inGame && perspective.hasView;
             var drawnView = perspective.DrawnView(stepBlend);   // the camera and the fog move with the drawn character, not in steps
             cameraRig.Follow(dt, followView, drawnView);
-            worldView.SyncCharacters(game, myCharacter, perspective.CanSee, perspective.ShowsTeamInfo, time, stepBlend);
+            worldView.SyncCharacters(game, myCharacter, canSee, perspective.ShowsTeamInfo, time, stepBlend);
             worldView.UpdateOcclusion(myCharacter, game.IsLive);
             worldView.Tick(dt);
             if (followView) DrawFog(drawnView, time); else worldView.fogView.Hide();

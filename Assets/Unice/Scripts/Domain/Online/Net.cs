@@ -20,7 +20,7 @@ namespace Unice
         string Code { get; }
         /// <summary>This device's id in the room.</summary>
         string LocalId { get; }
-        /// <summary>Everyone connected to the room, this device included.</summary>
+        /// <summary>Everyone connected to the room, this device included. May be one list refilled on each read: use it right away, don't keep it.</summary>
         IReadOnlyList<PeerInfo> Peers { get; }
         /// <summary>What this device tells the others about its player (sent right away).</summary>
         void SetPresence(Presence presence);

@@ -55,7 +55,7 @@ namespace Unice
             foreach (var character in game.characters)
             {
                 if (character.isBot || character.playerId == myPlayerId) continue;
-                var peer = peers.FirstOrDefault(candidate => candidate.id == character.playerId);
+                var peer = FindPeer(peers, character.playerId);
                 if (peer == null)
                 {
                     // the player left: a bot finishes the match in their place
@@ -75,6 +75,13 @@ namespace Unice
                     game.ApplyAction(character, presence.action, presence.actionArg);
                 }
             }
+        }
+
+        /// <summary>The peer with this id, or null. A plain loop: it runs for every remote character on every step.</summary>
+        static PeerInfo FindPeer(IReadOnlyList<PeerInfo> peers, string id)
+        {
+            for (int i = 0; i < peers.Count; i++) if (peers[i].id == id) return peers[i];
+            return null;
         }
 
         /// <summary>
