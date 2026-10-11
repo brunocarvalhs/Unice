@@ -25,7 +25,21 @@ namespace Unice
             Metrics.SetLanguageProperty();
         }
 
-        static Language Load() => (Language)Mathf.Clamp(PlayerPrefs.GetInt(LanguagePrefKey, (int)Language.Pt), 0, 2);
+        static Language Load() => Initial(
+            PlayerPrefs.HasKey(LanguagePrefKey) ? PlayerPrefs.GetInt(LanguagePrefKey) : (int?)null, Application.systemLanguage);
+
+        /// <summary>The language to open in: the one saved on this device (<paramref name="savedLanguage"/>, null on the
+        /// first run) wins; otherwise the device's own — Portuguese → Pt, Spanish → Es, anything else → En.</summary>
+        public static Language Initial(int? savedLanguage, SystemLanguage systemLanguage)
+        {
+            if (savedLanguage.HasValue) return (Language)Mathf.Clamp(savedLanguage.Value, 0, 2);
+            return systemLanguage switch
+            {
+                SystemLanguage.Portuguese => Language.Pt,
+                SystemLanguage.Spanish => Language.Es,
+                _ => Language.En,
+            };
+        }
 
         /// <summary>Looks up <paramref name="key"/> in the current language and formats it with <paramref name="args"/>.
         /// A missing key returns a visibly-broken placeholder instead of throwing, so one gap doesn't crash the UI.</summary>
