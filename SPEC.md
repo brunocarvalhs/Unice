@@ -93,6 +93,7 @@ Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda)
 - Testes Edit Mode (NUnit, Unity Test Framework) em `Domain/Tests` (regras, IA dos bots, snapshot, eleição de host, mapas) e `Core/Tests` (perfil).
 - Rodar: `Unity -batchmode -projectPath . -runTests -testPlatform EditMode -testResults results.xml` (ou o Test Runner no Editor).
 - Os testes do `Game` são de caracterização: fixam o comportamento atual (paridade com a versão web). Se um falhar depois de uma mudança em `Game.cs`, a regra mudou — confirme se era a intenção.
+- Cobertura: o `tests.yml` falha se a cobertura de linhas do `Unice.Domain` ficar abaixo de 85% (o `Unice.Core` entra no relatório, mas não no gate).
 - UI, rede e áudio não têm teste automatizado: verificar manualmente (Home→Lobby→Hide→Hunt→Result→Final; sala online com dois aparelhos).
 
 ## Boundaries
