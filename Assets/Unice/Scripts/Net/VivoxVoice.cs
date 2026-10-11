@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Services.Core;
 using Unity.Services.Authentication;
 using Unity.Services.Vivox;
 using UnityEngine;
@@ -157,8 +156,7 @@ namespace Unice
         async Task EnsureLoggedInAsync()
         {
             if (loggedIn) return;
-            if (UnityServices.State != ServicesInitializationState.Initialized) await UnityServices.InitializeAsync();
-            if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
+            await PlayerSignIn.EnsureSignedInAsync();
             if (!VivoxService.Instance.IsLoggedIn)
             {
                 await VivoxService.Instance.InitializeAsync();

@@ -53,6 +53,28 @@ namespace Unice
         }
 
         [Test]
+        public void UsePlayGamesName_NoSavedName_TakesItAndSavesIt()
+        {
+            var p = new ProfileStore();
+
+            p.UsePlayGamesName("Ana Play");
+
+            Assert.AreEqual("Ana Play", p.Name);
+            Assert.AreEqual("Ana Play", new ProfileStore().Name, "saved, so the next run keeps it");
+        }
+
+        [Test]
+        public void UsePlayGamesName_NameAlreadySaved_KeepsThePlayersName()
+        {
+            new ProfileStore { Name = "Bruno" }.Save();
+            var p = new ProfileStore();
+
+            p.UsePlayGamesName("Ana Play");
+
+            Assert.AreEqual("Bruno", p.Name);
+        }
+
+        [Test]
         public void SetKit_CleansTheKitAndPersistsIt()
         {
             var p = new ProfileStore();

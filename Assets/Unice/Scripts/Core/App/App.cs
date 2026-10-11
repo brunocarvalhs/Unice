@@ -70,6 +70,7 @@ namespace Unice
             Application.targetFrameRate = 60; Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Metrics.Init();
             profile = new ProfileStore();
+            UsePlayGamesName();
             cameraRig = new CameraRig();
             if (FindAnyObjectByType<EventSystem>() == null)
             {
@@ -84,6 +85,14 @@ namespace Unice
             voice = VoiceRegistry.Factory?.Invoke();   // before the UI: its settings buttons only show voice controls with voice
             ui = new Ui(this);
             SystemBars.Hide();
+        }
+
+        /// <summary>First run: the profile takes the Play Games name once that sign-in finishes (it never blocks the game).</summary>
+        async void UsePlayGamesName()
+        {
+            if (AccountRegistry.PlayGamesName == null) return;
+            try { profile.UsePlayGamesName(await AccountRegistry.PlayGamesName()); }
+            catch (Exception error) { Metrics.Error(error, "play_games"); }
         }
 
         /// <summary>Losing focus (notification shade, another app) can swallow the finger's release: let go of the touch controls.</summary>

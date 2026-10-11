@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
-using Unity.Services.Authentication;
-using Unity.Services.Core;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 
@@ -47,7 +45,7 @@ namespace Unice
         /// <summary>This device's own player object, once spawned.</summary>
         static NetPlayer Local() { foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned && player.IsOwner) return player; return null; }
 
-        /// <summary>Creates the NetworkManager (once) and signs in to Unity Services anonymously.</summary>
+        /// <summary>Creates the NetworkManager (once) and signs in to Unity Services (<see cref="PlayerSignIn"/>).</summary>
         public async Task InitAsync()
         {
             if (Network == null)
@@ -63,8 +61,7 @@ namespace Unice
             }
             try
             {
-                if (UnityServices.State != ServicesInitializationState.Initialized) await UnityServices.InitializeAsync();
-                if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
+                await PlayerSignIn.EnsureSignedInAsync();
             }
             catch (Exception error)
             {

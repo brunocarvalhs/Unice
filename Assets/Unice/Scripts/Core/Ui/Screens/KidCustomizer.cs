@@ -13,12 +13,13 @@ namespace Unice
         public readonly VisualElement Root;
         readonly CharacterPortrait preview;
         readonly KitOptionPicker optionPicker;
+        readonly TextField nameField;
 
         public KidCustomizer(Ui ui) : base(ui)
         {
             Root = new VisualElement();
             LocalizedLabel(Root, "lbl.name", "lbl");
-            var nameField = AddTextField(Root, app.myName, TextFormat.MaxNameLength);
+            nameField = AddTextField(Root, app.myName, TextFormat.MaxNameLength);
             nameField.RegisterValueChangedCallback(e => { app.myName = TextFormat.CleanName(e.newValue); app.SaveProfile(); });
 
             LocalizedLabel(Root, "lbl.kid", "lbl").style.marginTop = 10;
@@ -42,6 +43,7 @@ namespace Unice
         public void ShowIn(VisualElement parent)
         {
             if (Root.parent != parent) parent.Add(Root);
+            nameField.SetValueWithoutNotify(app.myName);   // the first run's Play Games name may have arrived since
             optionPicker.Render();
         }
 

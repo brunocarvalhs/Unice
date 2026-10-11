@@ -47,4 +47,14 @@ namespace Unice
         /// <summary>Set by Unice.Net at startup when the multiplayer packages are present.</summary>
         public static Func<INetBackend> Factory;
     }
+
+    /// <summary>
+    /// The player's Google Play Games account. Set by Unice.Net at startup on Android when Play Games is configured
+    /// (docs/PLAY_GAMES.md); null in the Editor, on other platforms and without the Play Console ids.
+    /// </summary>
+    public static class AccountRegistry
+    {
+        /// <summary>The Play Games sign-in started when the app opened: the player's display name, or null if it failed.</summary>
+        public static Func<Task<string>> PlayGamesName;
+    }
 }
