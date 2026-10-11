@@ -1,4 +1,5 @@
-/* Unice: candlelit game UI + aged-paper screens. Colors match the web version. */
+/* Unice: candlelit game UI + aged-paper screens. Colors match the web version.
+   Panel is 540 px tall (Ui.ReferenceResolution): 1 px ≈ 0.79 dp on a 1080p phone, so every touch target is ≥ 64 px (≈ 50 dp). */
 .root {
     flex-grow: 1;
     -unity-font-definition: url("../Fonts/AlegreyaSans-Regular.ttf");
@@ -32,17 +33,17 @@
 .col { flex-grow: 1; flex-basis: 0; margin-right: 24px; }
 .gap { margin-top: 14px; }
 
-.field { background-color: rgba(255, 255, 255, 0.4); border-width: 1px; border-color: rgba(60, 40, 30, 0.4); border-radius: 4px; color: rgb(43, 30, 26); font-size: 20px; padding: 6px 10px; min-height: 44px; margin: 0; }
+.field { background-color: rgba(255, 255, 255, 0.4); border-width: 1px; border-color: rgba(60, 40, 30, 0.4); border-radius: 4px; color: rgb(43, 30, 26); font-size: 20px; padding: 6px 10px; min-height: 64px; margin: 0; }
 .field > .unity-text-field__input, .field .unity-base-text-field__input { background-color: rgba(0, 0, 0, 0); border-width: 0; color: rgb(43, 30, 26); font-size: 20px; padding: 0; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); }
 .code-field .unity-base-text-field__input { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); letter-spacing: 4px; font-size: 22px; }
 
-.btn { background-color: rgb(43, 30, 26); color: rgb(236, 226, 203); border-width: 0; border-radius: 4px; padding: 10px 22px; min-height: 48px; font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); letter-spacing: 1px; margin: 0 10px 0 0; }
+.btn { background-color: rgb(43, 30, 26); color: rgb(236, 226, 203); border-width: 0; border-radius: 4px; padding: 10px 22px; min-height: 64px; font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); letter-spacing: 1px; margin: 0 10px 0 0; }
 .btn:hover { background-color: rgb(154, 44, 69); }
 .btn:active { background-color: rgb(120, 30, 50); }
 .btn:disabled { opacity: 0.45; }
 .btn-ghost { background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); border-width: 2px; border-color: rgb(43, 30, 26); }
 .btn-ghost:hover { background-color: rgba(43, 30, 26, 0.1); }
-.btn-link { background-color: rgba(0, 0, 0, 0); color: rgb(154, 44, 69); padding: 6px 4px; min-height: 40px; }
+.btn-link { background-color: rgba(0, 0, 0, 0); color: rgb(154, 44, 69); padding: 6px 4px; min-height: 64px; }
 .btn-link:hover { background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); }
 .net { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(111, 90, 77); white-space: normal; margin-top: 10px; }
 .net-err { color: rgb(154, 44, 69); }
@@ -69,16 +70,16 @@
 .step-btn { width: 40px; min-height: 40px; padding: 0; margin: 0 6px; background-color: rgba(255, 255, 255, 0.45); color: rgb(43, 30, 26); font-size: 22px; border-radius: 4px; border-width: 0; }
 .step-val { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 20px; min-width: 24px; -unity-text-align: middle-center; }
 .preview { width: 170px; height: 170px; border-radius: 85px; background-color: rgb(74, 50, 35); margin-right: 16px; }
-.opt { flex-direction: row; align-items: center; margin-bottom: 6px; }
+.opt { flex-direction: row; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
 .opt-l { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 12px; color: rgb(111, 90, 77); width: 110px; }
 .cy { flex-direction: row; align-items: center; flex-grow: 1; background-color: rgba(255, 255, 255, 0.35); border-radius: 4px; }
-.cy-btn { width: 40px; min-height: 36px; padding: 0; margin: 0; background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); font-size: 22px; border-width: 0; }
+.cy-btn { width: 64px; min-height: 64px; padding: 0; margin: 0; background-color: rgba(0, 0, 0, 0); color: rgb(43, 30, 26); font-size: 22px; border-width: 0; }
 .cy-val { flex-grow: 1; -unity-text-align: middle-center; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 16px; }
 .sws { flex-direction: row; flex-wrap: wrap; flex-grow: 1; }
-.sw { width: 30px; height: 30px; border-radius: 15px; margin: 0 6px 4px 0; border-width: 2px; border-color: rgba(43, 30, 26, 0.25); padding: 0; min-height: 30px; }
+.sw { width: 64px; height: 64px; border-radius: 32px; margin: 0 6px 4px 0; border-width: 2px; border-color: rgba(43, 30, 26, 0.25); padding: 0; min-height: 64px; }
 .sw-on { border-width: 3px; border-color: rgb(43, 30, 26); }
 .tabbar { flex-direction: row; flex-wrap: wrap; margin-bottom: 10px; }
-.tabbtn { background-color: rgba(0, 0, 0, 0.3); color: rgb(173, 154, 140); border-width: 0; border-radius: 8px; padding: 7px 12px; margin: 0 6px 6px 0; min-height: 34px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); }
+.tabbtn { background-color: rgba(0, 0, 0, 0.3); color: rgb(173, 154, 140); border-width: 0; border-radius: 8px; padding: 7px 12px; margin: 0 6px 6px 0; min-height: 64px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); }
 .tabbtn-on { background-color: rgb(240, 176, 87); color: rgb(17, 12, 18); }
 
 /* scores */
@@ -106,11 +107,13 @@
 .meter-noise .meter-fill { background-color: rgb(240, 176, 87); }
 .note { font-size: 13px; color: rgb(173, 154, 140); white-space: normal; margin-top: 3px; }
 .mini { height: 140px; margin-top: 6px; background-color: rgb(10, 7, 10); border-radius: 4px; }
-.hud-btn { background-color: rgba(36, 26, 33, 0.9); color: rgb(241, 231, 216); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 5px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 6px 10px; min-height: 36px; margin: 0 0 0 6px; }
+.hud-btn { background-color: rgba(36, 26, 33, 0.9); color: rgb(241, 231, 216); border-width: 1px; border-color: rgb(59, 43, 53); border-radius: 5px; font-size: 13px; letter-spacing: 1px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 6px 10px; min-height: 64px; min-width: 64px; margin: 0 0 0 6px; }
 .hud-btns { position: absolute; right: 330px; top: 12px; flex-direction: row; }
-.plist { position: absolute; right: 330px; top: 56px; width: 270px; }
+.plist { position: absolute; right: 330px; top: 84px; width: 270px; }
+/* the rows scroll so 8 players (64 px rows with mute buttons) stay above the bottom of a 540 px panel */
+.plist-rows { max-height: 230px; }
 .plrow { flex-direction: row; align-items: center; margin-bottom: 4px; padding: 2px 4px; border-radius: 4px; }
-.plrow-pick { background-color: rgba(255, 255, 255, 0.06); }
+.plrow-pick { background-color: rgba(255, 255, 255, 0.06); min-height: 64px; }
 .plrow-pick:hover { background-color: rgba(255, 255, 255, 0.14); }
 .plrow-on { background-color: rgba(239, 115, 148, 0.22); }
 .plname { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 15px; }
@@ -153,11 +156,11 @@
 
 /* ---------- main menu over the house map ---------- */
 .menu { position: absolute; left: 0; top: 0; right: 0; bottom: 0; align-items: center; justify-content: center; }
-.menu-page { align-items: center; justify-content: center; }
+.menu-page { align-items: center; justify-content: center; max-width: 100%; }
 .menu-version { position: absolute; left: 18px; top: 12px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgba(241, 231, 216, 0.75); }
-.menu-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 150px; color: rgb(241, 231, 216); -unity-text-align: middle-center; text-shadow: 0px 0px 22px rgba(239, 115, 148, 0.6); margin-bottom: -10px; }
-.menu-sub { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; letter-spacing: 5px; color: rgb(240, 176, 87); -unity-text-align: middle-center; margin-bottom: 30px; }
-.menu-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 660px; }
+.menu-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 112px; color: rgb(241, 231, 216); -unity-text-align: middle-center; text-shadow: 0px 0px 22px rgba(239, 115, 148, 0.6); margin-bottom: -10px; }
+.menu-sub { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; letter-spacing: 5px; color: rgb(240, 176, 87); -unity-text-align: middle-center; margin-bottom: 16px; }
+.menu-grid { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 660px; max-width: 100%; }
 .mbtn { width: 310px; height: 100px; margin: 9px; padding: 0; background-color: rgba(17, 12, 18, 0.8); border-width: 3px; border-color: rgb(241, 231, 216); border-radius: 14px; color: rgb(241, 231, 216); font-size: 54px; -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); -unity-text-align: middle-center; }
 .mbtn:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
 .mbtn:active { background-color: rgba(240, 176, 87, 0.25); }
@@ -165,12 +168,13 @@
 .mbtn-sm { height: 66px; font-size: 32px; }
 .mbtn-wide { width: auto; height: 90px; margin: 14px 0 6px 0; font-size: 48px; }
 .mbtn-join { width: 190px; height: 70px; margin: 0 0 0 12px; font-size: 36px; }
-.mbtn-back { width: 200px; height: 56px; margin: 16px 0 0 0; font-size: 28px; align-self: center; border-width: 2px; }
-.mexit { position: absolute; left: 18px; bottom: 18px; width: 130px; height: 58px; margin: 0; font-size: 30px; border-width: 2px; }
+.mbtn-back { width: 200px; height: 64px; margin: 16px 0 0 0; font-size: 28px; align-self: center; border-width: 2px; }
+/* top right: at 4:3 the bottom-left corner is taken by the settings pills and the menu grid */
+.mexit { position: absolute; right: 18px; top: 12px; width: 130px; height: 64px; margin: 0; font-size: 30px; border-width: 2px; }
 .menu-foot { position: absolute; left: 0; right: 0; bottom: 22px; flex-direction: row; justify-content: center; }
-.mpill { background-color: rgba(17, 12, 18, 0.8); border-width: 2px; border-color: rgba(241, 231, 216, 0.6); border-radius: 24px; color: rgb(241, 231, 216); font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 8px 20px; min-height: 46px; margin: 0 6px; }
+.mpill { background-color: rgba(17, 12, 18, 0.8); border-width: 2px; border-color: rgba(241, 231, 216, 0.6); border-radius: 24px; color: rgb(241, 231, 216); font-size: 17px; -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); padding: 8px 20px; min-height: 64px; margin: 0 6px; }
 .mpill:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
-.mpanel { width: 700px; max-height: 640px; background-color: rgba(17, 12, 18, 0.9); border-width: 3px; border-color: rgb(241, 231, 216); border-radius: 16px; padding: 22px 30px; }
+.mpanel { width: 700px; max-width: 100%; max-height: 640px; background-color: rgba(17, 12, 18, 0.9); border-width: 3px; border-color: rgb(241, 231, 216); border-radius: 16px; padding: 22px 30px; }
 .mpanel-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 52px; color: rgb(241, 231, 216); -unity-text-align: middle-center; margin-bottom: 6px; }
 .mnote { font-size: 18px; color: rgb(215, 203, 187); white-space: normal; }
 .mnet { margin-top: 10px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 16px; color: rgb(173, 154, 140); }
@@ -178,7 +182,7 @@
 .menu-or { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 14px; letter-spacing: 3px; color: rgb(173, 154, 140); -unity-text-align: middle-center; margin: 14px 0 8px 0; }
 .mfield { margin: 0; min-height: 70px; }
 .mfield .unity-base-text-field__input { background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 36px; letter-spacing: 8px; -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); -unity-text-align: middle-center; padding: 0 12px; }
-.mscroll { max-height: 440px; }
+.mscroll { max-height: 300px; }
 .mrule { margin-bottom: 12px; }
 .mrule-t { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 26px; color: rgb(240, 176, 87); }
 .mrule-rose { color: rgb(239, 115, 148); }
@@ -187,15 +191,18 @@
 
 /* ---------- waiting room, full screen for a phone on its side ---------- */
 .lobby { position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding: 16px 22px 10px 22px; }
-.lobby-top { flex-direction: row; align-items: center; height: 84px; flex-shrink: 0; }
-.mbtn-top { width: 150px; height: 58px; margin: 0; font-size: 30px; border-width: 2px; }
+/* wraps to two rows when the screen is too narrow (4:3) instead of squeezing the room code */
+.lobby-top { flex-direction: row; flex-wrap: wrap; align-items: center; min-height: 72px; flex-shrink: 0; }
+.mbtn-top { width: 130px; height: 64px; margin: 0; font-size: 30px; border-width: 2px; }
 .lobby-head { flex-grow: 1; flex-direction: row; align-items: center; justify-content: center; }
-.lobby-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 46px; color: rgb(241, 231, 216); margin-right: 16px; text-shadow: 0px 0px 14px rgba(10, 6, 9, 0.9); }
-.lobby-code { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 54px; letter-spacing: 8px; color: rgb(239, 115, 148); margin-right: 18px; text-shadow: 0px 0px 16px rgba(239, 115, 148, 0.45); }
-.lobby-count { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 30px; color: rgb(240, 176, 87); width: 150px; -unity-text-align: middle-right; }
+.lobby-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 36px; color: rgb(241, 231, 216); margin-right: 16px; text-shadow: 0px 0px 14px rgba(10, 6, 9, 0.9); }
+.lobby-code { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 40px; letter-spacing: 6px; color: rgb(239, 115, 148); margin-right: 18px; text-shadow: 0px 0px 16px rgba(239, 115, 148, 0.45); }
+.lobby-count { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 30px; color: rgb(240, 176, 87); min-width: 70px; margin-left: 12px; -unity-text-align: middle-right; }
 .lobby-body { flex-grow: 1; flex-direction: row; margin-top: 8px; }
-.lobby-players { flex-grow: 1; flex-shrink: 1; flex-direction: row; flex-wrap: wrap; align-content: flex-start; justify-content: center; }
-.pcard { width: 150px; height: 190px; margin: 7px; padding: 8px 6px; background-color: rgba(17, 12, 18, 0.86); border-width: 2px; border-color: rgba(241, 231, 216, 0.35); border-radius: 14px; align-items: center; justify-content: center; }
+/* the cards scroll: 8 players + bots are three rows at 16:9 */
+.lobby-players { flex-grow: 1; flex-shrink: 1; }
+.lobby-cards { flex-direction: row; flex-wrap: wrap; align-content: flex-start; justify-content: center; }
+.pcard { width: 150px; min-height: 190px; margin: 7px; padding: 8px 6px; background-color: rgba(17, 12, 18, 0.86); border-width: 2px; border-color: rgba(241, 231, 216, 0.35); border-radius: 14px; align-items: center; justify-content: center; }
 .pcard-me { border-width: 3px; border-color: rgb(240, 176, 87); }
 .pcard-name { -unity-font-definition: url("../Fonts/AlegreyaSans-Bold.ttf"); font-size: 21px; color: rgb(241, 231, 216); margin-top: 6px; -unity-text-align: middle-center; }
 .pcard-st { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; letter-spacing: 2px; color: rgb(173, 154, 140); margin-top: 2px; }
@@ -205,11 +212,11 @@
 .mpanel.lobby-side { width: 340px; max-height: none; margin: 7px 0 7px 14px; padding: 18px 20px; justify-content: center; flex-shrink: 0; }
 .mstep { flex-direction: row; align-items: center; margin-bottom: 12px; }
 .mstep-l { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 16px; letter-spacing: 3px; color: rgb(173, 154, 140); flex-grow: 1; }
-.mstep-btn { width: 54px; height: 54px; margin: 0; padding: 0; background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 32px; }
+.mstep-btn { width: 64px; height: 64px; margin: 0; padding: 0; background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 32px; }
 .mstep-btn:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
 .mstep-v { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 32px; color: rgb(241, 231, 216); width: 58px; -unity-text-align: middle-center; }
 .lobby-status { margin-top: 8px; -unity-text-align: middle-center; }
-.mbtn-go { width: auto; height: 86px; margin: 14px 0 0 0; font-size: 44px; }
+.mbtn-go { width: auto; height: 64px; margin: 14px 0 0 0; font-size: 44px; }
 .mbtn-on { border-color: rgb(143, 203, 156); color: rgb(143, 203, 156); }
 .lobby-note { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 15px; color: rgb(173, 154, 140); -unity-text-align: middle-center; white-space: normal; margin-top: 4px; flex-shrink: 0; }
 
@@ -217,7 +224,7 @@
 .result { background-color: rgba(9, 6, 9, 0.6); }
 .res-head { align-items: center; flex-shrink: 0; }
 .res-eyebrow { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 17px; letter-spacing: 5px; color: rgb(240, 176, 87); }
-.res-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 66px; color: rgb(241, 231, 216); -unity-text-align: middle-center; text-shadow: 0px 0px 16px rgba(10, 6, 9, 0.9); }
+.res-title { -unity-font-definition: url("../Fonts/IMFellEnglishSC-Regular.ttf"); font-size: 52px; color: rgb(241, 231, 216); -unity-text-align: middle-center; white-space: normal; text-shadow: 0px 0px 16px rgba(10, 6, 9, 0.9); }
 .res-win { color: rgb(143, 203, 156); }
 .res-lose { color: rgb(239, 115, 148); }
 .res-reason { font-size: 19px; color: rgb(215, 203, 187); -unity-text-align: middle-center; white-space: normal; max-width: 1000px; }
@@ -232,5 +239,5 @@
 .res-rules { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 13px; color: rgb(173, 154, 140); white-space: normal; -unity-text-align: middle-center; margin-top: 12px; }
 
 /* "Mute"/"Unmute" for another player's voice (waiting room cards, in-game player list) */
-.mute-btn { font-size: 12px; letter-spacing: 1px; padding: 1px 10px; margin: 3px 0 0 0; min-height: 0; border-width: 1px; }
+.mute-btn { font-size: 12px; letter-spacing: 1px; padding: 1px 10px; margin: 3px 0 0 0; min-height: 64px; border-width: 1px; }
 .mute-btn-on { color: rgb(239, 115, 148); border-color: rgb(239, 115, 148); }

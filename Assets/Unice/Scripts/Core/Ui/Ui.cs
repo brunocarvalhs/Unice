@@ -22,6 +22,13 @@ namespace Unice
 
         const float HudRefreshSeconds = .2f;
 
+        /// <summary>
+        /// Panel size in USS pixels, matched by height: the panel is always 540 px tall and as wide as the screen's aspect gives
+        /// (960 at 16:9, 1200 at 20:9, 720 at 4:3). 540 (not 720) makes 1 px ≈ 0.79 dp on a 1080p ~400 ppi phone, so a 64 px
+        /// button is ≥ 48 dp.
+        /// </summary>
+        public static readonly Vector2Int ReferenceResolution = new Vector2Int(960, 540);
+
         internal readonly App app;
         Game game => app.game;
         internal readonly VisualElement root;
@@ -52,7 +59,7 @@ namespace Unice
             // The panel asset made by Unice > Configurar projeto keeps the UI shaders in the build; the fallback is for the editor.
             var panelSettings = Resources.Load<PanelSettings>("UI/UnicePanel");
             if (panelSettings == null) panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
-            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = new Vector2Int(1280, 720);
+            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = ReferenceResolution;
             panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; panelSettings.match = 1;
             panelSettings.themeStyleSheet = Resources.Load<ThemeStyleSheet>("UI/UniceTheme");
             var uiObject = new GameObject("UI"); uiObject.SetActive(false); uiObject.transform.SetParent(app.transform, false);
@@ -189,7 +196,7 @@ namespace Unice
             var safeRect = Screen.safeArea;
             if (safeRect == lastSafeRect || Screen.height < 1) return;
             lastSafeRect = safeRect;
-            float pixelsToPanel = root.layout.height > 0 ? root.layout.height / Screen.height : 720f / Screen.height;
+            float pixelsToPanel = root.layout.height > 0 ? root.layout.height / Screen.height : (float)ReferenceResolution.y / Screen.height;
             safeArea.style.left = safeRect.xMin * pixelsToPanel; safeArea.style.right = (Screen.width - safeRect.xMax) * pixelsToPanel;
             safeArea.style.top = (Screen.height - safeRect.yMax) * pixelsToPanel; safeArea.style.bottom = safeRect.yMin * pixelsToPanel;
             foreach (var screen in new[] { homeMenu.Root, lobbyScreen.Root, resultScreen.Root })

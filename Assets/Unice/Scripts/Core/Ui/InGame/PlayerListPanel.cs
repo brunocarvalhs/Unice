@@ -21,7 +21,7 @@ namespace Unice
             LocalizedLabel(panel, "hud.house_plan", "hud-lbl");
             miniMap = new MiniMap(ui, panel);
             LocalizedLabel(panel, "hud.players", "hud-lbl").style.marginTop = 8;
-            rows = IgnorePointer(AddElement(panel));
+            rows = AddScroll(panel, "plist-rows", null);
             Show(panel, false);
         }
 

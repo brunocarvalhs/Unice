@@ -23,7 +23,7 @@ namespace Unice
             Root = AddElement(ui.root, "lobby", "result");
             header = AddElement(Root, "res-head");
             var body = AddElement(Root, "lobby-body");
-            scoreCards = AddElement(body, "lobby-players");
+            scoreCards = AddScroll(body, "lobby-players", "lobby-cards");
             sidePanel = AddElement(body, "mpanel", "lobby-side");
         }
 
