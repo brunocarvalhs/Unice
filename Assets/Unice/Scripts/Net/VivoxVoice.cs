@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Unity.Services.Core;
 using Unity.Services.Authentication;
 using Unity.Services.Vivox;
 using UnityEngine;
@@ -15,7 +14,7 @@ namespace Unice
     public sealed class VivoxVoice : IVoiceChat
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        static void Register() => VoiceRegistry.Factory = () => new VivoxVoice();
+        static void Register() => VoiceRegistry.Factory = VoiceRegistry.Enabled ? () => new VivoxVoice() : null;
 
         // ponytail: fixed falloff tuned to the house's scale (world units = house px / 100, see Art.PxPerUnit). Expose as settings if it ever needs per-room tuning.
         static readonly Channel3DProperties ChannelProperties = new Channel3DProperties(
@@ -32,6 +31,8 @@ namespace Unice
         VivoxParticipant self;
         /// <summary>Players this device chose not to hear (by voice id).</summary>
         readonly HashSet<string> mutedPlayers = new HashSet<string>();
+        /// <summary>Players the game rule keeps this device from hearing right now (see <see cref="VoiceRule.CanHear"/>).</summary>
+        readonly HashSet<string> unheardPlayers = new HashSet<string>();
 
         public bool MicOn { get; set; }
         public string VoicePlayerId => loggedIn ? AuthenticationService.Instance.PlayerId : null;
@@ -94,6 +95,19 @@ namespace Unice
 
         public bool IsPlayerMuted(string voicePlayerId) => voicePlayerId != null && mutedPlayers.Contains(voicePlayerId);
 
+        public void SetUnheard(HashSet<string> voicePlayerIds)
+        {
+            if (unheardPlayers.SetEquals(voicePlayerIds)) return;
+            unheardPlayers.Clear(); unheardPlayers.UnionWith(voicePlayerIds);
+            if (channel == null) return;
+            try
+            {
+                if (!VivoxService.Instance.ActiveChannels.TryGetValue(channel, out var participants)) return;
+                foreach (var participant in participants) ApplyMute(participant);
+            }
+            catch (Exception error) { Metrics.Error(error, "voice"); }
+        }
+
         public void SetPlayerMuted(string voicePlayerId, bool muted)
         {
             if (string.IsNullOrEmpty(voicePlayerId)) return;
@@ -111,16 +125,18 @@ namespace Unice
         void ApplyMute(VivoxParticipant participant)
         {
             if (participant.IsSelf) return;
-            if (mutedPlayers.Contains(participant.PlayerId)) participant.MutePlayerLocally(); else participant.UnmutePlayerLocally();
+            if (Silenced(participant.PlayerId)) participant.MutePlayerLocally(); else participant.UnmutePlayerLocally();
         }
+
+        bool Silenced(string voicePlayerId) => mutedPlayers.Contains(voicePlayerId) || unheardPlayers.Contains(voicePlayerId);
 
         void OnParticipantAdded(VivoxParticipant participant)
         {
             if (participant.ChannelName != channel) return;
             if (!participant.IsSelf)
             {
-                // someone muted earlier who joins (again) stays muted
-                if (mutedPlayers.Contains(participant.PlayerId)) ApplyMute(participant);
+                // someone muted earlier (or caught) who joins (again) stays muted
+                if (Silenced(participant.PlayerId)) ApplyMute(participant);
                 return;
             }
             DetachSelf();
@@ -140,8 +156,7 @@ namespace Unice
         async Task EnsureLoggedInAsync()
         {
             if (loggedIn) return;
-            if (UnityServices.State != ServicesInitializationState.Initialized) await UnityServices.InitializeAsync();
-            if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
+            await PlayerSignIn.EnsureSignedInAsync();
             if (!VivoxService.Instance.IsLoggedIn)
             {
                 await VivoxService.Instance.InitializeAsync();

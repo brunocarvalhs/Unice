@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -17,8 +16,11 @@ namespace Unice
     {
         /// <summary>The fixed step: 20 times a second, like the web version.</summary>
         const float StepSeconds = .05f;
-        /// <summary>After a long stall (app in background), don't try to catch up more than this.</summary>
-        const float MaxCatchUpSeconds = 2;
+        /// <summary>
+        /// At most this many fixed steps per frame (0.2 s). Further behind (a long stall, a very slow frame), the rest is
+        /// dropped instead of fast-forwarding the match in one frame; a guest is corrected by the host's next snapshot.
+        /// </summary>
+        const int MaxStepsPerFrame = 4;
         /// <summary>How fast other characters slide to where the host says they are (guests only).</summary>
         const float RemoteSmoothing = 14;
 
@@ -47,7 +49,15 @@ namespace Unice
         public bool paused;
         Phase lastPhase = (Phase)255;   // none yet: the first step logs the screen
         float stepAccumulator;
+        /// <summary>0..1, this frame: how far it is from the last fixed step to the next. Characters are drawn that far along.</summary>
+        internal float stepBlend;
+        /// <summary>Back from the background: the first frame's time is the whole time away, so it is not simulated.</summary>
+        bool discardElapsedTime;
         bool keyboardWasVisible;
+        // made once in Awake: a lambda or method group passed in the loop would allocate a new delegate every step/frame
+        Action<float> moveMyCharacter;
+        Func<List<Game.Human>> humansForNextRound;
+        Func<float, float, bool> canSee;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics() => Instance = null;   // Play mode without domain reload
@@ -63,6 +73,7 @@ namespace Unice
             Application.targetFrameRate = 60; Screen.sleepTimeout = SleepTimeout.NeverSleep;
             Metrics.Init();
             profile = new ProfileStore();
+            UsePlayGamesName();
             cameraRig = new CameraRig();
             if (FindAnyObjectByType<EventSystem>() == null)
             {
@@ -74,15 +85,31 @@ namespace Unice
             perspective = new Perspective(this);
             soundscape = new Soundscape(this); heartbeat = new Heartbeat(this); eventFeed = new EventFeed(this);
             room = new RoomSession(this); player = new PlayerControl(this);
+            voice = VoiceRegistry.Factory?.Invoke();   // before the UI: its settings buttons only show voice controls with voice
             ui = new Ui(this);
-            voice = VoiceRegistry.Factory?.Invoke();
+            moveMyCharacter = stepDt => { if (myCharacter != null) player.Move(stepDt); };
+            humansForNextRound = room.HumansForNextRound; canSee = perspective.CanSee;
             SystemBars.Hide();
         }
 
-        void OnApplicationFocus(bool focus) { if (focus) SystemBars.Hide(); }
+        /// <summary>First run: the profile takes the Play Games name once that sign-in finishes (it never blocks the game).</summary>
+        async void UsePlayGamesName()
+        {
+            if (AccountRegistry.PlayGamesName == null) return;
+            try { profile.UsePlayGamesName(await AccountRegistry.PlayGamesName()); }
+            catch (Exception error) { Metrics.Error(error, "play_games"); }
+        }
 
-        /// <summary>Solo: going to the background pauses the match.</summary>
-        void OnApplicationPause(bool goingToBackground) { if (goingToBackground && game.IsLive && !IsOnline && !paused) TogglePause(); }
+        /// <summary>Losing focus (notification shade, another app) can swallow the finger's release: let go of the touch controls.</summary>
+        void OnApplicationFocus(bool focus) { if (focus) SystemBars.Hide(); else ui.ReleaseTouchControls(); }
+
+        /// <summary>Background: let go of the touch controls and, solo, pause the match. Back: don't catch up the time away.</summary>
+        void OnApplicationPause(bool goingToBackground)
+        {
+            if (!goingToBackground) { discardElapsedTime = true; return; }
+            ui.ReleaseTouchControls();
+            if (game.IsLive && !IsOnline && !paused) TogglePause();
+        }
 
         // ---------- main loop ----------
         void Update()
@@ -93,28 +120,37 @@ namespace Unice
             keyboardWasVisible = keyboardVisible;
 
             player.ReadKeys();
-            stepAccumulator += Mathf.Min(MaxCatchUpSeconds, Time.unscaledDeltaTime);
-            while (stepAccumulator >= StepSeconds) { stepAccumulator -= StepSeconds; Step(StepSeconds); }
+            if (discardElapsedTime) { discardElapsedTime = false; stepAccumulator = 0; }
+            else stepAccumulator += Time.unscaledDeltaTime;
+            for (int i = 0; i < MaxStepsPerFrame && stepAccumulator >= StepSeconds; i++) { stepAccumulator -= StepSeconds; Step(StepSeconds); }
+            stepAccumulator %= StepSeconds;   // still behind after MaxStepsPerFrame: drop the rest
             RenderFrame(Mathf.Min(StepSeconds, Time.unscaledDeltaTime));
         }
 
         /// <summary>One fixed step: network, rules, events, sounds, UI.</summary>
         void Step(float dt)
         {
+            foreach (var character in game.characters) character.KeepPrevious();
             if (IsOnline) { room.sync.ElectHost(); if (!game.isHost) room.sync.ApplyHostSnapshot(); }
 
             if (game.isHost && game.phase != Phase.Home && !(paused && !IsOnline))
-                game.host.Step(dt, IsOnline ? room.connection.Peers : null, myPlayerId, stepDt => { if (myCharacter != null) player.Move(stepDt); }, room.HumansForNextRound);
+                game.host.Step(dt, IsOnline ? room.connection.Peers : null, myPlayerId, moveMyCharacter, humansForNextRound);
             else if (!game.isHost && game.IsLive && myCharacter != null)
                 player.Move(dt);
 
             if (game.isHost)
             {
-                myCharacter = game.characters.FirstOrDefault(character => character.playerId == myPlayerId);
+                myCharacter = null;
+                foreach (var character in game.characters) if (character.playerId == myPlayerId) { myCharacter = character; break; }
                 eventFeed.PlayNewEvents();   // guests play events when a snapshot arrives
             }
             worldView.SyncMap();
-            if (game.phase != lastPhase) { lastPhase = game.phase; Metrics.Screen(game.phase.ToString().ToLowerInvariant()); }
+            if (game.phase != lastPhase)
+            {
+                lastPhase = game.phase;
+                Metrics.Screen(game.phase.ToString().ToLowerInvariant());
+                if (game.phase == Phase.Lobby) room.lobbyEnteredAt = Time.realtimeSinceStartup;
+            }
             player.TickCooldowns(dt);
             perspective.Update();
             if (game.IsLive && !paused)
@@ -125,6 +161,7 @@ namespace Unice
             }
             if (IsOnline) room.sync.Tick(dt);
             voice?.Tick(VoiceRule.CanSpeak(MicOn, myCharacter), myCharacter?.x ?? 0, myCharacter?.y ?? 0, myCharacter != null, Whisper);
+            if (voice != null) UpdateUnheard();
             ui.Step(dt);
         }
 
@@ -132,18 +169,23 @@ namespace Unice
         void RenderFrame(float dt)
         {
             float time = Time.unscaledTime;
+            stepBlend = stepAccumulator / StepSeconds;
             if (!game.isHost) SmoothRemoteCharacters(dt);
             bool inGame = game.IsLive || game.phase == Phase.Result;
             bool followView = inGame && perspective.hasView;
-            cameraRig.Follow(dt, followView, perspective.view);
-            worldView.SyncCharacters(game, myCharacter, perspective.CanSee, perspective.ShowsTeamInfo, time);
+            var drawnView = perspective.DrawnView(stepBlend);   // the camera and the fog move with the drawn character, not in steps
+            cameraRig.Follow(dt, followView, drawnView);
+            worldView.SyncCharacters(game, myCharacter, canSee, perspective.ShowsTeamInfo, time, stepBlend);
             worldView.UpdateOcclusion(myCharacter, game.IsLive);
             worldView.Tick(dt);
-            if (followView) DrawFog(time); else worldView.fogView.Hide();
+            if (followView) DrawFog(drawnView, time); else worldView.fogView.Hide();
             ui.Frame(dt, cameraRig.Camera);
         }
 
-        /// <summary>Guests get positions ~15 times a second; in between, other characters slide towards the last one.</summary>
+        /// <summary>
+        /// Guests get positions ~15 times a second; in between, other characters slide towards the last one. They are drawn
+        /// right where they slid to (no step blend), so their previous position follows them.
+        /// </summary>
         void SmoothRemoteCharacters(float dt)
         {
             float blend = Mathf.Min(1, dt * RemoteSmoothing);
@@ -152,13 +194,13 @@ namespace Unice
                 if (character == myCharacter) continue;
                 character.x += (character.targetX - character.x) * blend;
                 character.y += (character.targetY - character.y) * blend;
+                character.KeepPrevious();
             }
         }
 
         /// <summary>Darkness around what the player can see, with a slight candle-like flicker.</summary>
-        void DrawFog(float time)
+        void DrawFog(ViewInfo view, float time)
         {
-            var view = perspective.view;
             float flicker = 1 + Mathf.Sin(time * 9) * .012f + Mathf.Sin(time * 23) * .008f;
             bool hidden = myCharacter != null && myCharacter.hidingSpot != null;
             var darkness = new Color(0, 0, 0, view.spectating ? .6f : hidden ? .985f : .95f);
@@ -181,6 +223,8 @@ namespace Unice
         public string myName { get => profile.Name; set => profile.Name = value; }
         public int[] kit { get => profile.Kit; set => profile.Kit = value; }
         public void SaveProfile() => profile.Save();
+        internal int AddOnlineWin() => profile.AddOnlineWin();
+        internal bool MarkFirstMatchEnd() => profile.MarkFirstMatchEnd();
         public void SetKit(int[] newKit) { profile.SetKit(newKit); room.sync.PublishSoon(); }
 
         public bool MicOn { get => voice != null && voice.MicOn; set { if (voice != null) voice.MicOn = value; } }
@@ -203,19 +247,41 @@ namespace Unice
             Metrics.Log("player_muted", ("muted", muted));
         }
 
-        /// <summary>Esc / Android back: pause in a match, leave the room elsewhere, quit from home.</summary>
+        /// <summary>Reused every step: voice ids this device must not hear right now.</summary>
+        readonly HashSet<string> unheard = new HashSet<string>();
+
+        /// <summary>Applies <see cref="VoiceRule.CanHear"/>: while this device is still playing, caught players go silent for it.</summary>
+        void UpdateUnheard()
+        {
+            unheard.Clear();
+            foreach (var character in game.characters)
+            {
+                if (VoiceRule.CanHear(game.IsLive, myCharacter, character)) continue;
+                var voiceId = room.VoiceIdOf(character.playerId);
+                if (voiceId != null) unheard.Add(voiceId);
+            }
+            voice.SetUnheard(unheard);
+        }
+
+        /// <summary>A round or its result is on screen: the pause menu (with "leave") can open.</summary>
+        bool InMatch => game.IsLive || game.phase == Phase.Result || game.phase == Phase.Final;
+
+        /// <summary>
+        /// Esc / Android back: the pause menu during a match, including the result screens (an edge swipe over the joystick
+        /// must not leave the room), leave the room from the waiting room, quit from home.
+        /// </summary>
         public void Back()
         {
             if (ui.Typing) return;
-            if (game.IsLive) { TogglePause(); return; }
+            if (InMatch) { TogglePause(); return; }
             if (game.phase == Phase.Home) { if (!ui.MenuBack()) Application.Quit(); return; }
-            room.LeaveRoom();
+            room.LeaveRoom(RoomSession.LeaveReason.Back);
         }
 
         /// <summary>Solo: freezes the match. Online the match keeps going; the menu only covers the screen.</summary>
         public void TogglePause()
         {
-            paused = !paused && game.IsLive;
+            paused = !paused && InMatch;
             ui.ShowPause(paused, IsOnline);
             if (paused) Metrics.Log("pause", ("online", IsOnline));
         }
@@ -227,7 +293,7 @@ namespace Unice
         public PeerInfo FindHost() => room.FindHost();
         public void SetNetStatus(string text, bool isError = false) => room.SetStatus(text, isError);
         public void EnterRoom(bool create, string roomCodeToJoin) => room.EnterRoom(create, roomCodeToJoin);
-        public void LeaveRoom() => room.LeaveRoom();
+        public void LeaveRoom() => room.LeaveRoom(RoomSession.LeaveReason.Button);
         public void PlaySolo() => room.PlaySolo();
         internal List<RoomSession.LobbyPlayer> LobbyPlayers() => room.LobbyPlayers();
         public void StartMatch(int bots, int rounds) => room.StartMatch(bots, rounds);

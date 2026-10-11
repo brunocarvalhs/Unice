@@ -8,6 +8,8 @@ namespace Unice
     {
         public const int MaxNameLength = 12;
         const string FallbackName = "Alguém";
+        /// <summary>A new profile's name when there's no Play Games name to use.</summary>
+        const string DefaultName = "Nova";
         /// <summary>Room code letters: no 0/O, 1/I/L, so codes are easy to read aloud and type.</summary>
         const string CodeAlphabet = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
         const int RoomCodeLength = 5;
@@ -25,6 +27,16 @@ namespace Unice
             var result = clean.ToString().Trim();
             if (result.Length > MaxNameLength) result = result.Substring(0, MaxNameLength).Trim();
             return result.Length == 0 ? FallbackName : result;
+        }
+
+        /// <summary>
+        /// The profile name: the one saved on this device wins (the player chose it, or it was settled on the first run);
+        /// with nothing saved yet, the Google Play Games name; without one, "Nova". Null means "none".
+        /// </summary>
+        public static string FirstRunName(string savedName, string playGamesName)
+        {
+            if (savedName != null) return CleanName(savedName);
+            return string.IsNullOrWhiteSpace(playGamesName) ? DefaultName : CleanName(playGamesName);
         }
 
         /// <summary>Normalizes a typed room code: uppercase letters and digits only.</summary>

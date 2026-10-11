@@ -11,6 +11,17 @@ namespace Unice
     [TestFixture]
     public class GameTests
     {
+        /// <summary>Any fixed value works: it only has to be the same on every run.</summary>
+        const int TestSeed = 1234;
+
+        /// <summary>Same map and same dice on every run, whatever fixture ran before (Map and GameRandom are static).</summary>
+        [SetUp]
+        public void SetUp()
+        {
+            Map.Load(MapHouse.Build());
+            GameRandom.Seed(TestSeed);
+        }
+
         static List<Game.Human> Humans(params (string id, string name)[] hs)
         {
             var list = new List<Game.Human>();
@@ -143,6 +154,146 @@ namespace Unice
             Assert.AreEqual(0, holder.passCooldown);
         }
 
+        // ---------- ApplyAction: Laugh (R) ----------
+
+        /// <summary>A hunt in progress with characters[0] as the Unice and characters[1] holding the doll.</summary>
+        static Game HuntWithUniceAtZero()
+        {
+            var g = NewGameAfterMatch(2, Humans(("h1", "Ana")));
+            foreach (var e in g.characters) e.role = Role.Hider;
+            var unice = g.characters[0]; unice.role = Role.Unice; g.unice = unice;
+            g.doll.holder = g.characters[1];
+            g.phase = Phase.Hunt;
+            return g;
+        }
+
+        [Test]
+        public void ApplyAction_LaughWhileOffCooldown_RaisesGiggleAtLaugherAndSetsCooldown()
+        {
+            var g = HuntWithUniceAtZero();
+            var laugher = g.characters[2]; laugher.x = 100.4f; laugher.y = 200.6f; laugher.laughCooldown = 0;
+
+            g.ApplyAction(laugher, PlayerAction.Laugh, 0);
+
+            var ev = g.events[g.events.Count - 1];
+            Assert.AreEqual(GameEventType.Giggle, ev.type, "a laugh is heard like the doll's giggle");
+            Assert.AreEqual(laugher.index, ev.actor);
+            Assert.AreEqual(100, ev.x, "event position is the laugher's, rounded"); Assert.AreEqual(201, ev.y);
+            Assert.AreEqual(Rules.LaughCooldown, laugher.laughCooldown);
+            Assert.AreEqual(5f, Rules.LaughCooldown, "SPEC: 5 s between laughs");
+            Assert.IsTrue(g.doll.hasLastGiggle); Assert.AreEqual(100.4f, g.doll.lastGiggleX); Assert.AreEqual(200.6f, g.doll.lastGiggleY);
+        }
+
+        [Test]
+        public void ApplyAction_LaughOnCooldown_DoesNothing()
+        {
+            var g = HuntWithUniceAtZero();
+            var laugher = g.characters[2]; laugher.laughCooldown = 0.1f;
+            int seqBefore = g.eventSeq;
+
+            g.ApplyAction(laugher, PlayerAction.Laugh, 0);
+
+            Assert.AreEqual(seqBefore, g.eventSeq, "no event");
+            Assert.AreEqual(0.1f, laugher.laughCooldown, "cooldown untouched");
+        }
+
+        [TestCase(true, TestName = "ApplyAction_LaughAsUnice_DoesNothing")]
+        [TestCase(false, TestName = "ApplyAction_LaughAsCaughtHider_DoesNothing")]
+        public void ApplyAction_LaughAsUniceOrCaught_DoesNothing(bool asUnice)
+        {
+            var g = HuntWithUniceAtZero();
+            var laugher = asUnice ? g.characters[0] : g.characters[2];
+            if (!asUnice) laugher.outOfRound = true;
+            int seqBefore = g.eventSeq;
+
+            g.ApplyAction(laugher, PlayerAction.Laugh, 0);
+
+            Assert.AreEqual(seqBefore, g.eventSeq, "no event");
+            Assert.AreEqual(0, laugher.laughCooldown, "no cooldown set");
+        }
+
+        [Test]
+        public void ApplyAction_LaughWhileHoldingDoll_ResetsGiggleTimer()
+        {
+            var g = HuntWithUniceAtZero();
+            var holder = g.doll.holder; g.doll.giggleTimer = 3;
+
+            g.ApplyAction(holder, PlayerAction.Laugh, 0);
+
+            Assert.AreEqual(g.giggleInterval, g.doll.giggleTimer);
+        }
+
+        [Test]
+        public void ApplyAction_LaughWithoutDoll_KeepsGiggleTimer()
+        {
+            var g = HuntWithUniceAtZero();
+            g.doll.giggleTimer = 3;
+
+            g.ApplyAction(g.characters[2], PlayerAction.Laugh, 0);
+
+            Assert.AreEqual(3, g.doll.giggleTimer);
+        }
+
+        [TestCase(Phase.Lobby)]
+        [TestCase(Phase.Result)]
+        [TestCase(Phase.Final)]
+        public void ApplyAction_LaughOutsideRound_DoesNothing(Phase phase)
+        {
+            var g = HuntWithUniceAtZero();
+            g.phase = phase;
+            var laugher = g.characters[2];
+            int seqBefore = g.eventSeq;
+
+            g.ApplyAction(laugher, PlayerAction.Laugh, 0);
+
+            Assert.AreEqual(seqBefore, g.eventSeq, "no event");
+            Assert.AreEqual(0, laugher.laughCooldown, "no cooldown set");
+        }
+
+        // ---------- draws: who can be the Unice / get the doll ----------
+
+        const int DrawRuns = 200;
+
+        [Test]
+        public void NewMatch_TwoOrMoreHumans_NeverDrawsBotAsUniceOrDollHolder()
+        {
+            // EligibleForDraw (Game.cs) is used for both the first Unice and the doll holder, so both hold.
+            for (int run = 0; run < DrawRuns; run++)
+            {
+                var g = NewGameAfterMatch(3, Humans(("h1", "Ana"), ("h2", "Beto")));
+
+                Assert.IsFalse(g.unice.isBot, $"run {run}: Unice was a bot");
+                Assert.IsFalse(g.doll.holder.isBot, $"run {run}: doll holder was a bot");
+            }
+        }
+
+        [Test]
+        public void EndRound_TimeUpWithTwoOrMoreHumans_NextUniceIsNeverABot()
+        {
+            for (int run = 0; run < DrawRuns; run++)
+            {
+                var g = NewGameAfterMatch(3, Humans(("h1", "Ana"), ("h2", "Beto"), ("h3", "Caio")));
+                // bots have the fewest turns, so only the "people only" rule keeps them out
+                foreach (var e in g.characters) e.uniceTurns = e.isBot ? 0 : 5;
+                g.phase = Phase.Hunt; g.timeLeft = 0.01f;
+
+                g.Simulate(0.02f);
+
+                Assert.AreEqual(Phase.Result, g.phase, $"run {run}: round should have ended");
+                Assert.IsFalse(g.nextUnice.isBot, $"run {run}: next Unice was a bot");
+            }
+        }
+
+        [Test]
+        public void NewMatch_SingleHuman_CanDrawBotAsUnice()
+        {
+            bool botDrawn = false;
+            for (int run = 0; run < DrawRuns && !botDrawn; run++)
+                botDrawn = NewGameAfterMatch(3, Humans(("h1", "Ana"))).unice.isBot;
+
+            Assert.IsTrue(botDrawn, "playing alone, everyone (bots included) can be the Unice");
+        }
+
         // ---------- ApplyAction: Unice (Open / Catch) ----------
 
         [Test]
@@ -228,6 +379,24 @@ namespace Unice
             Assert.AreEqual(-1, g.roundResult.holderSpotIndex, "holder wasn't hidden when the clock ran out");
             Assert.Contains(g.nextUnice, new[] { holder, other }, "next Unice is drawn from the tied-lowest-turns pool");
             Assert.AreEqual(g.nextUnice.index, g.roundResult.nextUnice);
+        }
+
+        /// <summary>
+        /// CHARACTERIZATION PENDING OWNER DECISION: today every non-Unice gets +2 on time-up, including hiders the Unice
+        /// already caught (Game.cs EndRound: `if (!character.IsUnice) character.score += 2`, no outOfRound check).
+        /// SPEC says "cada escondido +2" — confirm with the web version whether caught hiders should score.
+        /// </summary>
+        [Test]
+        public void EndRound_TimeUp_CaughtHiderAlsoScoresTwo_CurrentBehavior()
+        {
+            var g = HuntWithUniceAtZero();
+            var caught = g.characters[2]; caught.outOfRound = true; caught.score = 0;
+            g.timeLeft = 0.01f;
+
+            g.Simulate(0.02f);
+
+            Assert.AreEqual(Phase.Result, g.phase, "round ended on time-up");
+            Assert.AreEqual(2, caught.score, "caught hider still gets the team's +2 (current behavior)");
         }
 
         // ---------- Simulate: Hide -> Hunt transition ----------

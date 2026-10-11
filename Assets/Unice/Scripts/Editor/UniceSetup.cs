@@ -77,7 +77,7 @@ namespace Unice
         {
             if (File.Exists(PanelPath)) return;
             var panelSettings = ScriptableObject.CreateInstance<PanelSettings>();
-            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = new Vector2Int(1280, 720);
+            panelSettings.scaleMode = PanelScaleMode.ScaleWithScreenSize; panelSettings.referenceResolution = new Vector2Int(960, 540);   // same as Ui.ReferenceResolution (this assembly can't see Core)
             panelSettings.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; panelSettings.match = 1;
             panelSettings.themeStyleSheet = AssetDatabase.LoadAssetAtPath<ThemeStyleSheet>("Assets/Unice/Resources/UI/UniceTheme.tss");
             AssetDatabase.CreateAsset(panelSettings, PanelPath);

@@ -29,6 +29,8 @@ namespace Unice
 
         // ---------- round state ----------
         public float x, y;
+        /// <summary>Where it was at the start of the current fixed step: frames between steps are drawn between here and (x, y).</summary>
+        public float prevX, prevY;
         /// <summary>Guests: where the host last saw this character; it slides there every frame.</summary>
         public float targetX, targetY;
         /// <summary>Unit vector of where it is looking.</summary>
@@ -69,7 +71,7 @@ namespace Unice
         /// <summary>Back to the start-of-round state: a hider, off the map until placed, no cooldowns.</summary>
         public void ResetRound()
         {
-            x = y = targetX = targetY = -600; faceX = 0; faceY = 1;
+            Teleport(-600, -600); targetX = targetY = -600; faceX = 0; faceY = 1;
             role = Role.Hider; outOfRound = false; hidingSpot = null;
             passCooldown = 0; laughCooldown = 0;
             moving = sneaking = loud = talking = false; speed = 0;
@@ -77,7 +79,25 @@ namespace Unice
             brain.ResetForRound();
         }
 
+        /// <summary>Start of a fixed step: remember the position, so the frames until the next step can blend from it.</summary>
+        public void KeepPrevious() { prevX = x; prevY = y; }
+
+        /// <summary>Puts it at (newX, newY) at once: drawn there from the next frame, without sliding across the house.</summary>
+        public void Teleport(float newX, float newY) { x = prevX = newX; y = prevY = newY; }
+
+        /// <summary>Where to draw it a fraction <paramref name="stepBlend"/> (0..1) of the way from the last step to the next.</summary>
+        public float DrawX(float stepBlend) => prevX + (x - prevX) * stepBlend;
+        public float DrawY(float stepBlend) => prevY + (y - prevY) * stepBlend;
+
         /// <summary>Forget the bot's plans (a new host, or a human just became a bot).</summary>
         public void ResetBot() => brain.Reset();
+
+        /// <summary>The human left: a bot plays in their place, without the human's last input (talking, sneaking, speed).</summary>
+        public void BecomeBot()
+        {
+            isBot = true;
+            talking = sneaking = false; speed = 0;
+            ResetBot();
+        }
     }
 }

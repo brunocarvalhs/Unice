@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
-using Unity.Services.Authentication;
-using Unity.Services.Core;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 
@@ -18,6 +16,8 @@ namespace Unice
     {
         /// <summary>Waiting for the connection after creating/joining gives up after this long.</summary>
         const float ConnectTimeoutSeconds = 15;
+        /// <summary>Session property holding the creator's <see cref="Protocol.Id"/>, checked by whoever joins.</summary>
+        const string ProtocolKey = "protocol";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register() => NetRegistry.Factory = () => new NgoBackend();
@@ -32,11 +32,13 @@ namespace Unice
         public string Code => session?.Code ?? "";
         public string LocalId => Network != null ? Network.LocalClientId.ToString() : "";
 
+        /// <summary>Refilled on every read (several times per step), so it allocates nothing: use it right away, don't keep it.</summary>
+        readonly List<PeerInfo> peers = new List<PeerInfo>(Rules.MaxPlayers);
         public IReadOnlyList<PeerInfo> Peers
         {
             get
             {
-                var peers = new List<PeerInfo>(NetPlayer.All.Count);
+                peers.Clear();
                 foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned) peers.Add(player.peerInfo);
                 return peers;
             }
@@ -45,7 +47,7 @@ namespace Unice
         /// <summary>This device's own player object, once spawned.</summary>
         static NetPlayer Local() { foreach (var player in NetPlayer.All) if (player != null && player.IsSpawned && player.IsOwner) return player; return null; }
 
-        /// <summary>Creates the NetworkManager (once) and signs in to Unity Services anonymously.</summary>
+        /// <summary>Creates the NetworkManager (once) and signs in to Unity Services (<see cref="PlayerSignIn"/>).</summary>
         public async Task InitAsync()
         {
             if (Network == null)
@@ -61,8 +63,7 @@ namespace Unice
             }
             try
             {
-                if (UnityServices.State != ServicesInitializationState.Initialized) await UnityServices.InitializeAsync();
-                if (!AuthenticationService.Instance.IsSignedIn) await AuthenticationService.Instance.SignInAnonymouslyAsync();
+                await PlayerSignIn.EnsureSignedInAsync();
             }
             catch (Exception error)
             {
@@ -76,7 +77,11 @@ namespace Unice
         public async Task<string> CreateAsync()
         {
             Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
-            try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions { MaxPlayers = Rules.MaxPlayers, IsPrivate = true }.WithDistributedAuthorityNetwork()); }
+            try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions
+            {
+                MaxPlayers = Rules.MaxPlayers, IsPrivate = true,
+                SessionProperties = { [ProtocolKey] = new SessionProperty(Protocol.Id.ToString(), VisibilityPropertyOptions.Member) },
+            }.WithDistributedAuthorityNetwork()); }
             catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
             await Connected();
             return session.Code;
@@ -87,6 +92,12 @@ namespace Unice
             Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
             try { session = await MultiplayerService.Instance.JoinSessionByCodeAsync(roomCode); }
             catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
+            // a room from another app version (or from a build before this check) can't be played together
+            if (!session.Properties.TryGetValue(ProtocolKey, out var protocol) || protocol.Value != Protocol.Id.ToString())
+            {
+                await LeaveAsync();
+                throw new NetException(Localization.Get("net.update_app"));
+            }
             await Connected();
         }
 

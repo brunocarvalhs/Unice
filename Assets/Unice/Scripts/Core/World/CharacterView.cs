@@ -8,12 +8,22 @@ namespace Unice
     public sealed class CharacterView
     {
         const float HitDuration = .35f;
+        /// <summary>
+        /// Every kid pose already resolved to sprites, so drawing a frame builds no file-name strings. Key: packed kit,
+        /// back/side and walk frame (see <see cref="KidPoseKey"/>). Shared by every view; small (kits in play × 14 poses).
+        /// </summary>
+        static readonly Dictionary<int, (Sprite sprite, Color tint)[]> kidPoses = new Dictionary<int, (Sprite, Color)[]>();
+        /// <summary>The Unice's frames, resolved once: index = ((moving ? 2 : 0) + (back ? 1 : 0)) × frames + frame.</summary>
+        static Sprite[] uniceFrames;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() { kidPoses.Clear(); uniceFrames = null; }   // Play mode without domain reload, like Art's sprite cache
 
         readonly GameObject root;
         readonly SortingGroup sortingGroup;
         readonly SpriteRenderer shadow, ring, dollIcon, uniceSprite;
-        readonly Dictionary<string, SpriteRenderer> kidLayers = new Dictionary<string, SpriteRenderer>();
-        readonly (string file, Color tint)[] kidLayerSprites = new (string, Color)[KidSprites.LayerOrder.Length];
+        /// <summary>One renderer per <see cref="KidSprites.LayerOrder"/> item, same order.</summary>
+        readonly SpriteRenderer[] kidLayers = new SpriteRenderer[KidSprites.LayerOrder.Length];
         float hitTime = -99;
 
         public CharacterView(Transform parent, int index)
@@ -27,7 +37,7 @@ namespace Unice
             {
                 var layer = Art.CreateSpriteRenderer(KidSprites.LayerOrder[i], root.transform, null, 10 + i);
                 layer.sharedMaterial = Art.PixelMat;
-                kidLayers[KidSprites.LayerOrder[i]] = layer;
+                kidLayers[i] = layer;
             }
             uniceSprite = Art.CreateSpriteRenderer("unice", root.transform, null, 40); uniceSprite.sharedMaterial = Art.PixelMat;
             dollIcon = Art.CreateSpriteRenderer("doll", root.transform, Art.Centered("doll", Art.Manifest.charScale), 50);
@@ -42,14 +52,16 @@ namespace Unice
 
         /// <param name="isMe">Draws the ring under this device's own character.</param>
         /// <param name="showDoll">Draws the doll in its hands (only for those allowed to know who has it).</param>
-        public void Show(Character character, bool isMe, float alpha, bool showDoll, float time)
+        /// <param name="stepBlend">How far between the last two fixed steps to draw it (see <see cref="Character.DrawX"/>).</param>
+        public void Show(Character character, bool isMe, float alpha, bool showDoll, float time, float stepBlend)
         {
             if (!root.activeSelf) root.SetActive(true);
             if (character.faceX > .3f) character.facingSign = 1; else if (character.faceX < -.3f) character.facingSign = -1;
             bool showBack = character.faceY < -.6f && Mathf.Abs(character.faceX) < .55f;
             float walkBob = character.IsUnice || !character.moving ? 0 : Mathf.Abs(Mathf.Sin(time * 13 + character.index)) * 1.2f;
-            root.transform.localPosition = Art.ToWorld(character.x, character.y - walkBob);
-            sortingGroup.sortingOrder = Art.SortingOrder(character.y, 2);
+            float drawY = character.DrawY(stepBlend);
+            root.transform.localPosition = Art.ToWorld(character.DrawX(stepBlend), drawY - walkBob);
+            sortingGroup.sortingOrder = Art.SortingOrder(drawY, 2);
             shadow.transform.localPosition = new Vector3(0, walkBob / Art.PxPerUnit, 0);
             ring.gameObject.SetActive(isMe && alpha >= 1);
             dollIcon.gameObject.SetActive(showDoll);
@@ -65,10 +77,13 @@ namespace Unice
 
         void ShowUnice(Character character, bool showBack, float alpha, float hit, float time)
         {
-            foreach (var layer in kidLayers.Values) layer.enabled = false;
+            foreach (var layer in kidLayers) layer.enabled = false;
             uniceSprite.enabled = true;
-            int frame = Mathf.FloorToInt(time * (character.moving ? 8f : 3f)) % Art.Manifest.unice.frames;   // 8 frames = one stride (two steps)
-            uniceSprite.sprite = Art.UniceFrame($"unice_{(character.moving ? "m" : "i")}_{(showBack ? "b" : "s")}_{frame}");
+            int frames = Art.Manifest.unice.frames;
+            int frame = Mathf.FloorToInt(time * (character.moving ? 8f : 3f)) % frames;   // 8 frames = one stride (two steps)
+            uniceFrames ??= new Sprite[4 * frames];
+            int index = ((character.moving ? 2 : 0) + (showBack ? 1 : 0)) * frames + frame;
+            uniceSprite.sprite = uniceFrames[index] ??= Art.UniceFrame($"unice_{(character.moving ? "m" : "i")}_{(showBack ? "b" : "s")}_{frame}");
             uniceSprite.flipX = character.facingSign < 0;
             uniceSprite.transform.localPosition = Vector3.zero;
             uniceSprite.color = Color.Lerp(new Color(1, 1, 1, alpha), Color.white, hit * .7f);
@@ -79,18 +94,32 @@ namespace Unice
         {
             uniceSprite.enabled = false; shadow.transform.localScale = Vector3.one;
             int frame = character.moving ? 1 + Mathf.FloorToInt(time * 13 / (Mathf.PI * 2) * 6) % 6 : 0;
-            KidSprites.Build(character.kit, showBack, frame, kidLayerSprites);
-            for (int i = 0; i < KidSprites.LayerOrder.Length; i++)
+            var pose = KidPose(character.kit, showBack, frame);
+            for (int i = 0; i < kidLayers.Length; i++)
             {
-                var (file, tint) = kidLayerSprites[i];
-                SetLayer(kidLayers[KidSprites.LayerOrder[i]], file, Color.Lerp(tint, Color.white, hit * .7f), alpha, character.facingSign);
+                var (sprite, tint) = pose[i];
+                SetLayer(kidLayers[i], sprite, Color.Lerp(tint, Color.white, hit * .7f), alpha, character.facingSign);
             }
         }
 
-        static void SetLayer(SpriteRenderer layer, string file, Color tint, float alpha, int facingSign)
+        static int KidPoseKey(int[] kit, bool showBack, int frame) => (Kit.Pack(kit) << 4) | (showBack ? 8 : 0) | frame;
+
+        /// <summary>The sprite (null = layer not used) and tint of each layer for this kit and pose; built the first time it's seen.</summary>
+        static (Sprite sprite, Color tint)[] KidPose(int[] kit, bool showBack, int frame)
         {
-            if (file == null) { layer.enabled = false; return; }
-            layer.enabled = true; layer.sprite = Art.CharacterSprite(file); layer.flipX = facingSign < 0;
+            int key = KidPoseKey(kit, showBack, frame);
+            if (kidPoses.TryGetValue(key, out var pose)) return pose;
+            var files = new (string file, Color tint)[KidSprites.LayerOrder.Length];
+            KidSprites.Build(kit, showBack, frame, files);
+            pose = new (Sprite, Color)[files.Length];
+            for (int i = 0; i < files.Length; i++) pose[i] = (files[i].file != null ? Art.CharacterSprite(files[i].file) : null, files[i].tint);
+            return kidPoses[key] = pose;
+        }
+
+        static void SetLayer(SpriteRenderer layer, Sprite sprite, Color tint, float alpha, int facingSign)
+        {
+            if (sprite == null) { layer.enabled = false; return; }
+            layer.enabled = true; layer.sprite = sprite; layer.flipX = facingSign < 0;
             tint.a = alpha; layer.color = tint;
         }
     }

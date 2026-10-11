@@ -14,6 +14,17 @@ namespace Unice
     [TestFixture]
     public class GameAiTests
     {
+        /// <summary>Any fixed value works: it only has to be the same on every run.</summary>
+        const int TestSeed = 1234;
+
+        /// <summary>Same map and same dice on every run, whatever fixture ran before (Map and GameRandom are static).</summary>
+        [SetUp]
+        public void SetUp()
+        {
+            Map.Load(MapHouse.Build());
+            GameRandom.Seed(TestSeed);
+        }
+
         static List<Game.Human> Humans(params (string id, string name)[] hs)
         {
             var list = new List<Game.Human>();

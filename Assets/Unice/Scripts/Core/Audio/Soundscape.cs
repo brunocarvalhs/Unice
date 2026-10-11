@@ -14,8 +14,8 @@ namespace Unice
         const float StepInterval = .42f, CaneInterval = .45f;
         /// <summary>Panning: a sound this far to one side (house pixels) plays fully in that ear.</summary>
         const float FullPanDistance = 300;
-        /// <summary>The grandfather clock in the house, and how far its tick carries.</summary>
-        const float ClockX = 1652, ClockY = 182, ClockRange = 260;
+        /// <summary>How far the tick of the map's clock (<see cref="Map.Clock"/>) carries.</summary>
+        const float ClockRange = 260;
         /// <summary>The last seconds of a round tick.</summary>
         const int CountdownTickFrom = 10;
 
@@ -99,8 +99,9 @@ namespace Unice
                 if (ownStepTimer <= 0) { ownStepTimer = StepInterval; app.worldView.ShowRipple(me.x, me.y, RippleKind.Own); }
             }
 
+            var clock = Map.Clock;
             clockTimer -= dt;
-            if (clockTimer <= 0) { clockTimer = 1; PlayFrom(ClockX, ClockY, ClockRange, null, default, "clock"); }
+            if (clock != null && clockTimer <= 0) { clockTimer = 1; PlayFrom(clock.CenterX, clock.CenterY, ClockRange, null, default, "clock"); }
 
             if (game.phase == Phase.Hunt)
             {

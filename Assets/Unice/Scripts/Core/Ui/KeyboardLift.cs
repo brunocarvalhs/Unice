@@ -22,7 +22,8 @@ namespace Unice
         {
             float lift = 0;
             var root = ui.root;
-            if (ui.Typing && TouchScreenKeyboard.visible && root.panel.focusController.focusedElement is VisualElement field && Screen.height > 0)
+            if (ui.Typing && TouchScreenKeyboard.visible && root.panel.focusController.focusedElement is VisualElement field
+                && target.Contains(field) && Screen.height > 0)
             {
                 float pixelsToPanel = root.layout.height / Screen.height;
                 float keyboardHeight = TouchScreenKeyboard.area.height;

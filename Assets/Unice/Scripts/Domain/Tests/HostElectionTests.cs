@@ -46,8 +46,38 @@ namespace Unice
         [Test]
         public void Oldest_SkipsPeersThatWentQuiet()
         {
-            var gone = Peer("g", 1, presAt: 0); var me = Peer("me", 2, me: true, presAt: 0);
-            Assert.AreSame(me, HostElection.FindOldestPresent(new List<PeerInfo> { gone, me }, HostElection.StaleSeconds + 1));
+            var quiet = Peer("q", 1, presAt: 0); var other = Peer("o", 3, presAt: 10); var me = Peer("me", 2, me: true);
+            Assert.AreSame(me, HostElection.FindOldestPresent(new List<PeerInfo> { quiet, other, me }, 11));
+        }
+
+        [Test]
+        public void FindOldestPresent_OnlyMeFreshWhileOthersStale_ReturnsNull()
+        {
+            var host = Peer("h", 1, presAt: 0); var other = Peer("o", 3, presAt: 0); var me = Peer("me", 2, me: true);
+
+            var oldest = HostElection.FindOldestPresent(new List<PeerInfo> { host, other, me }, HostElection.StaleSeconds + 1);
+
+            Assert.IsNull(oldest);
+        }
+
+        [Test]
+        public void FindOldestPresent_OthersGoneFromPeers_ReturnsMe()
+        {
+            var me = Peer("me", 2, me: true);
+
+            var oldest = HostElection.FindOldestPresent(new List<PeerInfo> { me }, HostElection.StaleSeconds + 1);
+
+            Assert.AreSame(me, oldest);
+        }
+
+        [Test]
+        public void FindOldestPresent_OtherNeverSentPresence_ReturnsMe()
+        {
+            var unknown = Peer("u", 1); unknown.presence = default; var me = Peer("me", 2, me: true);
+
+            var oldest = HostElection.FindOldestPresent(new List<PeerInfo> { unknown, me }, HostElection.StaleSeconds + 1);
+
+            Assert.AreSame(me, oldest);
         }
 
         [Test]

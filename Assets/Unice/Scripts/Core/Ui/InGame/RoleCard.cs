@@ -19,12 +19,12 @@ namespace Unice
         {
             card = IgnorePointer(AddElement(parent, "hud-card", "hud-tr"));
             roleLabel = AddLabel(card, "", "role-t"); goalLabel = AddLabel(card, "", "role-g");
-            var dollRow = AddElement(card, "row"); dollRow.style.marginTop = 8;
+            var dollRow = AddElement(card, "row", "wrap"); dollRow.style.marginTop = 8;
             LocalizedLabel(dollRow, "hud.doll", "hud-lbl"); dollHolderLabel = AddLabel(dollRow, "", "hud-lbl");
             giggleMeter = AddElement(card, "meter"); giggleMeterFill = AddElement(giggleMeter, "meter-fill");
             dollNoteLabel = AddLabel(card, "", "note");
             noiseBox = AddElement(card); noiseBox.style.marginTop = 8;
-            var noiseRow = AddElement(noiseBox, "row");
+            var noiseRow = AddElement(noiseBox, "row", "wrap");
             LocalizedLabel(noiseRow, "hud.noise", "hud-lbl"); noiseLabel = AddLabel(noiseRow, "", "hud-lbl");
             var noiseMeter = AddElement(noiseBox, "meter", "meter-noise"); noiseMeterFill = AddElement(noiseMeter, "meter-fill");
             foreach (var label in card.Query<Label>().ToList()) IgnorePointer(label);

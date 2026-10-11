@@ -16,6 +16,8 @@ namespace Unice
     {
         const int MaxToasts = 3;
         const float ToastSeconds = 3.4f, CaptionSeconds = 2.4f;
+        /// <summary>On phones the prompt and the caption sit above the action buttons (30 + 108 panel px tall), which at 16:9 reach the middle of the screen.</summary>
+        const float MobilePromptBottom = 150, MobileCaptionBottom = 196;
 
         readonly Label banner, caption, countdownPillText, countdownNumber, prompt;
         readonly VisualElement toasts, countdownPill, captionBox, blackout, promptBox;
@@ -34,7 +36,7 @@ namespace Unice
             caption = (Label)IgnorePointer(AddLabel(captionBox, "", "caption-in"));
             promptBox = IgnorePointer(AddElement(safeArea, "prompt"));
             prompt = (Label)IgnorePointer(AddLabel(promptBox, "", "prompt-in"));
-            if (ui.isMobile) promptBox.style.bottom = 150;   // above the touch buttons
+            if (ui.isMobile) { promptBox.style.bottom = MobilePromptBottom; captionBox.style.bottom = MobileCaptionBottom; }
             toasts = IgnorePointer(AddElement(safeArea, "toasts"));
             banner = (Label)IgnorePointer(AddLabel(safeArea, "", "banner"));
             Show(banner, false); Show(blackout, false); Show(countdownPill, false); Show(captionBox, false); Show(promptBox, false);

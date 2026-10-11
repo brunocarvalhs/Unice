@@ -41,6 +41,9 @@ namespace Unice
             Reset();
         }
 
+        /// <summary>Lets go of the finger it follows, if any (app sent to the background, controls hidden).</summary>
+        public void Cancel() => Release(pointerId);
+
         void Release(int releasedPointerId)
         {
             if (releasedPointerId != pointerId) return;

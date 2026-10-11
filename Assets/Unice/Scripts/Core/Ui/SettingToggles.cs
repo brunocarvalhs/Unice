@@ -16,10 +16,10 @@ namespace Unice
         public SettingToggles(Ui ui, System.Action onLanguageChanged) : base(ui) { this.onLanguageChanged = onLanguageChanged; }
 
         public Button AddSoundButton(VisualElement parent, params string[] classes) => Register(soundButtons, AddButton(parent, "", ToggleSound, classes));
-        /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden.</summary>
-        public Button AddMicButton(VisualElement parent, params string[] classes) => Register(micButtons, AddButton(parent, "", ToggleMic, classes));
-        /// <summary>Personal choice: "whisper" transmits quieter and never counts as noise for the Unice. Needs the mic on.</summary>
-        public Button AddWhisperButton(VisualElement parent, params string[] classes) => Register(whisperButtons, AddButton(parent, "", ToggleWhisper, classes));
+        /// <summary>Personal choice: when on, the room hears you through proximity voice chat as long as you're not hidden. Not added (null) without voice.</summary>
+        public Button AddMicButton(VisualElement parent, params string[] classes) => app.voice == null ? null : Register(micButtons, AddButton(parent, "", ToggleMic, classes));
+        /// <summary>Personal choice: "whisper" transmits quieter and never counts as noise for the Unice. Needs the mic on. Not added (null) without voice.</summary>
+        public Button AddWhisperButton(VisualElement parent, params string[] classes) => app.voice == null ? null : Register(whisperButtons, AddButton(parent, "", ToggleWhisper, classes));
         public Button AddLanguageButton(VisualElement parent, params string[] classes) => Register(languageButtons, AddButton(parent, "", CycleLanguage, classes));
 
         static Button Register(List<Button> list, Button button) { list.Add(button); return button; }

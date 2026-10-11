@@ -11,6 +11,17 @@ namespace Unice
     [TestFixture]
     public class SnapshotTests
     {
+        /// <summary>Any fixed value works: it only has to be the same on every run.</summary>
+        const int TestSeed = 1234;
+
+        /// <summary>Same map and same dice on every run, whatever fixture ran before (Map and GameRandom are static).</summary>
+        [SetUp]
+        public void SetUp()
+        {
+            Map.Load(MapHouse.Build());
+            GameRandom.Seed(TestSeed);
+        }
+
         [Test]
         public void WriteThenApply_FullRoundState_RoundTripsFieldByField()
         {
@@ -140,7 +151,84 @@ namespace Unice
             Assert.AreEqual(77, Game.ReadEpoch(bytes));
             Assert.AreEqual(-1, Game.ReadEpoch(null));
             Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 9, 9, 9 })); // shorter than 5 bytes
-            Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 0, 0, 0, 0, 0, 0 })); // wrong version byte (not 1)
+            Assert.AreEqual(-1, Game.ReadEpoch(new byte[] { 0, 0, 0, 0, 0, 0 })); // wrong version byte (not SnapshotVersion = 5)
+        }
+
+        [Test]
+        public void ApplySnapshot_DifferentVersion_LeavesGameUnchanged()
+        {
+            var dst = new Game { epoch = 3, phase = Phase.Hunt, round = 2, timeLeft = 45.5f };
+            var ent = new Character(0, "h1", "Ana", new int[7], false) { x = 100, y = 200, score = 4 };
+            dst.characters.Add(ent); dst.unice = ent; dst.eventSeq = 9;
+            var before = dst.WriteSnapshot();
+            var incoming = new Game { epoch = 99, phase = Phase.Lobby }.WriteSnapshot();
+            incoming[0]++;   // a version this build doesn't know
+
+            var me = dst.ApplySnapshot(incoming, "h1", ent);
+
+            Assert.AreSame(ent, me, "returns the character it was given");
+            CollectionAssert.AreEqual(before, dst.WriteSnapshot(), "every snapshot field is unchanged");
+        }
+
+        [Test]
+        public void ApplySnapshot_UnknownMapId_LeavesGameUnchanged()
+        {
+            var dst = new Game { epoch = 3, phase = Phase.Hunt, round = 2, timeLeft = 45.5f };
+            var ent = new Character(0, "h1", "Ana", new int[7], false) { x = 100, y = 200, score = 4 };
+            dst.characters.Add(ent); dst.unice = ent; dst.eventSeq = 9;
+            var before = dst.WriteSnapshot();
+            var incoming = new Game { epoch = 99, phase = Phase.Lobby, mapId = "map-from-a-newer-build" }.WriteSnapshot();
+
+            var me = dst.ApplySnapshot(incoming, "h1", ent);
+
+            Assert.AreSame(ent, me, "returns the character it was given");
+            CollectionAssert.AreEqual(before, dst.WriteSnapshot(), "every snapshot field is unchanged");
+            Assert.AreEqual(MapHouse.Id, Map.Id, "the loaded map is unchanged");
+        }
+
+        /// <summary>
+        /// Golden bytes: the exact wire layout of a small known state (generated from the current code).
+        /// If this fails, the snapshot layout changed: bump Game.SnapshotVersion and regenerate the array —
+        /// devices on an older build must ignore the new snapshots instead of misreading them.
+        /// </summary>
+        [Test]
+        public void WriteSnapshot_KnownState_MatchesGoldenBytes()
+        {
+            var game = new Game { epoch = 7, phase = Phase.Lobby };
+            game.characters.Add(new Character(0, "h1", "Ana", new int[7], false) { x = 100, y = 200, faceX = 1, faceY = 0 });
+            var golden = new byte[]
+            {
+                5, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 65, 0, 0, 240, 66, 0, 0, 32, 65,
+                5, 104, 111, 117, 115, 101, 255, 255, 0, 255, 0, 0, 32, 65, 0, 1, 2, 104, 49, 3, 65, 110, 97, 0, 0, 0, 0,
+                0, 100, 0, 200, 0, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            };
+
+            var bytes = game.WriteSnapshot();
+
+            CollectionAssert.AreEqual(golden, bytes);
+        }
+
+        /// <summary>
+        /// Golden bytes for presence (generated from the current code). If this fails, the presence layout changed:
+        /// bump PresenceCodec.Version and regenerate the array.
+        /// </summary>
+        [Test]
+        public void PresenceCodecWrite_KnownPresence_MatchesGoldenBytes()
+        {
+            var presence = new Presence
+            {
+                name = "Ana", kit = 0, joinTime = 1, ready = true, teleportSeq = 2, hasPosition = true, x = 10, y = 20, faceX = 1, faceY = 0,
+                actionSeq = 3, action = PlayerAction.Laugh, actionArg = 4, voiceId = "v1"
+            };
+            var golden = new byte[]
+            {
+                2, 3, 65, 110, 97, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 1, 0, 0, 32, 65, 0, 0, 160, 65,
+                0, 0, 128, 63, 0, 0, 0, 0, 0, 3, 0, 0, 0, 6, 4, 0, 0, 2, 118, 49,
+            };
+
+            var bytes = PresenceCodec.Write(presence);
+
+            CollectionAssert.AreEqual(golden, bytes);
         }
 
         // ---------- PresenceCodec: per-player presence, sent far more often than a full snapshot ----------

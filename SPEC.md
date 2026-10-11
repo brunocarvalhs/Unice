@@ -19,6 +19,7 @@ Sucesso = paridade de regras com a versão web, build Android estável via CI, e
 - Netcode for GameObjects 2.13.3 + Unity Services Multiplayer 2.3.3 (transporte/relay)
 - Firebase 13.17: Analytics (GA4) e Crashlytics integrados via `Core/Analytics/Metrics.cs` (catálogo de eventos em `docs/ANALYTICS.md`); App Check instalado, não usado no código
 - Vivox (Unity Services) para voz por proximidade — opcional, o jogo funciona sem
+- Google Play Games plugin for Unity 2.3.0 (`Assets/GooglePlayGames`): login automático no Android, com login anônimo de reserva
 - Unity Input System 1.20.0
 - Plataforma alvo: Android (prioridade); demais plataformas não configuradas no CI hoje
 
@@ -37,7 +38,7 @@ Não há CLI local de build/test (projeto Unity puro, sem Node/Make). Fluxos rea
 Assets/Unice/Scripts/Domain/  → regras puras, sem UnityEngine (assembly Unice.Domain, testado em Edit Mode)
   Match/    → Game (regras e partida; Game.Snapshot = estado enviado host→convidados), MatchHost (passo do host,
               comandos dos outros jogadores, assumir como host), Character, Rules, Kit,
-              GameEvent, RoundResult, DollState, Phase, PlayerAction
+              GameEvent, RoundResult, DollState, Phase, PlayerAction, Achievements (conquistas/ranking Play Games)
     Bots/   → HiderBot, UniceBot (IA dos bots), BotBrain (memória do bot), BotGoal, BotPath (andar pelo caminho)
   Maps/     → Map (geometria, colisão, linha de visão), Navigation (busca de caminho), MapParts, definições dos mapas
   Online/   → portas de rede/voz (INetBackend, IVoiceChat), Presence/PeerInfo, PresenceCodec, HostElection
@@ -56,7 +57,9 @@ Assets/Unice/Scripts/Core/    → adapters Unity (assembly Unice.Core)
     InGame/     → Hud, MatchCard, RoleCard, PlayerListPanel, MiniMap, Messages, WorldLabels, SoundCues,
                   ScreenEffects, TouchControls, Joystick, ActionIcons, ActionHints
   Tests/        → testes Edit Mode do Core
-Assets/Unice/Scripts/Net/     → implementações Unity Services: NgoBackend (Netcode), VivoxVoice, NetPlayer
+Assets/Unice/Scripts/Net/     → implementações Unity Services: NgoBackend (Netcode), VivoxVoice, NetPlayer,
+                                PlayerSignIn (login único: Google Play Games ou anônimo — docs/PLAY_GAMES.md),
+                                PlayGamesProgress (envio de conquistas/ranking e os IDs do Play Console)
 Assets/Unice/Scripts/Editor/  → utilitários de editor (incl. Net/Editor)
 Assets/Unice/Resources/       → UI (USS/uxml), Art, Fonts, config de rede
 ProjectSettings/, Packages/   → configuração Unity e dependências

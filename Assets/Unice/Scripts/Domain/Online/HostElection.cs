@@ -25,16 +25,23 @@ namespace Unice
             return host;
         }
 
-        /// <summary>With no host left, the peer who joined first (and is still around) takes over.</summary>
+        /// <summary>
+        /// With no host left, the peer who joined first (and is still around) takes over. Null when every other known
+        /// peer is still connected but silent: then it's this device that lost the network, and taking over would
+        /// steal the match when it comes back. Peers that really left are dropped from the list by the transport.
+        /// </summary>
         public static PeerInfo FindOldestPresent(IReadOnlyList<PeerInfo> peers, float now)
         {
             PeerInfo oldest = null;
+            bool othersKnown = false, othersFresh = false;
             foreach (var peer in peers)
             {
-                bool present = peer.isMe || (peer.presence.name != null && now - peer.presenceAt < StaleSeconds);
-                if (present && (oldest == null || JoinedBefore(peer, oldest))) oldest = peer;
+                bool known = !peer.isMe && peer.presence.name != null;
+                bool fresh = known && now - peer.presenceAt < StaleSeconds;
+                othersKnown |= known; othersFresh |= fresh;
+                if ((peer.isMe || fresh) && (oldest == null || JoinedBefore(peer, oldest))) oldest = peer;
             }
-            return oldest;
+            return othersKnown && !othersFresh ? null : oldest;
         }
 
         /// <summary>Tie-break everyone agrees on: earlier join time, then lower id.</summary>

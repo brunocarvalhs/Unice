@@ -37,7 +37,8 @@ namespace Unice
             var perspective = app.perspective;
             if (perspective.hasView)
             {
-                ringCenter = RuntimePanelUtils.CameraTransformWorldToPanel(ui.root.panel, Art.ToWorld(perspective.view.x, perspective.view.y - 18), camera);
+                var view = perspective.DrawnView(app.stepBlend);
+                ringCenter = RuntimePanelUtils.CameraTransformWorldToPanel(ui.root.panel, Art.ToWorld(view.x, view.y - 18), camera);
                 ringRadius = Mathf.Min(ui.root.layout.width, ui.root.layout.height) * .44f;
             }
             // repaint while there are cues, and once more to clear the last one

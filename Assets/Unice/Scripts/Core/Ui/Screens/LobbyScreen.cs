@@ -42,7 +42,7 @@ namespace Unice
 
             // body: player cards, and the side panel
             var body = AddElement(Root, "lobby-body");
-            playerCards = AddElement(body, "lobby-players");
+            playerCards = AddScroll(body, "lobby-players", "lobby-cards");
             var side = AddElement(body, "mpanel", "lobby-side");
             var tabBar = AddElement(side, "tabbar");
             matchTabButton = LocalizedButton(tabBar, "tab.match", () => ShowSideTab(SideTab.Match), "tabbtn");
