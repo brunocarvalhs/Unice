@@ -21,6 +21,8 @@ namespace Unice
             Blood = new Color32(226, 74, 82, 255), Moss = new Color32(143, 203, 156, 255), Ink = new Color32(241, 231, 216, 255);
 
         const float HudRefreshSeconds = .2f;
+        /// <summary>Padding of <c>.overlay</c> in unice.uss (panel pixels), kept around the pause sheet on top of the safe-area insets.</summary>
+        const float OverlayPadding = 16;
 
         /// <summary>
         /// Panel size in USS pixels, matched by height: the panel is always 540 px tall and as wide as the screen's aspect gives
@@ -51,7 +53,7 @@ namespace Unice
         readonly LobbyScreen lobbyScreen;
         readonly ResultScreen resultScreen;
         readonly PauseMenu pauseMenu;
-        readonly KeyboardLift keyboardLift;
+        readonly KeyboardLift homeKeyboardLift, lobbyKeyboardLift;
 
         public Ui(App app)
         {
@@ -79,7 +81,8 @@ namespace Unice
             settings = new SettingToggles(this, Relocalize);
             kidCustomizer = new KidCustomizer(this);
             homeMenu = new HomeMenu(this); lobbyScreen = new LobbyScreen(this); resultScreen = new ResultScreen(this); pauseMenu = new PauseMenu(this);
-            keyboardLift = new KeyboardLift(this, homeMenu.Root);   // the only screen with text fields
+            // the screens with text fields: room code and name (My child) at home, name (Appearance tab) in the waiting room
+            homeKeyboardLift = new KeyboardLift(this, homeMenu.Root); lobbyKeyboardLift = new KeyboardLift(this, lobbyScreen.Root);
             settings.Refresh();
         }
 
@@ -180,7 +183,7 @@ namespace Unice
         public void Frame(float dt, Camera camera)
         {
             if (root.panel == null) return;
-            ApplySafeArea(); keyboardLift.Update();
+            ApplySafeArea(); homeKeyboardLift.Update(); lobbyKeyboardLift.Update();
             float panelHeight = root.layout.height;
             if (float.IsNaN(panelHeight) || panelHeight < 1) return;   // no layout yet
             messages.Frame(dt);
@@ -197,13 +200,16 @@ namespace Unice
             if (safeRect == lastSafeRect || Screen.height < 1) return;
             lastSafeRect = safeRect;
             float pixelsToPanel = root.layout.height > 0 ? root.layout.height / Screen.height : (float)ReferenceResolution.y / Screen.height;
-            safeArea.style.left = safeRect.xMin * pixelsToPanel; safeArea.style.right = (Screen.width - safeRect.xMax) * pixelsToPanel;
-            safeArea.style.top = (Screen.height - safeRect.yMax) * pixelsToPanel; safeArea.style.bottom = safeRect.yMin * pixelsToPanel;
-            foreach (var screen in new[] { homeMenu.Root, lobbyScreen.Root, resultScreen.Root })
+            float left = safeRect.xMin * pixelsToPanel, right = (Screen.width - safeRect.xMax) * pixelsToPanel;
+            float top = (Screen.height - safeRect.yMax) * pixelsToPanel, bottom = safeRect.yMin * pixelsToPanel;
+            foreach (var screen in new[] { safeArea, homeMenu.Root, lobbyScreen.Root, resultScreen.Root })
             {
-                screen.style.left = safeArea.style.left; screen.style.right = safeArea.style.right;
-                screen.style.top = safeArea.style.top; screen.style.bottom = safeArea.style.bottom;
+                screen.style.left = left; screen.style.right = right; screen.style.top = top; screen.style.bottom = bottom;
             }
+            // the pause dims the whole screen (the game draws under the notch too) but keeps its sheet inside the safe area
+            var pause = pauseMenu.Root.style;
+            pause.paddingLeft = OverlayPadding + left; pause.paddingRight = OverlayPadding + right;
+            pause.paddingTop = OverlayPadding + top; pause.paddingBottom = OverlayPadding + bottom;
         }
     }
 }
