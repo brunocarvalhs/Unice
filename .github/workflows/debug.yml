@@ -2,8 +2,10 @@ name: Debug APK
 
 # PRs only: a push to a branch with an open PR used to start a second identical run, and two Unity runs at once
 # hit the Unity Personal activation limit (exit code 137). Direct pushes without a PR: run it from the Actions tab.
+# Draft PRs don't build: several PRs can be open, and they are marked ready one at a time so only one Unity run is live.
 "on":
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - develop
       - main
@@ -17,11 +19,13 @@ concurrency:
 
 jobs:
   targets:
+    if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/build-targets.yml
     permissions:
       contents: read
 
   tests:
+    if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/tests.yml
     secrets: inherit
     permissions:
