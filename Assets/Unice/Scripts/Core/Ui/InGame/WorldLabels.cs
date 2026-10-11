@@ -48,7 +48,7 @@ namespace Unice
                 SetText(tag, isUnice ? (character == me ? Localization.Get("tag.unice_you") : Localization.Get("tag.unice_named", character.name)) : character.name);
                 tag.style.color = isUnice ? Ui.Rose : character == me ? Ui.Candle : Ui.Ink; tag.style.opacity = alpha;
                 tag.style.fontSize = 12 * panelPixelsPerHousePixel;
-                var position = WorldToPanel(camera, character.x, character.y + (isUnice ? -66 : -54));
+                var position = WorldToPanel(camera, character.DrawX(app.stepBlend), character.DrawY(app.stepBlend) + (isUnice ? -66 : -54));
                 tag.style.left = position.x; tag.style.top = position.y;
             }
 

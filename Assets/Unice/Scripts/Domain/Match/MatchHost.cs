@@ -110,7 +110,7 @@ namespace Unice
             foreach (var peer in peers) lastActionSeq[peer.id] = peer.presence.actionSeq;   // don't replay actions the old host already applied
             foreach (var character in game.characters)
             {
-                if (character != myCharacter) { character.x = character.targetX; character.y = character.targetY; }
+                if (character != myCharacter) character.Teleport(character.targetX, character.targetY);
                 bool stillHere = peers.Any(peer => peer.id == character.playerId);
                 if (!character.isBot && !stillHere) character.BecomeBot();
                 else character.ResetBot();

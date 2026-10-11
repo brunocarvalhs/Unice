@@ -160,7 +160,7 @@ namespace Unice
                 {
                     // this device moves its own character; only take the host's position when the host forces it
                     newMyCharacter = character;
-                    if (teleported || character.hidingSpot != null || character.outOfRound || !IsLive) { character.x = character.targetX = x; character.y = character.targetY = y; }
+                    if (teleported || character.hidingSpot != null || character.outOfRound || !IsLive) { character.Teleport(x, y); character.targetX = x; character.targetY = y; }
                     if (teleported) { character.faceX = MathF.Cos(facingAngle); character.faceY = MathF.Sin(facingAngle); }
                 }
                 else
@@ -170,7 +170,7 @@ namespace Unice
                     character.sneaking = flags.HasFlag(CharacterFlags.Sneaking);
                     character.faceX = MathF.Cos(facingAngle); character.faceY = MathF.Sin(facingAngle);
                     character.targetX = x; character.targetY = y;
-                    if (teleported || Geometry.Distance(x, y, character.x, character.y) > SnapDistance) { character.x = x; character.y = y; }
+                    if (teleported || Geometry.Distance(x, y, character.x, character.y) > SnapDistance) character.Teleport(x, y);
                 }
                 character.teleportSeq = teleportSeq;
             }

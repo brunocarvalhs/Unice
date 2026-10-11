@@ -50,6 +50,8 @@ namespace Unice
         public bool paused;
         Phase lastPhase = (Phase)255;   // none yet: the first step logs the screen
         float stepAccumulator;
+        /// <summary>0..1, this frame: how far it is from the last fixed step to the next. Characters are drawn that far along.</summary>
+        internal float stepBlend;
         /// <summary>Back from the background: the first frame's time is the whole time away, so it is not simulated.</summary>
         bool discardElapsedTime;
         bool keyboardWasVisible;
@@ -114,6 +116,7 @@ namespace Unice
         /// <summary>One fixed step: network, rules, events, sounds, UI.</summary>
         void Step(float dt)
         {
+            foreach (var character in game.characters) character.KeepPrevious();
             if (IsOnline) { room.sync.ElectHost(); if (!game.isHost) room.sync.ApplyHostSnapshot(); }
 
             if (game.isHost && game.phase != Phase.Home && !(paused && !IsOnline))
@@ -146,18 +149,23 @@ namespace Unice
         void RenderFrame(float dt)
         {
             float time = Time.unscaledTime;
+            stepBlend = stepAccumulator / StepSeconds;
             if (!game.isHost) SmoothRemoteCharacters(dt);
             bool inGame = game.IsLive || game.phase == Phase.Result;
             bool followView = inGame && perspective.hasView;
-            cameraRig.Follow(dt, followView, perspective.view);
-            worldView.SyncCharacters(game, myCharacter, perspective.CanSee, perspective.ShowsTeamInfo, time);
+            var drawnView = perspective.DrawnView(stepBlend);   // the camera and the fog move with the drawn character, not in steps
+            cameraRig.Follow(dt, followView, drawnView);
+            worldView.SyncCharacters(game, myCharacter, perspective.CanSee, perspective.ShowsTeamInfo, time, stepBlend);
             worldView.UpdateOcclusion(myCharacter, game.IsLive);
             worldView.Tick(dt);
-            if (followView) DrawFog(time); else worldView.fogView.Hide();
+            if (followView) DrawFog(drawnView, time); else worldView.fogView.Hide();
             ui.Frame(dt, cameraRig.Camera);
         }
 
-        /// <summary>Guests get positions ~15 times a second; in between, other characters slide towards the last one.</summary>
+        /// <summary>
+        /// Guests get positions ~15 times a second; in between, other characters slide towards the last one. They are drawn
+        /// right where they slid to (no step blend), so their previous position follows them.
+        /// </summary>
         void SmoothRemoteCharacters(float dt)
         {
             float blend = Mathf.Min(1, dt * RemoteSmoothing);
@@ -166,13 +174,13 @@ namespace Unice
                 if (character == myCharacter) continue;
                 character.x += (character.targetX - character.x) * blend;
                 character.y += (character.targetY - character.y) * blend;
+                character.KeepPrevious();
             }
         }
 
         /// <summary>Darkness around what the player can see, with a slight candle-like flicker.</summary>
-        void DrawFog(float time)
+        void DrawFog(ViewInfo view, float time)
         {
-            var view = perspective.view;
             float flicker = 1 + Mathf.Sin(time * 9) * .012f + Mathf.Sin(time * 23) * .008f;
             bool hidden = myCharacter != null && myCharacter.hidingSpot != null;
             var darkness = new Color(0, 0, 0, view.spectating ? .6f : hidden ? .985f : .95f);

@@ -42,14 +42,16 @@ namespace Unice
 
         /// <param name="isMe">Draws the ring under this device's own character.</param>
         /// <param name="showDoll">Draws the doll in its hands (only for those allowed to know who has it).</param>
-        public void Show(Character character, bool isMe, float alpha, bool showDoll, float time)
+        /// <param name="stepBlend">How far between the last two fixed steps to draw it (see <see cref="Character.DrawX"/>).</param>
+        public void Show(Character character, bool isMe, float alpha, bool showDoll, float time, float stepBlend)
         {
             if (!root.activeSelf) root.SetActive(true);
             if (character.faceX > .3f) character.facingSign = 1; else if (character.faceX < -.3f) character.facingSign = -1;
             bool showBack = character.faceY < -.6f && Mathf.Abs(character.faceX) < .55f;
             float walkBob = character.IsUnice || !character.moving ? 0 : Mathf.Abs(Mathf.Sin(time * 13 + character.index)) * 1.2f;
-            root.transform.localPosition = Art.ToWorld(character.x, character.y - walkBob);
-            sortingGroup.sortingOrder = Art.SortingOrder(character.y, 2);
+            float drawY = character.DrawY(stepBlend);
+            root.transform.localPosition = Art.ToWorld(character.DrawX(stepBlend), drawY - walkBob);
+            sortingGroup.sortingOrder = Art.SortingOrder(drawY, 2);
             shadow.transform.localPosition = new Vector3(0, walkBob / Art.PxPerUnit, 0);
             ring.gameObject.SetActive(isMe && alpha >= 1);
             dollIcon.gameObject.SetActive(showDoll);
