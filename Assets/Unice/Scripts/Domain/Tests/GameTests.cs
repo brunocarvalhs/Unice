@@ -419,6 +419,228 @@ namespace Unice
             Assert.AreEqual(tpBefore + 1, unice.teleportSeq);
         }
 
+        // ---------- T-03: doll pass (cooldown, range, invalid targets) ----------
+
+        /// <summary>
+        /// A hunt with no AI running (everyone flagged as a person, so Simulate only ticks timers and touch catches):
+        /// characters[0] is the Unice parked far away, characters[1] holds the doll at (100,100), characters[2] is another hider, far.
+        /// </summary>
+        static Game QuietHunt()
+        {
+            var g = HuntWithUniceAtZero();
+            foreach (var e in g.characters) { e.isBot = false; e.hidingSpot = null; e.outOfRound = false; e.passCooldown = 0; e.stunTime = 0; }
+            g.characters[0].x = 1000; g.characters[0].y = 1000;
+            g.characters[1].x = 100; g.characters[1].y = 100;
+            g.characters[2].x = 1000; g.characters[2].y = 100;
+            g.timeLeft = 60;
+            return g;
+        }
+
+        [Test]
+        public void ApplyAction_PassRightAfterReceiving_BlockedUntilFiveSecondsPass()
+        {
+            var g = QuietHunt();
+            var first = g.characters[1]; var second = g.characters[2];
+            second.x = 130; second.y = 100;
+            g.ApplyAction(first, PlayerAction.Pass, 0);
+            Assert.AreSame(second, g.doll.holder, "precondition: first pass went through");
+
+            g.ApplyAction(second, PlayerAction.Pass, 0);
+            Assert.AreSame(second, g.doll.holder, "0 s after receiving: still on cooldown");
+            g.Simulate(4.5f);
+            g.ApplyAction(second, PlayerAction.Pass, 0);
+            Assert.AreSame(second, g.doll.holder, "4.5 s after receiving: still on cooldown");
+            g.Simulate(0.5f);
+            g.ApplyAction(second, PlayerAction.Pass, 0);
+
+            Assert.AreEqual(5f, Rules.PassCooldown, "SPEC: 5 s between passes");
+            Assert.AreSame(first, g.doll.holder, "5 s after receiving: can pass again");
+        }
+
+        [TestCase(59f, true)]
+        [TestCase(61f, false)]
+        public void PassTarget_HiderAtDistance_IsTargetOnlyWithinSixtyPixels(float distance, bool expectedTarget)
+        {
+            var g = QuietHunt();
+            var giver = g.characters[1]; var other = g.characters[2];
+            other.x = giver.x + distance; other.y = giver.y;
+
+            var target = g.PassTarget(giver);
+
+            Assert.AreEqual(60f, Rules.PassRange, "SPEC: pass up to 60 px");
+            Assert.AreEqual(expectedTarget ? other : null, target);
+        }
+
+        /// <summary>
+        /// CHARACTERIZATION: ApplyAction adds PassLatencySlack (20 px) to every pass request, so the real reach is &lt; 80 px,
+        /// not the SPEC's 60 px. Pinned as-is; confirm with the owner whether local passes should get the slack too.
+        /// </summary>
+        [TestCase(79f, true)]
+        [TestCase(81f, false)]
+        public void ApplyAction_PassToHiderAtDistance_ReachIsSixtyPlusTwentySlack(float distance, bool expectedPassed)
+        {
+            var g = QuietHunt();
+            var giver = g.characters[1]; var other = g.characters[2];
+            other.x = giver.x + distance; other.y = giver.y;
+
+            g.ApplyAction(giver, PlayerAction.Pass, 0);
+
+            Assert.AreSame(expectedPassed ? other : giver, g.doll.holder);
+        }
+
+        [TestCase("unice")]
+        [TestCase("caught")]
+        [TestCase("hidden")]
+        [TestCase("self")]
+        public void ApplyAction_PassWithOnlyAnInvalidTargetNearby_KeepsTheDoll(string nearby)
+        {
+            var g = QuietHunt();
+            var holder = g.characters[1];
+            var near = nearby == "unice" ? g.characters[0] : g.characters[2];
+            if (nearby != "self") { near.x = holder.x + 20; near.y = holder.y; }
+            if (nearby == "caught") near.outOfRound = true;
+            if (nearby == "hidden") near.hidingSpot = Map.Spots[0];
+            int seqBefore = g.eventSeq;
+
+            g.ApplyAction(holder, PlayerAction.Pass, 0);
+
+            Assert.AreSame(holder, g.doll.holder, "doll stays");
+            Assert.AreEqual(seqBefore, g.eventSeq, "no pass event");
+        }
+
+        // ---------- T-03: stun after catching someone without the doll ----------
+
+        /// <summary>QuietHunt with the Unice at (500,500), 20 px from characters[2] (not the doll holder).</summary>
+        static Game HuntWithUniceNextToNonHolder()
+        {
+            var g = QuietHunt();
+            g.characters[0].x = 500; g.characters[0].y = 500;
+            g.characters[2].x = 520; g.characters[2].y = 500;
+            return g;
+        }
+
+        [Test]
+        public void ApplyAction_CatchNonHolder_StunsUniceForTwoAndAHalfSeconds()
+        {
+            var g = HuntWithUniceNextToNonHolder();
+            var unice = g.characters[0];
+
+            g.ApplyAction(unice, PlayerAction.Catch, 2);
+
+            Assert.AreEqual(2.5f, Rules.StunTime, "SPEC: 2.5 s stopped");
+            Assert.AreEqual(Rules.StunTime, unice.stunTime, "stun set");
+            Assert.IsFalse(g.CanMove(unice), "can't move while stunned");
+        }
+
+        [Test]
+        public void ApplyAction_CatchWhileStunned_DoesNothing()
+        {
+            var g = HuntWithUniceNextToNonHolder();
+            var unice = g.characters[0]; var holder = g.characters[1];
+            g.ApplyAction(unice, PlayerAction.Catch, 2);
+            holder.x = unice.x + 50; holder.y = unice.y;   // within the Catch request reach (30+45) but outside touch range (30)
+            g.Simulate(2.4f);
+
+            g.ApplyAction(unice, PlayerAction.Catch, holder.index);
+
+            Assert.AreEqual(Phase.Hunt, g.phase, "holder not caught while stunned");
+            Assert.IsFalse(holder.outOfRound);
+        }
+
+        [Test]
+        public void ApplyAction_OpenWhileStunned_DoesNothing()
+        {
+            var g = HuntWithUniceNextToNonHolder();
+            var unice = g.characters[0]; var holder = g.characters[1];
+            g.ApplyAction(unice, PlayerAction.Catch, 2);
+            var spot = Map.Spots[0]; g.Hide(holder, spot);
+            unice.x = spot.standX; unice.y = spot.standY;
+            int seqBefore = g.eventSeq;
+
+            g.ApplyAction(unice, PlayerAction.Open, 0);
+
+            Assert.AreEqual(seqBefore, g.eventSeq, "no open event");
+            Assert.AreSame(holder, spot.occupant, "holder still hidden");
+            Assert.AreEqual(Phase.Hunt, g.phase);
+        }
+
+        [Test]
+        public void ApplyAction_CatchAfterStunEnds_CatchesTheHolder()
+        {
+            var g = HuntWithUniceNextToNonHolder();
+            var unice = g.characters[0]; var holder = g.characters[1];
+            g.ApplyAction(unice, PlayerAction.Catch, 2);
+            holder.x = unice.x + 50; holder.y = unice.y;
+            g.Simulate(2.6f);
+            Assert.LessOrEqual(unice.stunTime, 0f, "precondition: stun is over");
+
+            g.ApplyAction(unice, PlayerAction.Catch, holder.index);
+
+            Assert.AreEqual(Phase.Result, g.phase, "catching the holder after the stun ends the round");
+        }
+
+        [Test]
+        public void ApplyAction_OpenAfterStunEnds_OpensTheSpot()
+        {
+            var g = HuntWithUniceNextToNonHolder();
+            var unice = g.characters[0]; var holder = g.characters[1];
+            g.ApplyAction(unice, PlayerAction.Catch, 2);
+            var spot = Map.Spots[0]; g.Hide(holder, spot);
+            unice.x = spot.standX; unice.y = spot.standY;
+            g.Simulate(2.6f);
+
+            g.ApplyAction(unice, PlayerAction.Open, 0);
+
+            Assert.AreEqual(Phase.Result, g.phase, "opening the holder's spot after the stun ends the round");
+            Assert.IsNull(spot.occupant);
+        }
+
+        // ---------- T-03: touch catch inside Simulate ----------
+
+        [TestCase(29f, true)]
+        [TestCase(31f, false)]
+        public void Simulate_UniceNearAHiderOutsideASpot_CatchesOnlyWithinThirtyPixels(float distance, bool expectedCaught)
+        {
+            var g = QuietHunt();
+            var unice = g.characters[0]; var hider = g.characters[2];
+            unice.x = 500; unice.y = 500; hider.x = 500 + distance; hider.y = 500;
+
+            g.Simulate(0.01f);
+
+            Assert.AreEqual(30f, Rules.CatchRange, "SPEC: touch catch at 30 px");
+            Assert.AreEqual(expectedCaught, hider.outOfRound);
+        }
+
+        /// <summary>
+        /// CHARACTERIZATION: Simulate checks `distance &lt; Rules.CatchRange` (strict), so exactly 30 px is NOT a catch.
+        /// SPEC says "encosta (30 px)" and T-03 asked for "&lt;= 30 px". Pinned as-is pending owner decision.
+        /// </summary>
+        [Test]
+        public void Simulate_UniceExactlyThirtyPixelsFromAHider_DoesNotCatch()
+        {
+            var g = QuietHunt();
+            var unice = g.characters[0]; var hider = g.characters[2];
+            unice.x = 500; unice.y = 500; hider.x = 530; hider.y = 500;
+
+            g.Simulate(0.01f);
+
+            Assert.IsFalse(hider.outOfRound);
+        }
+
+        [Test]
+        public void Simulate_UniceTouchesAHiderInsideASpot_DoesNotCatch()
+        {
+            var g = QuietHunt();
+            var unice = g.characters[0]; var hider = g.characters[2];
+            var spot = Map.Spots[0]; g.Hide(hider, spot);
+            unice.x = hider.x + 10; unice.y = hider.y;
+
+            g.Simulate(0.01f);
+
+            Assert.IsFalse(hider.outOfRound, "not caught");
+            Assert.AreSame(hider, spot.occupant, "still hidden");
+        }
+
         // ---------- MatchHost.TakeOver ----------
 
         [Test]

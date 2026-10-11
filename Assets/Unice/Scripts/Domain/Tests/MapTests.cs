@@ -144,6 +144,24 @@ namespace Unice
             Assert.IsNull(Map.Clock);
         }
 
+        [TestCase(MapHouse.Id)]
+        [TestCase(MapPraca.Id)]
+        [TestCase(MapQuintal.Id)]
+        public void Map_Load_KnownMap_HasIdSpotsAndNavigation(string mapId)
+        {
+            Map.Load(Maps.ById(mapId));
+
+            Assert.AreEqual(mapId, Map.Id, "Map.Id (ById falls back to the house on an unknown id)");
+            Assert.Greater(Map.Rooms.Length, 0, "rooms");
+            Assert.Greater(Map.Spots.Length, 0, "hiding spots");
+            Assert.Greater(Navigation.Nodes.Count, 0, "navigation nodes built");
+            var path = Navigation.FindPath(Map.SpawnX, Map.SpawnY, Map.Spots[0].standX, Map.Spots[0].standY);
+            Assert.Greater(path.Count, 0, "first spot reachable from spawn");
+            var last = path[path.Count - 1];
+            Assert.AreEqual(Map.Spots[0].standX, last.x, "path from spawn reaches the first spot (x)");
+            Assert.AreEqual(Map.Spots[0].standY, last.y, "path from spawn reaches the first spot (y)");
+        }
+
         [Test]
         public void WorldSize_House_CenterIs860_590()
         {
