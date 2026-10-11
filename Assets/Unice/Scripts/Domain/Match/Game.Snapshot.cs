@@ -10,7 +10,7 @@ namespace Unice
     /// </summary>
     public sealed partial class Game
     {
-        const byte SnapshotVersion = 5;
+        internal const byte SnapshotVersion = 5;
 
         /// <summary>Per-character yes/no states, packed into one byte.</summary>
         [Flags]
@@ -93,14 +93,21 @@ namespace Unice
             using var reader = new BinaryReader(stream);
             if (reader.ReadByte() != SnapshotVersion) return myCharacter;
 
-            // match state
-            epoch = reader.ReadInt32(); hostClock = reader.ReadSingle();
-            phase = (Phase)Math.Min((int)reader.ReadByte(), (int)Phase.Final);
-            if (phase == Phase.Home) phase = Phase.Lobby;   // a guest in a room is never "home"
-            round = reader.ReadByte(); totalRounds = reader.ReadByte(); botCount = reader.ReadByte();
-            timeLeft = reader.ReadSingle(); roundClock = reader.ReadSingle();
-            hideTime = reader.ReadSingle(); huntTime = reader.ReadSingle(); giggleInterval = reader.ReadSingle();
-            mapId = reader.ReadString(); if (Map.Id != mapId) Map.Load(Maps.ById(mapId));
+            // match state (read whole before assigning: a map this build doesn't have makes the snapshot incompatible)
+            int newEpoch = reader.ReadInt32(); float newHostClock = reader.ReadSingle();
+            var newPhase = (Phase)Math.Min((int)reader.ReadByte(), (int)Phase.Final);
+            int newRound = reader.ReadByte(), newTotalRounds = reader.ReadByte(), newBotCount = reader.ReadByte();
+            float newTimeLeft = reader.ReadSingle(), newRoundClock = reader.ReadSingle();
+            float newHideTime = reader.ReadSingle(), newHuntTime = reader.ReadSingle(), newGiggleInterval = reader.ReadSingle();
+            string newMapId = reader.ReadString();
+            if (!Maps.All.TryGetValue(newMapId, out var newMap)) return myCharacter;
+
+            epoch = newEpoch; hostClock = newHostClock;
+            phase = newPhase == Phase.Home ? Phase.Lobby : newPhase;   // a guest in a room is never "home"
+            round = newRound; totalRounds = newTotalRounds; botCount = newBotCount;
+            timeLeft = newTimeLeft; roundClock = newRoundClock;
+            hideTime = newHideTime; huntTime = newHuntTime; giggleInterval = newGiggleInterval;
+            mapId = newMapId; if (Map.Id != mapId) Map.Load(newMap);
             int uniceIndex = reader.ReadSByte(), nextUniceIndex = reader.ReadSByte();
             if (reader.ReadBoolean())
                 roundResult = new RoundResult

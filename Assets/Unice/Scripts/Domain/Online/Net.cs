@@ -33,6 +33,15 @@ namespace Unice
     /// <summary>A room operation failed; the message is written for the player.</summary>
     public class NetException : Exception { public NetException(string message) : base(message) { } }
 
+    /// <summary>
+    /// The wire protocol this build speaks, from the snapshot and presence format versions. The room creator stores it in
+    /// the session; a device with a different value can't play with it and is told to update the app instead of joining.
+    /// </summary>
+    public static class Protocol
+    {
+        public const int Id = Game.SnapshotVersion * 256 + PresenceCodec.Version;
+    }
+
     public static class NetRegistry
     {
         /// <summary>Set by Unice.Net at startup when the multiplayer packages are present.</summary>

@@ -9,7 +9,7 @@ namespace Unice
     /// </summary>
     public static class PresenceCodec
     {
-        const byte Version = 2;
+        internal const byte Version = 2;
         /// <summary>Voice ids are short ids from the voice service; anything else is dropped.</summary>
         const int MaxVoiceIdLength = 64;
 

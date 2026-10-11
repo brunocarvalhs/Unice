@@ -71,6 +71,7 @@ namespace Unice
             ["net.creating"] = new[] { "Criando a sala…", "Creating the room…", "Creando la sala…" },
             ["net.joining"] = new[] { "Procurando a sala…", "Looking for the room…", "Buscando la sala…" },
             ["net.conn_failed"] = new[] { "A conexão falhou. Confira a internet e tente de novo.", "Connection failed. Check your internet and try again.", "Falló la conexión. Revisa tu internet e inténtalo de nuevo." },
+            ["net.update_app"] = new[] { "Atualize o app: esta sala é de outra versão do Unice.", "Update the app: this room is from another version of Unice.", "Actualiza la app: esta sala es de otra versión de Unice." },
             ["net.no_answer"] = new[] { "A sala não respondeu. Confira o código ou peça um novo.", "The room didn't respond. Check the code or ask for a new one.", "La sala no respondió. Revisa el código o pide uno nuevo." },
 
             // ---------- Ui.cs: main menu ----------

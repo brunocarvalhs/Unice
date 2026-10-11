@@ -170,6 +170,22 @@ namespace Unice
             CollectionAssert.AreEqual(before, dst.WriteSnapshot(), "every snapshot field is unchanged");
         }
 
+        [Test]
+        public void ApplySnapshot_UnknownMapId_LeavesGameUnchanged()
+        {
+            var dst = new Game { epoch = 3, phase = Phase.Hunt, round = 2, timeLeft = 45.5f };
+            var ent = new Character(0, "h1", "Ana", new int[7], false) { x = 100, y = 200, score = 4 };
+            dst.characters.Add(ent); dst.unice = ent; dst.eventSeq = 9;
+            var before = dst.WriteSnapshot();
+            var incoming = new Game { epoch = 99, phase = Phase.Lobby, mapId = "map-from-a-newer-build" }.WriteSnapshot();
+
+            var me = dst.ApplySnapshot(incoming, "h1", ent);
+
+            Assert.AreSame(ent, me, "returns the character it was given");
+            CollectionAssert.AreEqual(before, dst.WriteSnapshot(), "every snapshot field is unchanged");
+            Assert.AreEqual(MapHouse.Id, Map.Id, "the loaded map is unchanged");
+        }
+
         /// <summary>
         /// Golden bytes: the exact wire layout of a small known state (generated from the current code).
         /// If this fails, the snapshot layout changed: bump Game.SnapshotVersion and regenerate the array —

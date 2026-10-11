@@ -18,6 +18,8 @@ namespace Unice
     {
         /// <summary>Waiting for the connection after creating/joining gives up after this long.</summary>
         const float ConnectTimeoutSeconds = 15;
+        /// <summary>Session property holding the creator's <see cref="Protocol.Id"/>, checked by whoever joins.</summary>
+        const string ProtocolKey = "protocol";
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Register() => NetRegistry.Factory = () => new NgoBackend();
@@ -76,7 +78,11 @@ namespace Unice
         public async Task<string> CreateAsync()
         {
             Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
-            try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions { MaxPlayers = Rules.MaxPlayers, IsPrivate = true }.WithDistributedAuthorityNetwork()); }
+            try { session = await MultiplayerService.Instance.CreateSessionAsync(new SessionOptions
+            {
+                MaxPlayers = Rules.MaxPlayers, IsPrivate = true,
+                SessionProperties = { [ProtocolKey] = new SessionProperty(Protocol.Id.ToString(), VisibilityPropertyOptions.Member) },
+            }.WithDistributedAuthorityNetwork()); }
             catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Não deu para criar a sala agora. Tente de novo em instantes."); }
             await Connected();
             return session.Code;
@@ -87,6 +93,12 @@ namespace Unice
             Network.NetworkConfig.NetworkTopology = NetworkTopologyTypes.DistributedAuthority;
             try { session = await MultiplayerService.Instance.JoinSessionByCodeAsync(roomCode); }
             catch (Exception error) { Metrics.Error(error, "net"); throw new NetException("Sala não encontrada, cheia ou já encerrada. Confira o código."); }
+            // a room from another app version (or from a build before this check) can't be played together
+            if (!session.Properties.TryGetValue(ProtocolKey, out var protocol) || protocol.Value != Protocol.Id.ToString())
+            {
+                await LeaveAsync();
+                throw new NetException(Localization.Get("net.update_app"));
+            }
             await Connected();
         }
 
