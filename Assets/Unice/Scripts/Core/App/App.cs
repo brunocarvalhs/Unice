@@ -145,7 +145,12 @@ namespace Unice
                 eventFeed.PlayNewEvents();   // guests play events when a snapshot arrives
             }
             worldView.SyncMap();
-            if (game.phase != lastPhase) { lastPhase = game.phase; Metrics.Screen(game.phase.ToString().ToLowerInvariant()); }
+            if (game.phase != lastPhase)
+            {
+                lastPhase = game.phase;
+                Metrics.Screen(game.phase.ToString().ToLowerInvariant());
+                if (game.phase == Phase.Lobby) room.lobbyEnteredAt = Time.realtimeSinceStartup;
+            }
             player.TickCooldowns(dt);
             perspective.Update();
             if (game.IsLive && !paused)
@@ -219,6 +224,7 @@ namespace Unice
         public int[] kit { get => profile.Kit; set => profile.Kit = value; }
         public void SaveProfile() => profile.Save();
         internal int AddOnlineWin() => profile.AddOnlineWin();
+        internal bool MarkFirstMatchEnd() => profile.MarkFirstMatchEnd();
         public void SetKit(int[] newKit) { profile.SetKit(newKit); room.sync.PublishSoon(); }
 
         public bool MicOn { get => voice != null && voice.MicOn; set { if (voice != null) voice.MicOn = value; } }
@@ -269,7 +275,7 @@ namespace Unice
             if (ui.Typing) return;
             if (InMatch) { TogglePause(); return; }
             if (game.phase == Phase.Home) { if (!ui.MenuBack()) Application.Quit(); return; }
-            room.LeaveRoom();
+            room.LeaveRoom(RoomSession.LeaveReason.Back);
         }
 
         /// <summary>Solo: freezes the match. Online the match keeps going; the menu only covers the screen.</summary>
@@ -287,7 +293,7 @@ namespace Unice
         public PeerInfo FindHost() => room.FindHost();
         public void SetNetStatus(string text, bool isError = false) => room.SetStatus(text, isError);
         public void EnterRoom(bool create, string roomCodeToJoin) => room.EnterRoom(create, roomCodeToJoin);
-        public void LeaveRoom() => room.LeaveRoom();
+        public void LeaveRoom() => room.LeaveRoom(RoomSession.LeaveReason.Button);
         public void PlaySolo() => room.PlaySolo();
         internal List<RoomSession.LobbyPlayer> LobbyPlayers() => room.LobbyPlayers();
         public void StartMatch(int bots, int rounds) => room.StartMatch(bots, rounds);

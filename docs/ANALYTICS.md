@@ -33,22 +33,29 @@ Todo o envio passa por `Assets/Unice/Scripts/Core/Analytics/Metrics.cs`.
 
 | Evento | Quando | Parâmetros | Onde no código |
 |---|---|---|---|
-| `screen_view` | A fase muda | `screen_name` / `screen_class` = `home`, `lobby`, `hide`, `hunt`, `result`, `final` | `App.Step` |
+| `screen_view` | A fase muda, ou a página do menu inicial muda | `screen_name` / `screen_class` = `home`, `lobby`, `hide`, `hunt`, `result`, `final`; páginas da Home: `home` (principal), `home_online`, `home_how_to_play`, `home_my_kid` | `App.Step`, `HomeMenu.ShowPage` |
 | `solo_start` | Começa uma partida solo | — | `RoomSession.PlaySolo` |
 | `room_create` | Sala criada com sucesso | `voice` (Vivox disponível, 1/0) | `RoomSession.EnterRoom` |
 | `room_join` | Entrou numa sala | `voice` | `RoomSession.EnterRoom` |
 | `room_error` | Falha ao criar/entrar | `mode` (`create`/`join`), `error` (tipo da exceção, ou `no_host`) | `RoomSession.EnterRoom` |
 | `room_lost` | A conexão caiu de vez | `phase` em que estava | `RoomSession.OnRoomLost` |
-| `room_leave` | Saiu da sala | — | `RoomSession.LeaveRoom` |
-| `match_start` | O host inicia a partida | `humans`, `bots`, `rounds`, `map`, `online`, `hide_time`, `round_time` (tempo de caça, s) | `RoomSession.StartMatch` |
+| `room_leave` | Saiu da sala **ou da partida solo** | `reason` (`button` = botão sair/voltar ao início na sala de espera, pausa ou resultado; `back` = voltar do Android na sala de espera; `lost` = a conexão caiu, junto com `room_lost`; `timeout` = o host não respondeu ao entrar, junto com `room_error` `no_host`), `phase` em que estava, `round` (0 = antes da 1ª rodada), `online`, `lobby_wait_s` (s na sala de espera; 0 se saiu de outra fase) | `RoomSession.LeaveRoom` |
+| `match_start` | O host inicia a partida | `humans`, `bots`, `rounds`, `map`, `online`, `hide_time`, `round_time` (tempo de caça, s), `lobby_wait_s` (s desde que o host entrou na sala de espera) | `RoomSession.StartMatch` |
 | `round_start` | Começa uma rodada (em cada aparelho) | `round`, `rounds`, `role` (`unice`/`holder`/`hider`/`spectator`), `online`, `map` | `EventFeed.OnRoundStart` |
-| `round_end` | Fim da rodada | `round`, `unice_won`, `role` (`unice`/`hider`/`spectator`), `won`, `caught`, `online` | `EventFeed.OnRoundEnd` |
+| `round_end` | Fim da rodada | `round`, `unice_won`, `role` (`unice`/`hider`/`spectator`), `won`, `caught`, `online`, `duration_s` (s do início da rodada, esconder + caça, relógio do aparelho; 0 = não viu o início) | `EventFeed.OnRoundEnd` |
 | `catch` | O jogador pegou ou foi pego | `side` (`caught`/`catcher`), `with_doll`, `time_left` (s), `room` (id do cômodo) | `EventFeed.OnCatch` |
-| `match_end` | Placar final | `rounds`, `score`, `place` (1 = venceu), `players`, `online` | `EventFeed.OnMatchEnd` |
+| `match_end` | Placar final | `rounds`, `score`, `place` (1 = venceu), `players` (com bots), `online`, `duration_s` (s desde a 1ª rodada, relógio do aparelho), `humans_peak` (mais humanos numa rodada da partida) | `EventFeed.OnMatchEnd` |
+| `first_match_end` | A 1ª partida terminada nesta instalação (uma vez só; `PlayerPrefs` `unice.first_match_end`) | `online`, `place`, `duration_s` | `EventFeed.OnMatchEnd` |
+| `host_changed` | O host saiu e este aparelho assumiu a partida (só o novo host loga: 1 evento por troca) | `phase`, `round`, `humans` (que restaram) | `EventFeed.OnNewHost` |
 | `achievement_unlock` | O jogador cumpriu uma conquista padrão do Play Games (A1–A10; as incrementais não). Pode repetir — o Play Games só desbloqueia uma vez; para contar desbloqueios use usuários únicos por `id` | `id` (nome em `Achievement`, ex. `FoundYou`) | `EventFeed.Report` |
 | `player_action` | O jogador usa uma ação | `type` (`hide`/`exit`/`open`/`pass`/`laugh`), `spot` (tipo do móvel, só em `hide`) | `PlayerControl` |
 | `pause` | Abriu o menu de pausa | `online` | `App.TogglePause` |
 | `player_muted` | Silenciou ou voltou a ouvir outro jogador | `muted` (1 = silenciou) | `App.TogglePlayerMuted` |
+
+## Quando a voz voltar
+
+A voz está desligada no M1 (`VoiceRegistry.Enabled = false`). Ao religar, adicionar `mic_permission` (`granted` 1/0)
+quando o Android responder ao pedido do microfone, e `voice_connect` (`ok`, `error`) ao entrar no canal.
 
 ## Como verificar
 

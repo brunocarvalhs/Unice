@@ -8,7 +8,7 @@ namespace Unice
     /// </summary>
     public sealed class ProfileStore
     {
-        const string NameKey = "unice.name", KitKey = "unice.kit", OnlineWinsKey = "unice.online_wins";
+        const string NameKey = "unice.name", KitKey = "unice.kit", OnlineWinsKey = "unice.online_wins", FirstMatchEndKey = "unice.first_match_end";
 
         public string Name;
         public int[] Kit;
@@ -49,6 +49,15 @@ namespace Unice
             PlayerPrefs.SetInt(OnlineWinsKey, total);
             PlayerPrefs.Save();
             return total;
+        }
+
+        /// <summary>True only the first time a match ends on this install (the "first_match_end" activation event).</summary>
+        public bool MarkFirstMatchEnd()
+        {
+            if (PlayerPrefs.HasKey(FirstMatchEndKey)) return false;
+            PlayerPrefs.SetInt(FirstMatchEndKey, 1);
+            PlayerPrefs.Save();
+            return true;
         }
 
         /// <summary>Replaces the look (invalid options become 0) and saves.</summary>

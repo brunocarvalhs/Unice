@@ -11,15 +11,16 @@ namespace Unice
     [TestFixture]
     public class ProfileStoreTests
     {
-        const string NameKey = "unice.name", KitKey = "unice.kit";
-        bool hadName, hadKit; string savedName; int savedKit;
+        const string NameKey = "unice.name", KitKey = "unice.kit", FirstMatchEndKey = "unice.first_match_end";
+        bool hadName, hadKit, hadFirstMatchEnd; string savedName; int savedKit;
 
         [SetUp]
         public void SetUp()
         {
             hadName = PlayerPrefs.HasKey(NameKey); if (hadName) savedName = PlayerPrefs.GetString(NameKey);
             hadKit = PlayerPrefs.HasKey(KitKey); if (hadKit) savedKit = PlayerPrefs.GetInt(KitKey);
-            PlayerPrefs.DeleteKey(NameKey); PlayerPrefs.DeleteKey(KitKey);
+            hadFirstMatchEnd = PlayerPrefs.HasKey(FirstMatchEndKey);
+            PlayerPrefs.DeleteKey(NameKey); PlayerPrefs.DeleteKey(KitKey); PlayerPrefs.DeleteKey(FirstMatchEndKey);
         }
 
         [TearDown]
@@ -27,7 +28,15 @@ namespace Unice
         {
             if (hadName) PlayerPrefs.SetString(NameKey, savedName); else PlayerPrefs.DeleteKey(NameKey);
             if (hadKit) PlayerPrefs.SetInt(KitKey, savedKit); else PlayerPrefs.DeleteKey(KitKey);
+            if (hadFirstMatchEnd) PlayerPrefs.SetInt(FirstMatchEndKey, 1); else PlayerPrefs.DeleteKey(FirstMatchEndKey);
             PlayerPrefs.Save();
+        }
+
+        [Test]
+        public void MarkFirstMatchEnd_TrueOnlyOncePerInstall()
+        {
+            Assert.IsTrue(new ProfileStore().MarkFirstMatchEnd());
+            Assert.IsFalse(new ProfileStore().MarkFirstMatchEnd(), "saved, so a new run doesn't log it again");
         }
 
         [Test]

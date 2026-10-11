@@ -22,11 +22,15 @@ namespace Unice
         bool passedDollThisRound, laughedAsDecoyThisRound;
         /// <summary>When this device saw the match's first round start (seconds, device clock), or -1: the leaderboard's duration filter.</summary>
         float matchStartedAt = -1;
+        /// <summary>When this device saw the current round start (seconds, device clock), or -1: "duration_s" of "round_end".</summary>
+        float roundStartedAt = -1;
+        /// <summary>Most humans in this match at any round start (people can join between rounds): "humans_peak" of "match_end".</summary>
+        int humansPeak;
 
         public EventFeed(App app) { this.app = app; }
 
         /// <summary>New room or match: the next <see cref="PlayNewEvents"/> catches up without replaying old events.</summary>
-        public void Reset() { lastHandledSeq = -1; matchStartedAt = -1; }
+        public void Reset() { lastHandledSeq = -1; matchStartedAt = roundStartedAt = -1; humansPeak = 0; }
 
         /// <summary>Plays every event newer than the last one handled. The first call after a reset only catches up.</summary>
         public void PlayNewEvents()
@@ -67,6 +71,8 @@ namespace Unice
         string NameFor(Character character) => app.perspective.NameForCapitalized(character);
         /// <summary>People still in the match: whoever left became a bot and no longer counts.</summary>
         int Humans => game.characters.Count(character => !character.isBot);
+        /// <summary>Whole seconds since a time taken from the device clock; 0 when it wasn't seen (joined midway).</summary>
+        static int SecondsSince(float startedAt) => startedAt < 0 ? 0 : (int)(Time.realtimeSinceStartup - startedAt);
 
         /// <summary>Sends what was earned to Play Games (nothing if it isn't signed in) and logs each unlock to analytics.</summary>
         static void Report(List<Achievement> earned)
@@ -84,6 +90,8 @@ namespace Unice
             Metrics.Log("round_start", ("round", round), ("rounds", game.totalRounds), ("role", MyRole), ("online", app.IsOnline), ("map", game.mapId));
             passedDollThisRound = laughedAsDecoyThisRound = false;
             if (matchStartedAt < 0) matchStartedAt = Time.realtimeSinceStartup;
+            roundStartedAt = Time.realtimeSinceStartup;
+            humansPeak = Math.Max(humansPeak, Humans);
             if (me == null) ui.Banner(Localization.Get("ev.start.watch", round, NameFor(uniceCharacter)), BannerStyle.Info, 3);
             else if (me == uniceCharacter) ui.Banner(Localization.Get("ev.start.you_unice"), BannerStyle.Rose, 3.2f);
             else if (me == dollHolder) ui.Banner(Localization.Get("ev.start.you_holder"), BannerStyle.Rose, 3.2f);
@@ -163,7 +171,8 @@ namespace Unice
         {
             bool uniceWon = gameEvent.value != 0;
             Metrics.Log("round_end", ("round", game.round), ("unice_won", uniceWon), ("role", me == null ? "spectator" : me.IsUnice ? "unice" : "hider"),
-                ("won", me != null && uniceWon == me.IsUnice), ("caught", me != null && me.outOfRound), ("online", app.IsOnline));
+                ("won", me != null && uniceWon == me.IsUnice), ("caught", me != null && me.outOfRound), ("online", app.IsOnline), ("duration_s", SecondsSince(roundStartedAt)));
+            roundStartedAt = -1;
             if (me != null)
             {
                 int dollHolder = game.roundResult?.dollHolder ?? -1;
@@ -183,10 +192,13 @@ namespace Unice
         void OnMatchEnd()
         {
             float seconds = matchStartedAt < 0 ? 0 : Time.realtimeSinceStartup - matchStartedAt;
-            matchStartedAt = -1;
+            int peak = Math.Max(humansPeak, Humans);
+            matchStartedAt = -1; humansPeak = 0;
             if (me == null) return;
             int place = 1 + game.characters.Count(character => character.score > me.score);
-            Metrics.Log("match_end", ("rounds", game.totalRounds), ("score", me.score), ("place", place), ("players", game.characters.Count), ("online", app.IsOnline));
+            Metrics.Log("match_end", ("rounds", game.totalRounds), ("score", me.score), ("place", place), ("players", game.characters.Count), ("online", app.IsOnline),
+                ("duration_s", (int)seconds), ("humans_peak", peak));
+            if (app.MarkFirstMatchEnd()) Metrics.Log("first_match_end", ("online", app.IsOnline), ("place", place), ("duration_s", (int)seconds));
             Report(Achievements.ForMatchEnd(place, Humans, app.IsOnline));
             if (Achievements.CountsForLeaderboard(place, Humans, app.IsOnline, game.totalRounds, seconds))
                 AccountRegistry.ReportOnlineWins?.Invoke(app.AddOnlineWin());
@@ -196,6 +208,8 @@ namespace Unice
         {
             string hostName = TextFormat.CleanName(gameEvent.text);
             bool itsMe = game.isHost && hostName == app.myName;
+            // only the new host logs it: one event per handover, not one per device
+            if (itsMe) Metrics.Log("host_changed", ("phase", game.phase.ToString().ToLowerInvariant()), ("round", game.round), ("humans", Humans));
             ui.Toast(itsMe ? Localization.Get("ev.host.you") : Localization.Get("ev.host.other", hostName));
         }
 
