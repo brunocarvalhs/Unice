@@ -17,8 +17,11 @@ namespace Unice
     {
         /// <summary>The fixed step: 20 times a second, like the web version.</summary>
         const float StepSeconds = .05f;
-        /// <summary>After a long stall (app in background), don't try to catch up more than this.</summary>
-        const float MaxCatchUpSeconds = 2;
+        /// <summary>
+        /// At most this many fixed steps per frame (0.2 s). Further behind (a long stall, a very slow frame), the rest is
+        /// dropped instead of fast-forwarding the match in one frame; a guest is corrected by the host's next snapshot.
+        /// </summary>
+        const int MaxStepsPerFrame = 4;
         /// <summary>How fast other characters slide to where the host says they are (guests only).</summary>
         const float RemoteSmoothing = 14;
 
@@ -47,6 +50,8 @@ namespace Unice
         public bool paused;
         Phase lastPhase = (Phase)255;   // none yet: the first step logs the screen
         float stepAccumulator;
+        /// <summary>Back from the background: the first frame's time is the whole time away, so it is not simulated.</summary>
+        bool discardElapsedTime;
         bool keyboardWasVisible;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -79,10 +84,16 @@ namespace Unice
             SystemBars.Hide();
         }
 
-        void OnApplicationFocus(bool focus) { if (focus) SystemBars.Hide(); }
+        /// <summary>Losing focus (notification shade, another app) can swallow the finger's release: let go of the touch controls.</summary>
+        void OnApplicationFocus(bool focus) { if (focus) SystemBars.Hide(); else ui.ReleaseTouchControls(); }
 
-        /// <summary>Solo: going to the background pauses the match.</summary>
-        void OnApplicationPause(bool goingToBackground) { if (goingToBackground && game.IsLive && !IsOnline && !paused) TogglePause(); }
+        /// <summary>Background: let go of the touch controls and, solo, pause the match. Back: don't catch up the time away.</summary>
+        void OnApplicationPause(bool goingToBackground)
+        {
+            if (!goingToBackground) { discardElapsedTime = true; return; }
+            ui.ReleaseTouchControls();
+            if (game.IsLive && !IsOnline && !paused) TogglePause();
+        }
 
         // ---------- main loop ----------
         void Update()
@@ -93,8 +104,10 @@ namespace Unice
             keyboardWasVisible = keyboardVisible;
 
             player.ReadKeys();
-            stepAccumulator += Mathf.Min(MaxCatchUpSeconds, Time.unscaledDeltaTime);
-            while (stepAccumulator >= StepSeconds) { stepAccumulator -= StepSeconds; Step(StepSeconds); }
+            if (discardElapsedTime) { discardElapsedTime = false; stepAccumulator = 0; }
+            else stepAccumulator += Time.unscaledDeltaTime;
+            for (int i = 0; i < MaxStepsPerFrame && stepAccumulator >= StepSeconds; i++) { stepAccumulator -= StepSeconds; Step(StepSeconds); }
+            stepAccumulator %= StepSeconds;   // still behind after MaxStepsPerFrame: drop the rest
             RenderFrame(Mathf.Min(StepSeconds, Time.unscaledDeltaTime));
         }
 
@@ -203,11 +216,17 @@ namespace Unice
             Metrics.Log("player_muted", ("muted", muted));
         }
 
-        /// <summary>Esc / Android back: pause in a match, leave the room elsewhere, quit from home.</summary>
+        /// <summary>A round or its result is on screen: the pause menu (with "leave") can open.</summary>
+        bool InMatch => game.IsLive || game.phase == Phase.Result || game.phase == Phase.Final;
+
+        /// <summary>
+        /// Esc / Android back: the pause menu during a match, including the result screens (an edge swipe over the joystick
+        /// must not leave the room), leave the room from the waiting room, quit from home.
+        /// </summary>
         public void Back()
         {
             if (ui.Typing) return;
-            if (game.IsLive) { TogglePause(); return; }
+            if (InMatch) { TogglePause(); return; }
             if (game.phase == Phase.Home) { if (!ui.MenuBack()) Application.Quit(); return; }
             room.LeaveRoom();
         }
@@ -215,7 +234,7 @@ namespace Unice
         /// <summary>Solo: freezes the match. Online the match keeps going; the menu only covers the screen.</summary>
         public void TogglePause()
         {
-            paused = !paused && game.IsLive;
+            paused = !paused && InMatch;
             ui.ShowPause(paused, IsOnline);
             if (paused) Metrics.Log("pause", ("online", IsOnline));
         }

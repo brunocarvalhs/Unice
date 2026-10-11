@@ -88,6 +88,7 @@ namespace Unice
         }
         public Vector2 JoystickDirection => controls.JoystickDirection;
         public bool SneakToggled => controls.SneakToggled;
+        public void ReleaseTouchControls() => controls.Release();
         /// <summary>Back button on the menu: returns false when already on the main page.</summary>
         public bool MenuBack() => homeMenu.Back();
         public void ShowPause(bool visible, bool online) => pauseMenu.Show(visible, online);
@@ -159,7 +160,8 @@ namespace Unice
                 if (wanted == UiScreen.Lobby) lobbyScreen.OnShow(cameFromFinal: previous == UiScreen.Final);
                 if (resultLike) resultScreen.Render(wanted == UiScreen.Final);
                 if (wanted == UiScreen.Game) hudRefreshTimer = 0;
-                if (wanted != UiScreen.Game) { pauseMenu.Show(false, false); app.paused = false; controls.ResetSneak(); }
+                // any screen change closes the pause menu (it can be open on the result screen when the next round starts)
+                pauseMenu.Show(false, false); app.paused = false; controls.Release();
                 hud.Invalidate();
             }
             if (wanted == UiScreen.Home) homeMenu.Refresh();
