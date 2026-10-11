@@ -8,7 +8,7 @@ namespace Unice
     /// </summary>
     public sealed class ProfileStore
     {
-        const string NameKey = "unice.name", KitKey = "unice.kit";
+        const string NameKey = "unice.name", KitKey = "unice.kit", OnlineWinsKey = "unice.online_wins";
 
         public string Name;
         public int[] Kit;
@@ -36,6 +36,19 @@ namespace Unice
             PlayerPrefs.SetString(NameKey, Name);
             PlayerPrefs.SetInt(KitKey, Unice.Kit.Pack(Kit));
             PlayerPrefs.Save();
+        }
+
+        /// <summary>
+        /// One more win for the "Online wins" leaderboard; returns the new total. Kept on this device only.
+        /// ponytail: reinstalling starts again from 0 (the leaderboard keeps the old best until it's passed); read the
+        /// player's leaderboard score at sign-in and keep the higher one if that turns out to bother players.
+        /// </summary>
+        public int AddOnlineWin()
+        {
+            int total = PlayerPrefs.GetInt(OnlineWinsKey, 0) + 1;
+            PlayerPrefs.SetInt(OnlineWinsKey, total);
+            PlayerPrefs.Save();
+            return total;
         }
 
         /// <summary>Replaces the look (invalid options become 0) and saves.</summary>

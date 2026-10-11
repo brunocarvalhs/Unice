@@ -14,8 +14,8 @@ namespace Unice
     /// Signing in, in one place for every Unity Services user (rooms, voice). On Android, Google Play Games signs in by
     /// itself (silently) when the app opens; Unity Services then signs in with that account, otherwise anonymously — a
     /// missing, refused or failed Play Games sign-in never stops the game, solo or online. Its display name reaches Core
-    /// through <see cref="AccountRegistry"/> (first-run profile name). Achievements and leaderboards will start from
-    /// <c>PlayGamesPlatform.Instance</c> once <see cref="playGames"/> succeeded.
+    /// through <see cref="AccountRegistry"/> (first-run profile name), and so do achievements and the leaderboard
+    /// (<see cref="PlayGamesProgress"/>).
     /// In the Editor, on other platforms and without the Play Console ids (docs/PLAY_GAMES.md): anonymous only.
     /// </summary>
     static class PlayerSignIn
@@ -38,6 +38,8 @@ namespace Unice
             if (settings == null || string.IsNullOrEmpty(settings.AppId)) return;
             playGames = AuthenticateAsync();
             AccountRegistry.PlayGamesName = async () => await playGames ? PlayGamesPlatform.Instance.GetUserDisplayName() : null;
+            AccountRegistry.ReportAchievement = PlayGamesProgress.Report;
+            AccountRegistry.ReportOnlineWins = PlayGamesProgress.ReportOnlineWins;
         }
 
         static Task<bool> AuthenticateAsync()

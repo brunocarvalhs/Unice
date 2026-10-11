@@ -56,5 +56,9 @@ namespace Unice
     {
         /// <summary>The Play Games sign-in started when the app opened: the player's display name, or null if it failed.</summary>
         public static Func<Task<string>> PlayGamesName;
+        /// <summary>Unlocks (or adds one step to, if incremental) an achievement. Does nothing unless Play Games signed in.</summary>
+        public static Action<Achievement> ReportAchievement;
+        /// <summary>Sends this device's "Online wins" total to the leaderboard. Does nothing unless Play Games signed in.</summary>
+        public static Action<long> ReportOnlineWins;
     }
 }

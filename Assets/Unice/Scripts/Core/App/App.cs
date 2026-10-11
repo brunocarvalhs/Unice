@@ -212,6 +212,7 @@ namespace Unice
         public string myName { get => profile.Name; set => profile.Name = value; }
         public int[] kit { get => profile.Kit; set => profile.Kit = value; }
         public void SaveProfile() => profile.Save();
+        internal int AddOnlineWin() => profile.AddOnlineWin();
         public void SetKit(int[] newKit) { profile.SetKit(newKit); room.sync.PublishSoon(); }
 
         public bool MicOn { get => voice != null && voice.MicOn; set { if (voice != null) voice.MicOn = value; } }

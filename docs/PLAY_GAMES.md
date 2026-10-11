@@ -76,4 +76,58 @@ indicado.
 5. Repita com uma conta que **não** é testadora, sem o app Play Games, ou recusando o login: o jogo abre, o nome fica
    "Nova", solo e online funcionam (login anônimo).
 
-Próximo passo (outra tarefa): conquistas e placares, a partir de `PlayGamesPlatform.Instance` em `PlayerSignIn.cs`.
+## 5. Conquistas e ranking
+
+O código já envia tudo; **cada ID vazio é simplesmente não enviado**, então dá para criar no Console aos poucos.
+Regras: `Domain/Match/Achievements.cs` (testadas em `AchievementsTests`). Gatilhos: `Core/Gameplay/EventFeed.cs`.
+Envio: `Net/PlayGamesProgress.cs` — **único lugar com os IDs**. Nada é enviado no Editor, fora do Android, ou se o login
+do Play Games não aconteceu.
+
+### 5.1 Criar no Play Console (Play Games Services → Conquistas / Placares)
+
+Deixe tudo em **rascunho** e teste com contas testadoras antes de publicar: conquista publicada não pode ser apagada, e
+tipo, passos e "oculta" na prática não mudam mais. Ícone 512×512 PNG/JPEG. Traduções: pt-BR, en-US, es-419.
+
+| # | Nome pt / en / es | Descrição (pt) | Tipo | Passos | Oculta | XP | Constante em `PlayGamesProgress.cs` |
+|---|---|---|---|---|---|---|---|
+| A1 | Ninguém me viu / Nobody Saw Me / Nadie me vio | Sobreviva a uma rodada como escondido. | padrão | — | não | 25 | `NobodySawMeId` |
+| A2 | Te achei! / Found You! / ¡Te encontré! | Pegue alguém sendo a Unice. | padrão | — | não | 25 | `FoundYouId` |
+| A3 | A boneca é minha / Dolly's Keeper / La muñeca es mía | Termine o tempo com a boneca. | padrão | — | não | 50 | `DollsKeeperId` |
+| A4 | Devolve a boneca / Give Her Back / Devuélvemela | Como Unice, pegue quem está com a boneca. | padrão | — | não | 50 | `GiveHerBackId` |
+| A5 | Batata quente / Hot Potato / Papa caliente | Passe a boneca e seu time vença a rodada. | padrão | — | não | 50 | `HotPotatoId` |
+| A6 | Isca / Decoy / Señuelo | Ria de propósito sem a boneca e sobreviva à rodada. | padrão | — | não | 50 | `DecoyId` |
+| A7 | Campeão / Champion / Campeón | Termine uma partida em 1º lugar. | padrão | — | não | 50 | `ChampionId` |
+| A8 | Entre amigos / Among Friends / Entre amigos | Termine uma partida online com outra pessoa. | padrão | — | não | 50 | `AmongFriendsId` |
+| A9 | Rei da sala / Top of the Room / Rey de la sala | Vença uma partida online com 3+ pessoas. | padrão | — | não | 100 | `TopOfTheRoomId` |
+| A10 | Sem testemunhas / No Witnesses / Sin testigos | Como Unice, pegue todos — a boneca por último. | padrão | — | **sim** | 100 | `NoWitnessesId` |
+| A11 | Veterano / Veteran / Veterano | Termine 25 partidas. | incremental | 25 | não | 100 | `VeteranId` |
+| A12 | Caçadora / Huntress / Cazadora | Pegue 50 escondidos sendo a Unice. | incremental | 50 | não | 100 | `HuntressId` |
+
+Total: 750 XP de 1000 (sobram 250 para mapas/temporadas futuras).
+
+**Placar (ranking)**
+
+| # | Nome pt / en / es | Formato | Ordem | Proteção contra adulteração | Limite | Constante |
+|---|---|---|---|---|---|---|
+| L1 | Vitórias online / Online Wins / Victorias en línea | numérico, 0 casas | maior é melhor | ligada | 0 a 100000 | `OnlineWinsLeaderboardId` |
+
+Conta para o ranking só a vitória (1º lugar) **online**, com **2+ pessoas** no placar final, **3+ rodadas** e **6+ minutos**
+no relógio do aparelho. Solo nunca conta. O total fica no aparelho (`unice.online_wins`) e é enviado a cada vitória que conta;
+reinstalar o app recomeça do 0 (o ranking mantém o melhor valor até ser superado). Divulgue só as abas "Todos os tempos" e
+"Amigos" — com total acumulado, as abas diária/semanal mostram o mesmo número.
+
+### 5.2 Colar os IDs
+
+1. Copie cada ID do Console (coluna ID da conquista/placar, ex. `CgkI...EAI`) — ou de **Obter recursos**, aba Android:
+   `<string name="achievement_...">ID</string>`.
+2. Cole entre as aspas da constante correspondente em `Assets/Unice/Scripts/Net/PlayGamesProgress.cs`
+   (ex. `const string FoundYouId = "CgkI...EAI";`). **Não** use o `GPGSIds.cs` gerado pela janela de setup.
+3. Atualize também o XML na janela **Android setup** (seção 2) se quiser, mas o jogo só lê as constantes.
+
+### 5.3 Testar (conta testadora, build da faixa de teste interno)
+
+1. Partida **solo**: como Unice pegue alguém → **A2**; termine a partida em 1º → **A7**. Abra o app Play Games → Conquistas.
+   A11 e A12 mostram progresso (1/25, n/50).
+2. Ranking: depois de uma partida **solo**, o placar continua vazio. Só após uma partida **online** válida (2 aparelhos com
+   contas diferentes, 3+ rodadas, 6+ minutos, vencida) aparece 1 no placar.
+3. Com uma conta que não fez login no Play Games: o jogo segue igual, sem erros `play_games` no `adb logcat`.

@@ -45,6 +45,7 @@ Todo o envio passa por `Assets/Unice/Scripts/Core/Analytics/Metrics.cs`.
 | `round_end` | Fim da rodada | `round`, `unice_won`, `role` (`unice`/`hider`/`spectator`), `won`, `caught`, `online` | `EventFeed.OnRoundEnd` |
 | `catch` | O jogador pegou ou foi pego | `side` (`caught`/`catcher`), `with_doll`, `time_left` (s), `room` (id do cômodo) | `EventFeed.OnCatch` |
 | `match_end` | Placar final | `rounds`, `score`, `place` (1 = venceu), `players`, `online` | `EventFeed.OnMatchEnd` |
+| `achievement_unlock` | O jogador cumpriu uma conquista padrão do Play Games (A1–A10; as incrementais não). Pode repetir — o Play Games só desbloqueia uma vez; para contar desbloqueios use usuários únicos por `id` | `id` (nome em `Achievement`, ex. `FoundYou`) | `EventFeed.Report` |
 | `player_action` | O jogador usa uma ação | `type` (`hide`/`exit`/`open`/`pass`/`laugh`), `spot` (tipo do móvel, só em `hide`) | `PlayerControl` |
 | `pause` | Abriu o menu de pausa | `online` | `App.TogglePause` |
 | `player_muted` | Silenciou ou voltou a ouvir outro jogador | `muted` (1 = silenciou) | `App.TogglePlayerMuted` |
