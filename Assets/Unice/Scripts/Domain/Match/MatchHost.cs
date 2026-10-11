@@ -49,7 +49,7 @@ namespace Unice
             }
         }
 
-        /// <summary>Applies what the other players sent: their last action (once) and their position.</summary>
+        /// <summary>Applies what the other players sent: their position, then their last action (once).</summary>
         public void ApplyPeerInputs(IReadOnlyList<PeerInfo> peers, string myPlayerId, float dt)
         {
             foreach (var character in game.characters)
@@ -59,20 +59,21 @@ namespace Unice
                 if (peer == null)
                 {
                     // the player left: a bot finishes the match in their place
-                    character.isBot = true; character.ResetBot();
+                    character.BecomeBot();
                     if (game.IsLive) game.AddEvent(GameEventType.Left, actor: character.index);
                     continue;
                 }
 
                 var presence = peer.presence;
                 character.talking = presence.talking;
+                // position first: an action sent with it (e.g. hide on arriving at the spot) is judged from where the player is now
+                ApplyPosition(character, presence, dt);
                 int lastSeq = lastActionSeq.TryGetValue(peer.id, out int seq) ? seq : 0;
                 if (presence.actionSeq > lastSeq)
                 {
                     lastActionSeq[peer.id] = presence.actionSeq;
                     game.ApplyAction(character, presence.action, presence.actionArg);
                 }
-                ApplyPosition(character, presence, dt);
             }
         }
 
@@ -111,8 +112,8 @@ namespace Unice
             {
                 if (character != myCharacter) { character.x = character.targetX; character.y = character.targetY; }
                 bool stillHere = peers.Any(peer => peer.id == character.playerId);
-                if (!character.isBot && !stillHere) character.isBot = true;
-                character.ResetBot();
+                if (!character.isBot && !stillHere) character.BecomeBot();
+                else character.ResetBot();
             }
             foreach (var spot in Map.Spots) spot.reservedBy = null;
             var doll = game.doll;

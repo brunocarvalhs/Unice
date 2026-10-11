@@ -79,5 +79,13 @@ namespace Unice
 
         /// <summary>Forget the bot's plans (a new host, or a human just became a bot).</summary>
         public void ResetBot() => brain.Reset();
+
+        /// <summary>The human left: a bot plays in their place, without the human's last input (talking, sneaking, speed).</summary>
+        public void BecomeBot()
+        {
+            isBot = true;
+            talking = sneaking = false; speed = 0;
+            ResetBot();
+        }
     }
 }
