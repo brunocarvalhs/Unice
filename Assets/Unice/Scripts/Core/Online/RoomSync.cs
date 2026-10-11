@@ -64,7 +64,8 @@ namespace Unice
         public void Tick(float dt)
         {
             publishTimer -= dt;
-            if (publishTimer <= 0) { publishTimer = PublishInterval; Publish(); }
+            // keeps the remainder so 20 steps/s average 15 publishes/s; the floor avoids a burst after a long pause
+            if (publishTimer <= 0) { publishTimer = Mathf.Max(publishTimer + PublishInterval, 0); Publish(); }
         }
 
         /// <summary>Sends this device's presence on the next step instead of waiting for the regular beat.</summary>
