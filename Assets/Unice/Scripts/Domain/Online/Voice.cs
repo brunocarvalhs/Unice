@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Unice
@@ -24,6 +25,11 @@ namespace Unice
         /// <summary>Stops (or resumes) hearing one player, on this device only. Remembered while the app runs, even if they rejoin.</summary>
         void SetPlayerMuted(string voicePlayerId, bool muted);
         bool IsPlayerMuted(string voicePlayerId);
+        /// <summary>
+        /// Every step: the players this device must not hear right now by <see cref="VoiceRule.CanHear"/>. Separate from
+        /// <see cref="SetPlayerMuted"/>: it doesn't touch the player's own mute choices and lifts as soon as the rule allows.
+        /// </summary>
+        void SetUnheard(HashSet<string> voicePlayerIds);
     }
 
     public static class VoiceRegistry
@@ -39,5 +45,13 @@ namespace Unice
         /// outside a round <paramref name="myCharacter"/> is null, which also passes).
         /// </summary>
         public static bool CanSpeak(bool micOn, Character myCharacter) => micOn && (myCharacter == null || myCharacter.hidingSpot == null);
+
+        /// <summary>
+        /// Mid-round, a caught player is heard only by other caught players, so they can't tip off the ones still playing (the Unice
+        /// included); a caught listener still hears everyone. Outside a round (<paramref name="live"/> false) everyone hears everyone,
+        /// even though <c>outOfRound</c> stays set on the result screen. <paramref name="listener"/> is null when this device has no character.
+        /// </summary>
+        public static bool CanHear(bool live, Character listener, Character speaker) =>
+            !live || listener == null || listener.outOfRound || speaker == null || !speaker.outOfRound;
     }
 }

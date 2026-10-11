@@ -138,6 +138,7 @@ namespace Unice
             }
             if (IsOnline) room.sync.Tick(dt);
             voice?.Tick(VoiceRule.CanSpeak(MicOn, myCharacter), myCharacter?.x ?? 0, myCharacter?.y ?? 0, myCharacter != null, Whisper);
+            if (voice != null) UpdateUnheard();
             ui.Step(dt);
         }
 
@@ -214,6 +215,22 @@ namespace Unice
             bool muted = !voice.IsPlayerMuted(voiceId);
             voice.SetPlayerMuted(voiceId, muted);
             Metrics.Log("player_muted", ("muted", muted));
+        }
+
+        /// <summary>Reused every step: voice ids this device must not hear right now.</summary>
+        readonly HashSet<string> unheard = new HashSet<string>();
+
+        /// <summary>Applies <see cref="VoiceRule.CanHear"/>: while this device is still playing, caught players go silent for it.</summary>
+        void UpdateUnheard()
+        {
+            unheard.Clear();
+            foreach (var character in game.characters)
+            {
+                if (VoiceRule.CanHear(game.IsLive, myCharacter, character)) continue;
+                var voiceId = room.VoiceIdOf(character.playerId);
+                if (voiceId != null) unheard.Add(voiceId);
+            }
+            voice.SetUnheard(unheard);
         }
 
         /// <summary>A round or its result is on screen: the pause menu (with "leave") can open.</summary>
