@@ -6,20 +6,54 @@ namespace Unice
 {
     /// <summary>
     /// The game's sound effects: the same synthesized sounds as the web version (no audio files, see <see cref="ToneSynth"/>),
-    /// played with a volume, a left/right pan, and a muffled filter when there is a wall in between.
+    /// played with a volume, a left/right pan, and a muffled filter when there is a wall in between. Voice 0 is kept for the
+    /// sounds that carry game information (<see cref="IsCritical"/>), so a burst of footsteps never cuts the giggle.
     /// </summary>
     public sealed class Sfx
     {
         /// <summary>How many sounds can play at once; the oldest is cut when a new one starts.</summary>
         const int Voices = 12;
+        /// <summary>The voice only <see cref="IsCritical"/> sounds use.</summary>
+        const int ReservedVoice = 0;
+        /// <summary>PlayerPrefs key of the sound on/off setting (1 = on).</summary>
+        const string SoundKey = "unice.sound";
         /// <summary>Low-pass cutoff (Hz) for sounds heard through a wall.</summary>
         const float MuffledCutoff = 700;
 
         readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
         readonly List<(AudioSource source, AudioLowPassFilter muffle)> voices = new List<(AudioSource, AudioLowPassFilter)>();
-        int nextVoice;
-        /// <summary>The player's sound on/off setting.</summary>
-        public bool Enabled = true;
+        int nextVoice = ReservedVoice + 1;
+        bool enabled = PlayerPrefs.GetInt(SoundKey, 1) != 0;
+
+        /// <summary>The player's sound on/off setting, saved on the device.</summary>
+        public bool Enabled
+        {
+            get => enabled;
+            set { enabled = value; PlayerPrefs.SetInt(SoundKey, value ? 1 : 0); PlayerPrefs.Save(); }
+        }
+
+        /// <summary>
+        /// Volume multiplier per sound, so the mix is even: the synthesized heart beat is ~3x louder than the giggle, and
+        /// footsteps repeat all the time. Sounds not listed play at 1. Tune by ear on a phone speaker and on headphones.
+        /// </summary>
+        static readonly Dictionary<string, float> Gains = new Dictionary<string, float> { ["heart"] = .35f, ["step"] = .6f };
+
+        /// <summary>The sounds that tell the player what is happening: the giggle, a catch, the Unice coming in.</summary>
+        public static bool IsCritical(string name) => name == "giggle" || name == "sting" || name == "boom";
+
+        public static float GainFor(string name) => Gains.TryGetValue(name, out float gain) ? gain : 1;
+
+        /// <summary>
+        /// The voice a sound plays on: critical sounds always get the reserved voice; the rest take turns on the others
+        /// (<paramref name="nextVoice"/> advances, skipping the reserved one).
+        /// </summary>
+        public static int PickVoice(bool critical, ref int nextVoice, int voiceCount)
+        {
+            if (critical) return ReservedVoice;
+            int voice = nextVoice;
+            nextVoice = voice + 1 < voiceCount ? voice + 1 : ReservedVoice + 1;
+            return voice;
+        }
 
         public Sfx(Transform parent)
         {
@@ -53,10 +87,9 @@ namespace Unice
         public void Play(string name, float volume = 1, float pan = 0, bool muffled = false)
         {
             if (!Enabled || volume <= 0 || !clips.TryGetValue(name, out var clip)) return;
-            var (source, muffle) = voices[nextVoice];
-            nextVoice = (nextVoice + 1) % voices.Count;
+            var (source, muffle) = voices[PickVoice(IsCritical(name), ref nextVoice, voices.Count)];
             source.Stop(); source.clip = clip;
-            source.volume = Mathf.Clamp01(volume); source.panStereo = Mathf.Clamp(pan, -1, 1); muffle.enabled = muffled;
+            source.volume = Mathf.Clamp01(volume * GainFor(name)); source.panStereo = Mathf.Clamp(pan, -1, 1); muffle.enabled = muffled;
             source.Play();
         }
     }
