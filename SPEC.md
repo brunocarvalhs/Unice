@@ -86,7 +86,7 @@ Convenções (o objetivo é que qualquer engenheiro entenda o código sem ajuda)
 - **Strings de estado viram enums** (`Phase`, `GameEventType`, `HiderMode`, `BannerStyle`, `RippleKind`, `UiScreen`).
 - `sealed class` para tipos que não serão herdados; `partial` só quando a divisão em arquivos não pode virar classes (ex.: `Game` e `Game.Snapshot`).
 - Sem regions, sem interfaces com uma implementação só (exceto as portas `INetBackend`/`IVoiceChat`, que existem para o jogo compilar sem os pacotes de rede).
-- **Nunca renomear** os campos de `ArtManifest.cs` (o `JsonUtility` casa pelo nome com `manifest.json`), as chaves de `PlayerPrefs` (`unice.name`, `unice.kit`, `unice.lang`) nem as chaves de `Localization.Strings`.
+- **Nunca renomear** os campos de `ArtManifest.cs` (o `JsonUtility` casa pelo nome com `manifest.json`), as chaves de `PlayerPrefs` (`unice.name`, `unice.kit`, `unice.lang`, `unice.sound`) nem as chaves de `Localization.Strings`.
 - Mudou o formato de bytes do snapshot ou da presença? Suba `Game.SnapshotVersion` / `PresenceCodec.Version`.
 
 ## Testing Strategy

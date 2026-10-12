@@ -219,6 +219,16 @@
 .mstep-btn { width: 64px; height: 64px; margin: 0; padding: 0; background-color: rgba(0, 0, 0, 0.35); border-width: 2px; border-color: rgba(241, 231, 216, 0.55); border-radius: 10px; color: rgb(241, 231, 216); font-size: 32px; }
 .mstep-btn:hover { border-color: rgb(240, 176, 87); color: rgb(240, 176, 87); }
 .mstep-v { -unity-font-definition: url("../Fonts/CourierPrime-Bold.ttf"); font-size: 32px; color: rgb(241, 231, 216); width: 58px; -unity-text-align: middle-center; }
+/* the kid customizer (styled for paper in "My child") inside the dark side panel: light ink, dark washes, ≥5.6:1 */
+.lobby-side .lbl, .lobby-side .opt-l { color: rgb(173, 154, 140); }
+.lobby-side .field { background-color: rgba(0, 0, 0, 0.35); border-color: rgba(241, 231, 216, 0.55); }
+.lobby-side .field .unity-base-text-field__input { color: rgb(241, 231, 216); }
+.lobby-side .cy { background-color: rgba(0, 0, 0, 0.35); }
+.lobby-side .cy-btn, .lobby-side .cy-val { color: rgb(241, 231, 216); }
+.lobby-side .btn-ghost { color: rgb(241, 231, 216); border-color: rgb(241, 231, 216); }
+.lobby-side .btn-ghost:hover { background-color: rgba(241, 231, 216, 0.1); }
+.lobby-side .sw { border-color: rgba(241, 231, 216, 0.35); }
+.lobby-side .sw-on { border-color: rgb(240, 176, 87); }
 .lobby-status { margin-top: 8px; -unity-text-align: middle-center; }
 .mbtn-go { width: auto; height: 64px; margin: 14px 0 0 0; font-size: 44px; }
 .mbtn-on { border-color: rgb(143, 203, 156); color: rgb(143, 203, 156); }

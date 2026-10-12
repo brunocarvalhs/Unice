@@ -9,7 +9,7 @@ namespace Unice
     public enum BannerStyle { Info, Rose, Blood, Moss, Candle }
 
     /// <summary>
-    /// Text messages over the game: the big banner, the toast stack, the caption for sounds heard while hidden,
+    /// Text messages over the game: the big banner, the toast stack, the caption for sounds heard but not seen,
     /// the key-hints prompt, and the hiding-phase countdown (black screen for the Unice, a pill for everyone else).
     /// </summary>
     sealed class Messages : UiPart
@@ -59,7 +59,7 @@ namespace Unice
             while (toasts.childCount > MaxToasts) toasts[toasts.childCount - 1].RemoveFromHierarchy();
         }
 
-        /// <summary>Describes a sound heard while hidden (shown only while the player is hidden).</summary>
+        /// <summary>Describes a sound heard but not seen (shown while the player is still in the round).</summary>
         public void Caption(string text) { caption.text = text; captionTimeLeft = CaptionSeconds; }
 
         /// <summary>The key hints line ("E hide under the bed    Q pass to Bia").</summary>
@@ -90,7 +90,7 @@ namespace Unice
                 if (Time.unscaledTime > activeToasts[i].removeAt) { activeToasts[i].label.RemoveFromHierarchy(); activeToasts.RemoveAt(i); }
 
             if (captionTimeLeft > 0) captionTimeLeft -= dt;
-            Show(captionBox, captionTimeLeft > 0 && me != null && me.hidingSpot != null);
+            Show(captionBox, captionTimeLeft > 0 && me != null && !me.outOfRound);
 
             // hiding phase: the Unice waits with eyes closed, the others see a countdown
             bool hiding = game.phase == Phase.Hide; int secondsLeft = Mathf.CeilToInt(game.timeLeft);
