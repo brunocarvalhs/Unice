@@ -14,8 +14,8 @@ namespace Unice
         const float StepInterval = .42f, CaneInterval = .45f;
         /// <summary>Panning: a sound this far to one side (house pixels) plays fully in that ear.</summary>
         const float FullPanDistance = 300;
-        /// <summary>The grandfather clock in the house, and how far its tick carries.</summary>
-        const float ClockX = 1652, ClockY = 182, ClockRange = 260;
+        /// <summary>How far the tick of the map's clock (<see cref="Map.Clock"/>) carries.</summary>
+        const float ClockRange = 260;
         /// <summary>The last seconds of a round tick.</summary>
         const int CountdownTickFrom = 10;
 
@@ -29,8 +29,9 @@ namespace Unice
 
         /// <summary>
         /// Plays <paramref name="sound"/> as heard from (x, y): silent beyond <paramref name="range"/> (30% more while hidden),
-        /// louder closer, panned, muffled through walls. If the source can't be seen, also shows a cue pointing at it, and a
-        /// caption describing it while hidden. Returns the loudness (0..1).
+        /// louder closer, panned, muffled through walls. If the source can't be seen, also shows a cue pointing at it and a
+        /// caption describing it (for everyone in the round, hidden or not: the giggle is game information, and not everyone
+        /// can hear it). Returns the loudness (0..1).
         /// </summary>
         /// <param name="label">What the caption calls it ("passos correndo"); null = no cue or caption.</param>
         /// <param name="minLoudness">Never quieter than this (for sounds the whole house must hear).</param>
@@ -48,7 +49,7 @@ namespace Unice
             if (label != null && me != null && !me.outOfRound && !perspective.CanSee(x, y))
             {
                 app.ui.ShowSoundCue(Mathf.Atan2(y - listener.y, x - listener.x), loudness, cueColor);
-                if (hidden) app.ui.Caption($"{label} · {DescribeDistance(loudness)} · {DescribeSide(x - listener.x, y - listener.y)}");
+                app.ui.Caption($"{label} · {DescribeDistance(loudness)} · {DescribeSide(x - listener.x, y - listener.y)}");
             }
             return loudness;
         }
@@ -99,8 +100,9 @@ namespace Unice
                 if (ownStepTimer <= 0) { ownStepTimer = StepInterval; app.worldView.ShowRipple(me.x, me.y, RippleKind.Own); }
             }
 
+            var clock = Map.Clock;
             clockTimer -= dt;
-            if (clockTimer <= 0) { clockTimer = 1; PlayFrom(ClockX, ClockY, ClockRange, null, default, "clock"); }
+            if (clock != null && clockTimer <= 0) { clockTimer = 1; PlayFrom(clock.CenterX, clock.CenterY, ClockRange, null, default, "clock"); }
 
             if (game.phase == Phase.Hunt)
             {

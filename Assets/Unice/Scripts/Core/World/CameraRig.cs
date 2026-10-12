@@ -10,13 +10,13 @@ namespace Unice
         const float FollowSpeed = 6;
         /// <summary>The camera looks a little above the player's feet.</summary>
         const float LookAboveFeet = 20;
-        /// <summary>Behind the menus the camera wanders around this point, this far.</summary>
-        const float IdleCenterX = 860, IdleCenterY = 590, IdleRangeX = 520, IdleRangeY = 300;
+        /// <summary>Behind the menus the camera wanders this far around the middle of the map.</summary>
+        const float IdleRangeX = 520, IdleRangeY = 300;
         /// <summary>At least this many house pixels show vertically (more on narrow screens, so the width fits ~700).</summary>
         const float MinHalfHeight = 250, HalfWidth = 350;
 
         public readonly Camera Camera;
-        float lookX = IdleCenterX, lookY = IdleCenterY, shakeTimeLeft, shakeMagnitude;
+        float lookX = Map.WorldW / 2, lookY = Map.WorldH / 2, shakeTimeLeft, shakeMagnitude;
 
         public CameraRig()
         {
@@ -42,8 +42,8 @@ namespace Unice
             }
             else
             {
-                lookX = IdleCenterX + Mathf.Sin(time * .1f) * IdleRangeX;
-                lookY = IdleCenterY + Mathf.Sin(time * .16f) * IdleRangeY;
+                lookX = Map.WorldW / 2 + Mathf.Sin(time * .1f) * IdleRangeX;
+                lookY = Map.WorldH / 2 + Mathf.Sin(time * .16f) * IdleRangeY;
             }
             Camera.orthographicSize = Mathf.Max(MinHalfHeight, HalfWidth / Mathf.Max(.5f, Camera.aspect)) / Art.PxPerUnit;
             Camera.transform.position = Art.ToWorld(lookX, lookY, -10);

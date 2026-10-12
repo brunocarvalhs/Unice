@@ -51,6 +51,21 @@ namespace Unice
         public void CleanName_OnlyJunkChars_ReturnsFallback() => Assert.AreEqual("Alguém", TextFormat.CleanName("​‌"));
 
         [Test]
+        public void FirstRunName_SavedNameWins() => Assert.AreEqual("Bruno", TextFormat.FirstRunName("Bruno", "Ana Play"));
+
+        [Test]
+        public void FirstRunName_UsesPlayGamesWhenNoSavedName() => Assert.AreEqual("Ana Play", TextFormat.FirstRunName(null, "Ana Play"));
+
+        [Test]
+        public void FirstRunName_LongPlayGamesName_IsCleanedLikeATypedName() =>
+            Assert.AreEqual("Ana Clara So", TextFormat.FirstRunName(null, " Ana Clara\u200b Souza "));
+
+        [TestCase(null)]
+        [TestCase("")]
+        [TestCase("   ")]
+        public void FirstRunName_FallsBackToDefault(string playGamesName) => Assert.AreEqual("Nova", TextFormat.FirstRunName(null, playGamesName));
+
+        [Test]
         public void Mmss_ZeroSeconds_IsZeroZero() => Assert.AreEqual("0:00", TextFormat.FormatMinutesSeconds(0f));
 
         [Test]

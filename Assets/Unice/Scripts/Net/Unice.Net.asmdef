@@ -8,7 +8,8 @@
         "Unity.Services.Core",
         "Unity.Services.Authentication",
         "Unity.Services.Multiplayer",
-        "Unity.Services.Vivox"
+        "Unity.Services.Vivox",
+        "Google.Play.Games"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

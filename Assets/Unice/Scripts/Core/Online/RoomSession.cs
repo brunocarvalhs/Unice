@@ -38,6 +38,14 @@ namespace Unice
         public string statusText = "";
         public bool statusIsError;
 
+        /// <summary>Why this device left the room or the solo match (analytics "room_leave").</summary>
+        public enum LeaveReason { Button, Back, Lost, Timeout }
+
+        /// <summary>When this device last entered the waiting room (seconds, device clock); set by <see cref="App"/> on the phase change.</summary>
+        public float lobbyEnteredAt;
+        /// <summary>Seconds spent in the waiting room so far, for "lobby_wait_s".</summary>
+        int LobbyWaitSeconds => (int)(Time.realtimeSinceStartup - lobbyEnteredAt);
+
         public RoomSession(App app)
         {
             this.app = app;
@@ -92,7 +100,7 @@ namespace Unice
                 if (!IsOnline) { isBusy = false; return; }
                 if (FindHost() == null)
                 {
-                    isBusy = false; LeaveRoom(); SetStatus(Localization.Get("net.no_answer"), true);
+                    isBusy = false; LeaveRoom(LeaveReason.Timeout); SetStatus(Localization.Get("net.no_answer"), true);
                     Metrics.Log("room_error", ("mode", "join"), ("error", "no_host"));
                     return;
                 }
@@ -107,17 +115,20 @@ namespace Unice
         {
             if (connection == null) return;
             Metrics.Log("room_lost", ("phase", game.phase.ToString().ToLowerInvariant()));
-            LeaveRoom();
+            LeaveRoom(LeaveReason.Lost);
             SetStatus(reason, true);
         }
 
-        public async void LeaveRoom()
+        /// <summary>Back home from a room or a solo match.</summary>
+        public async void LeaveRoom(LeaveReason reason)
         {
             var leaving = connection; connection = null;
+            var phase = game.phase;
+            Metrics.Log("room_leave", ("reason", reason.ToString().ToLowerInvariant()), ("phase", phase.ToString().ToLowerInvariant()), ("round", game.round),
+                ("online", leaving != null), ("lobby_wait_s", phase == Phase.Lobby ? LobbyWaitSeconds : 0));
             ResetRoomState(); myPlayerId = OfflinePlayerId; app.ui.ShowPause(false, false);
             if (app.voice != null) { try { await app.voice.LeaveRoomAsync(); } catch (Exception error) { Metrics.Error(error); } }
             if (leaving == null) return;
-            Metrics.Log("room_leave");
             isBusy = true;
             try { await leaving.LeaveAsync(); } catch (Exception error) { Metrics.Error(error); }
             isBusy = false;
@@ -173,7 +184,7 @@ namespace Unice
             if (!game.isHost || game.phase != Phase.Lobby) return;
             game.botCount = bots; game.totalRounds = rounds; game.NewMatch(HumansForNextRound());
             Metrics.Log("match_start", ("humans", game.characters.Count(character => !character.isBot)), ("bots", game.characters.Count(character => character.isBot)),
-                ("rounds", rounds), ("map", game.mapId), ("online", IsOnline), ("hide_time", (int)game.hideTime), ("round_time", (int)game.huntTime));
+                ("rounds", rounds), ("map", game.mapId), ("online", IsOnline), ("hide_time", (int)game.hideTime), ("round_time", (int)game.huntTime), ("lobby_wait_s", LobbyWaitSeconds));
         }
 
         /// <summary>Host, on the final scoreboard: everyone back to the waiting room.</summary>

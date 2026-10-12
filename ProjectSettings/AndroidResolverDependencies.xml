@@ -1,6 +1,8 @@
 <dependencies>
   <packages>
     <package>com.google.android.gms:play-services-base:18.10.1</package>
+    <package>com.google.android.gms:play-services-games-v2:22.1.0</package>
+    <package>com.google.android.gms:play-services-nearby:18.5.0</package>
     <package>com.google.firebase:firebase-analytics:23.2.0</package>
     <package>com.google.firebase:firebase-analytics-unity:13.17.0</package>
     <package>com.google.firebase:firebase-app-unity:13.17.0</package>

@@ -35,6 +35,15 @@ namespace Unice
             return AddElement(scroll, "sheet");
         }
 
+        /// <summary>A vertical scroll (USS class <c>scrollClass</c>) whose content gets <c>contentClass</c>; returns the content, where children go.</summary>
+        public static VisualElement AddScroll(VisualElement parent, string scrollClass, string contentClass)
+        {
+            var scroll = new ScrollView(ScrollViewMode.Vertical) { horizontalScrollerVisibility = ScrollerVisibility.Hidden };
+            scroll.AddToClassList(scrollClass); parent.Add(scroll);
+            if (contentClass != null) scroll.contentContainer.AddToClassList(contentClass);
+            return scroll.contentContainer;
+        }
+
         /// <summary>Lets touches and clicks pass through the element (for overlays and labels drawn over the game).</summary>
         public static T IgnorePointer<T>(T element) where T : VisualElement { element.pickingMode = PickingMode.Ignore; return element; }
 

@@ -91,7 +91,11 @@ namespace Unice
         }
 
         /// <summary>Each time home appears: back to the main page, or to "online" if there's a connection error to read.</summary>
-        public void OnShow() => ShowPage(app.netStatusIsError && app.netStatusText.Length > 0 ? Page.Online : Page.Main);
+        public void OnShow()
+        {
+            currentPage = Page.Main;   // the phase's screen_view ("home") already counted the main page
+            ShowPage(app.netStatusIsError && app.netStatusText.Length > 0 ? Page.Online : Page.Main);
+        }
 
         /// <summary>Per step: the buttons follow the connection state.</summary>
         public void Refresh()
@@ -116,8 +120,15 @@ namespace Unice
             return panel;
         }
 
+        /// <summary>Analytics screen name of each page; the main page is the phase's own "home".</summary>
+        static string ScreenName(Page page) => page switch
+        {
+            Page.Online => "home_online", Page.HowToPlay => "home_how_to_play", Page.MyKid => "home_my_kid", _ => "home",
+        };
+
         void ShowPage(Page page)
         {
+            if (page != currentPage) Metrics.Screen(ScreenName(page));
             currentPage = page;
             Show(mainPage, page == Page.Main); Show(onlinePage, page == Page.Online);
             Show(howToPlayPage, page == Page.HowToPlay); Show(myKidPage, page == Page.MyKid);

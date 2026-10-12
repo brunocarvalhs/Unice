@@ -51,7 +51,8 @@ the user whether that was intended before updating the expectation. Never "fix" 
 - One assertion per test, except when checking several properties of one resulting state — then give each assertion a message.
 - **Assertion style:** the existing files use the classic model (`Assert.AreEqual`, `Assert.IsTrue`). Keep the style of the file
   you are editing; new test files may use the constraint model (`Assert.That(actual, Is.EqualTo(expected))`).
-- Tests that touch `Map` statics or `PlayerPrefs` must restore them in `[TearDown]` (see `MapTests`, `ProfileStoreTests`).
+- Tests that read `Map` statics load the map in `[SetUp]` (`Map.Load(MapHouse.Build())`, see `MapTests`); tests that depend on
+  a draw also call `GameRandom.Seed(...)` there (see `GameTests`). `PlayerPrefs` is restored in `[TearDown]` (`ProfileStoreTests`).
 
 ## Manual checks (not automated yet)
 

@@ -36,8 +36,9 @@ namespace Unice
         /// <summary>
         /// Every frame: draws each character this player can see. Hidden characters only show to the team (faded) and to
         /// their own player; <paramref name="canSee"/> is the line-of-sight test from the player's point of view.
+        /// <paramref name="stepBlend"/>: how far between the last two fixed steps they are drawn.
         /// </summary>
-        public void SyncCharacters(Game game, Character me, System.Func<float, float, bool> canSee, bool showsTeamInfo, float time)
+        public void SyncCharacters(Game game, Character me, System.Func<float, float, bool> canSee, bool showsTeamInfo, float time, float stepBlend)
         {
             while (characterViews.Count < game.characters.Count) characterViews.Add(new CharacterView(root, characterViews.Count));
             CharacterAlphas.Clear();
@@ -62,7 +63,7 @@ namespace Unice
                 }
                 if (!visible) { view.Hide(); CharacterAlphas.Add(0); continue; }
                 bool showDoll = showsTeamInfo && character == game.doll.holder && !character.IsUnice;
-                view.Show(character, character == me, alpha, showDoll, time);
+                view.Show(character, character == me, alpha, showDoll, time, stepBlend);
                 CharacterAlphas.Add(alpha);
             }
         }

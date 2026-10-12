@@ -7,6 +7,8 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
 // Android Resolver Dependencies Start
     implementation 'com.google.android.gms:play-services-base:18.10.1' // Assets/Firebase/Editor/AppDependencies.xml:20
+    implementation 'com.google.android.gms:play-services-games-v2:22.1.0' // Assets/GooglePlayGames/com.google.play.games/Editor/GooglePlayGamesPluginDependencies.xml:9
+    implementation 'com.google.android.gms:play-services-nearby:18.5.0' // Assets/GooglePlayGames/com.google.play.games/Editor/GooglePlayGamesPluginDependencies.xml:14
     implementation 'com.google.firebase:firebase-analytics:23.2.0' // Assets/Firebase/Editor/InstallationsDependencies.xml:18
     implementation 'com.google.firebase:firebase-analytics-unity:13.17.0' // Assets/Firebase/Editor/AnalyticsDependencies.xml:21
     implementation 'com.google.firebase:firebase-app-unity:13.17.0' // Assets/Firebase/Editor/AppDependencies.xml:25

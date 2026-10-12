@@ -21,7 +21,7 @@ namespace Unice
             LocalizedLabel(panel, "hud.house_plan", "hud-lbl");
             miniMap = new MiniMap(ui, panel);
             LocalizedLabel(panel, "hud.players", "hud-lbl").style.marginTop = 8;
-            rows = IgnorePointer(AddElement(panel));
+            rows = AddScroll(panel, "plist-rows", null);
             Show(panel, false);
         }
 
@@ -68,7 +68,7 @@ namespace Unice
             row.Add(portrait);
 
             var column = IgnorePointer(AddElement(row, "grow")); column.style.marginLeft = 8;
-            var nameLine = IgnorePointer(AddElement(column, "row"));
+            var nameLine = IgnorePointer(AddElement(column, "row", "wrap"));   // long name + tags wrap instead of overflowing
             IgnorePointer(AddLabel(nameLine, character.name + (character == me ? Localization.Get("hud.you_suffix") : ""), "plname"));
             if (character.isBot) IgnorePointer(AddLabel(nameLine, Localization.Get("hud.bot_tag"), "tag"));
             if (app.IsOnline && character.playerId == hostId) IgnorePointer(AddLabel(nameLine, Localization.Get("hud.host_tag"), "tag"));

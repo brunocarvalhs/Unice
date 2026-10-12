@@ -17,14 +17,13 @@ namespace Unice
     /// </summary>
     sealed class Perspective
     {
-        /// <summary>Where a spectator looks when there is no one to follow.</summary>
-        const float DefaultViewX = 860, DefaultViewY = 590;
-
         readonly App app;
         Game game => app.game;
         Character me => app.myCharacter;
 
         public ViewInfo view;
+        /// <summary>The character the view is on (this player's, or the spectated one), or null (the middle of the map).</summary>
+        Character followed;
         /// <summary>False until there is something to look at (stays false at home before the first match).</summary>
         public bool hasView;
         /// <summary>While spectating, who to follow (their playerId) — null means auto (the doll holder). A stale id just falls back.</summary>
@@ -39,6 +38,14 @@ namespace Unice
             view = ComputeView(); hasView = true;
         }
 
+        /// <summary>The view, moved to where the followed character is drawn this frame (see <see cref="Character.DrawX"/>).</summary>
+        public ViewInfo DrawnView(float stepBlend)
+        {
+            var drawn = view;
+            if (followed != null) { drawn.x = followed.DrawX(stepBlend); drawn.y = followed.DrawY(stepBlend); }
+            return drawn;
+        }
+
         /// <summary>False only for the Unice while a round is live: then the hiders' information (who has the doll, who is hidden) stays secret.</summary>
         public bool ShowsTeamInfo => me == null || me.outOfRound || !me.IsUnice || !game.IsLive;
 
@@ -47,15 +54,17 @@ namespace Unice
             if (me == null || me.outOfRound)
             {
                 // spectating: follow the chosen player, else the doll holder
-                var followed = spectateTargetId != null ? game.characters.FirstOrDefault(character => character.playerId == spectateTargetId && !character.outOfRound) : null;
-                followed ??= game.doll.holder;
-                bool onMap = followed != null && followed.x > 0;
+                var target = spectateTargetId != null ? game.characters.FirstOrDefault(character => character.playerId == spectateTargetId && !character.outOfRound) : null;
+                target ??= game.doll.holder;
+                bool onMap = target != null && target.x > 0;
+                followed = onMap ? target : null;
                 return new ViewInfo
                 {
-                    x = onMap ? followed.x : DefaultViewX, y = onMap ? followed.y : DefaultViewY,
+                    x = onMap ? target.x : Map.WorldW / 2, y = onMap ? target.y : Map.WorldH / 2,   // no one to follow: the middle of the map
                     radius = Rules.SpectatorViewRange, usesLineOfSight = false, spectating = true,
                 };
             }
+            followed = me;
             float radius = me.hidingSpot != null ? Rules.HiddenViewRange : me.IsUnice ? Rules.UniceViewRange : Rules.HiderViewRange;
             return new ViewInfo { x = me.x, y = me.y, radius = radius, usesLineOfSight = true };
         }

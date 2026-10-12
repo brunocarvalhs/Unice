@@ -35,7 +35,8 @@ namespace Unice
             useButtonIcon.generateVisualContent = context => ActionIcons.Draw(context, useButtonIconKind, useButton.resolvedStyle.color);
         }
 
-        public void ResetSneak() { SneakToggled = false; sneakButton.EnableInClassList("act-on", false); }
+        /// <summary>No finger on the joystick and sneak off, so nothing keeps moving the character on its own.</summary>
+        public void Release() { joystick.Cancel(); SneakToggled = false; sneakButton.EnableInClassList("act-on", false); }
 
         /// <summary>Shows the buttons that apply right now; the ones that can't be used yet are dimmed.</summary>
         public void ShowAvailable(ActionHints hints)

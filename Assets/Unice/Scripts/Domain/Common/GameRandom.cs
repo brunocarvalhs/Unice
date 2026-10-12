@@ -6,7 +6,10 @@ namespace Unice
     /// <summary>The game's dice: one shared random generator for draws, bot decisions and kits.</summary>
     public static class GameRandom
     {
-        static readonly Random random = new Random();
+        static Random random = new Random();
+
+        /// <summary>Restarts the dice from a fixed seed so a test sees the same draws on every run. The game never calls it.</summary>
+        public static void Seed(int seed) => random = new Random(seed);
 
         /// <summary>A random float in [min, max).</summary>
         public static float Range(float min, float max) => min + (float)random.NextDouble() * (max - min);

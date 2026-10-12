@@ -49,31 +49,39 @@ namespace Unice
             }
         }
 
-        /// <summary>Applies what the other players sent: their last action (once) and their position.</summary>
+        /// <summary>Applies what the other players sent: their position, then their last action (once).</summary>
         public void ApplyPeerInputs(IReadOnlyList<PeerInfo> peers, string myPlayerId, float dt)
         {
             foreach (var character in game.characters)
             {
                 if (character.isBot || character.playerId == myPlayerId) continue;
-                var peer = peers.FirstOrDefault(candidate => candidate.id == character.playerId);
+                var peer = FindPeer(peers, character.playerId);
                 if (peer == null)
                 {
                     // the player left: a bot finishes the match in their place
-                    character.isBot = true; character.ResetBot();
+                    character.BecomeBot();
                     if (game.IsLive) game.AddEvent(GameEventType.Left, actor: character.index);
                     continue;
                 }
 
                 var presence = peer.presence;
                 character.talking = presence.talking;
+                // position first: an action sent with it (e.g. hide on arriving at the spot) is judged from where the player is now
+                ApplyPosition(character, presence, dt);
                 int lastSeq = lastActionSeq.TryGetValue(peer.id, out int seq) ? seq : 0;
                 if (presence.actionSeq > lastSeq)
                 {
                     lastActionSeq[peer.id] = presence.actionSeq;
                     game.ApplyAction(character, presence.action, presence.actionArg);
                 }
-                ApplyPosition(character, presence, dt);
             }
+        }
+
+        /// <summary>The peer with this id, or null. A plain loop: it runs for every remote character on every step.</summary>
+        static PeerInfo FindPeer(IReadOnlyList<PeerInfo> peers, string id)
+        {
+            for (int i = 0; i < peers.Count; i++) if (peers[i].id == id) return peers[i];
+            return null;
         }
 
         /// <summary>
@@ -109,10 +117,10 @@ namespace Unice
             foreach (var peer in peers) lastActionSeq[peer.id] = peer.presence.actionSeq;   // don't replay actions the old host already applied
             foreach (var character in game.characters)
             {
-                if (character != myCharacter) { character.x = character.targetX; character.y = character.targetY; }
+                if (character != myCharacter) character.Teleport(character.targetX, character.targetY);
                 bool stillHere = peers.Any(peer => peer.id == character.playerId);
-                if (!character.isBot && !stillHere) character.isBot = true;
-                character.ResetBot();
+                if (!character.isBot && !stillHere) character.BecomeBot();
+                else character.ResetBot();
             }
             foreach (var spot in Map.Spots) spot.reservedBy = null;
             var doll = game.doll;

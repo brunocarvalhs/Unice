@@ -101,7 +101,7 @@ namespace Unice
         {
             if (spot.reservedBy != null && spot.reservedBy != character) spot.reservedBy.brain.targetSpot = null;   // whoever was heading there must pick another
             spot.reservedBy = null; spot.occupant = character;
-            character.hidingSpot = spot; character.x = spot.standX; character.y = spot.standY; character.moving = false;
+            character.hidingSpot = spot; character.Teleport(spot.standX, spot.standY); character.moving = false;
             var brain = character.brain;
             brain.targetSpot = null; brain.previousSpot = spot; brain.path.Clear(); brain.startled = false;
         }
@@ -282,8 +282,8 @@ namespace Unice
             var hiders = characters.Where(character => character != newUnice).ToList();
             for (int i = 0; i < hiders.Count; i++)
             {
-                hiders[i].x = hiders[i].targetX = Map.SpawnX + i * 70;
-                hiders[i].y = hiders[i].targetY = Map.SpawnY;
+                hiders[i].Teleport(Map.SpawnX + i * 70, Map.SpawnY);
+                hiders[i].targetX = hiders[i].x; hiders[i].targetY = hiders[i].y;
             }
             doll.holder = GameRandom.Pick(EligibleForDraw(hiders)); doll.giggleTimer = giggleInterval; doll.hasLastGiggle = false; doll.lastGiggleSpot = null;
             phase = Phase.Hide; timeLeft = hideTime; roundClock = 0; roundResult = null;
@@ -391,7 +391,7 @@ namespace Unice
         void UniceEnters()
         {
             phase = Phase.Hunt; timeLeft = huntTime;
-            unice.x = Map.Entrance.x; unice.y = Map.Entrance.y; unice.faceX = 0; unice.faceY = -1; unice.teleportSeq++;
+            unice.Teleport(Map.Entrance.x, Map.Entrance.y); unice.faceX = 0; unice.faceY = -1; unice.teleportSeq++;
             AddEvent(GameEventType.Enter);
         }
     }
