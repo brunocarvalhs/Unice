@@ -8,6 +8,8 @@ targets:
     windows: false
     macos: false
     linux: false
+  web:
+    webgl: true   # published to GitHub Pages (release.yml)
   console:
     playstation: false
     xbox: false

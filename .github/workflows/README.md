@@ -14,9 +14,9 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 
 ### `build-targets.yml`
 
-- reutilizável (`workflow_call`): lê `.github/build-targets.yml` (`targets.<grupo>.<plataforma>: true|false`, grupos `mobile`, `desktop`, `console`) e expõe quais alvos estão habilitados
+- reutilizável (`workflow_call`): lê `.github/build-targets.yml` (`targets.<grupo>.<plataforma>: true|false`, grupos `mobile`, `web`, `desktop`, `console`) e expõe quais alvos estão habilitados
 - chamado por `debug.yml` e `release.yml`; alvo desabilitado = jobs de build/publish dele pulados
-- alvos: `android`, `ios`, `windows`, `macos`, `linux`, `playstation`, `xbox`, `nintendo-switch` — por enquanto só `android` tem jobs; habilitar outro faz a pipeline falhar até os jobs `build-<alvo>` → `publish-<alvo>` existirem
+- alvos: `android`, `webgl`, `ios`, `windows`, `macos`, `linux`, `playstation`, `xbox`, `nintendo-switch` — por enquanto só `android` e `webgl` têm jobs; habilitar outro faz a pipeline falhar até os jobs `build-<alvo>` → `publish-<alvo>` existirem
 
 ### `tests.yml`
 
@@ -40,6 +40,10 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)
 - exige signing keystore e secrets do Google Play
 - só builda/publica as plataformas ligadas em `.github/build-targets.yml` (ver `build-targets.yml`)
+- **versão web** (`targets.web.webgl`): depois do AAB, gera o build WebGL e publica no GitHub Pages (`build-webgl` → `publish-webgl`).
+  Roda em sequência, não em paralelo, por causa do limite de ativação da licença Unity Personal.
+  Exige uma vez: **Settings > Pages > Source = GitHub Actions**. Mesmo commit do AAB = mesmo protocolo de rede, então
+  navegador e app jogam na mesma sala (o Relay da Unity liga WebSocket do navegador com UDP do celular)
 
 ## Segurança
 
