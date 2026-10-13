@@ -25,6 +25,14 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - reutilizável (`workflow_call`): chamado por `debug.yml` e `release.yml`; também pode ser rodado sozinho pela aba Actions
 - publica o check **Edit Mode test results** no commit/PR, mais os artefatos `unity-test-results` e `unity-coverage` (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
 
+### `web.yml`
+
+- versão web: build WebGL → publica no GitHub Pages (`build-webgl` → `publish-webgl`)
+- chamada pelo `release.yml` depois dos testes, **em paralelo** ao AAB, quando `targets.web.webgl` está `true`; também roda sozinha pela aba Actions
+- mesmo commit do app = mesmo protocolo de rede: navegador e celular jogam na mesma sala (o Relay da Unity liga WebSocket com UDP)
+- exige uma vez: **Settings > Pages > Source = GitHub Actions**
+- atenção: são duas execuções da Unity ao mesmo tempo; na licença Unity Personal isso pode bater no limite de ativação (exit code 137)
+
 ### `debug.yml`
 
 - roda em pull requests para `develop`/`main`/`master` (e manualmente): `tests` → build — não roda em push, para não duplicar a run do PR
@@ -40,10 +48,7 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - o primeiro envio de um app novo precisa ser feito à mão no Console (limitação da API do Play)
 - exige signing keystore e secrets do Google Play
 - só builda/publica as plataformas ligadas em `.github/build-targets.yml` (ver `build-targets.yml`)
-- **versão web** (`targets.web.webgl`): depois do AAB, gera o build WebGL e publica no GitHub Pages (`build-webgl` → `publish-webgl`).
-  Roda em sequência, não em paralelo, por causa do limite de ativação da licença Unity Personal.
-  Exige uma vez: **Settings > Pages > Source = GitHub Actions**. Mesmo commit do AAB = mesmo protocolo de rede, então
-  navegador e app jogam na mesma sala (o Relay da Unity liga WebSocket do navegador com UDP do celular)
+- com `targets.web.webgl: true`, dispara a pipeline `web.yml` em paralelo ao build do Android (ver abaixo)
 
 ## Segurança
 
