@@ -83,7 +83,7 @@ jobs:
           testMode: EditMode
           projectPath: .
           artifactsPath: artifacts
-          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+Unice.Domain,+Unice.Core,+Unice.Net
+          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+Unice.Domain,+Unice.Core
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           checkName: Edit Mode test results
 
@@ -102,3 +102,26 @@ jobs:
           name: unity-coverage
           path: CodeCoverage/**
           if-no-files-found: ignore
+
+      # SPEC.md: Unice.Domain line coverage must be >= 85%. Core stays in the report but isn't gated (mostly UI/Unity).
+      - name: Check Unice.Domain coverage
+        shell: bash
+        env:
+          MIN_COVERAGE: 85
+        run: |
+          set -euo pipefail
+          summary=$(find CodeCoverage -name Summary.json -path '*Report*' 2>/dev/null | head -n1 || true)
+          if [ -z "$summary" ]; then
+            echo "::error::Coverage summary not found under CodeCoverage/ (expected CodeCoverage/Report/Summary.json). Did the test step generate the HTML report?"
+            exit 1
+          fi
+          coverage=$(jq -r '.coverage.assemblies[] | select(.name == "Unice.Domain") | .coverage' "$summary")
+          if [ -z "$coverage" ] || [ "$coverage" = "null" ]; then
+            echo "::error::Unice.Domain not found in $summary (check assemblyFilters in coverageOptions)."
+            exit 1
+          fi
+          echo "Unice.Domain line coverage: ${coverage}% (minimum ${MIN_COVERAGE}%)"
+          if awk -v c="$coverage" -v m="$MIN_COVERAGE" 'BEGIN { exit !(c < m) }'; then
+            echo "::error::Unice.Domain line coverage is ${coverage}%, below the ${MIN_COVERAGE}% minimum."
+            exit 1
+          fi
