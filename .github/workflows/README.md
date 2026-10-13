@@ -23,7 +23,8 @@ Fluxo: `validate` → `Edit Mode tests` → `build` (→ `publish` no release). 
 - `validate` (segundos, sem Unity): `actionlint` nos workflows e checagem de `.meta` faltando/órfão em `Assets/`
 - `Edit Mode tests`: testes Unity em EditMode (`Assets/Unice/Scripts/Domain/Tests` e `Core/Tests`)
 - reutilizável (`workflow_call`): chamado por `debug.yml` e `release.yml`; também pode ser rodado sozinho pela aba Actions
-- publica o check **Edit Mode test results** no commit/PR, mais os artefatos `unity-test-results` e `unity-coverage` (a meta é ≥ 85% no assembly `Unice.Domain`, ver `docs/ARCHITECTURE_AUDIT.md`)
+- publica o check **Edit Mode test results** no commit/PR, mais os artefatos `unity-test-results` e `unity-coverage` (relatório de `Unice.Domain` e `Unice.Core`)
+- **gate de cobertura:** o job falha se a cobertura de linhas do `Unice.Domain` ficar abaixo de 85% (lida de `CodeCoverage/Report/Summary.json`); `Unice.Core` aparece no relatório mas não entra no gate
 
 ### `web.yml`
 
