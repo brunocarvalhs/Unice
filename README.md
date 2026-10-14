@@ -9,6 +9,7 @@ Este repositório reúne:
 - a estrutura de assets e cenas do Unity
 - a configuração do editor e build do projeto
 - a automação de CI/CD para gerar APKs e validar pull requests
+- a versão web (WebGL), publicada no GitHub Pages pela mesma pipeline, que joga online com o app
 
 O projeto está organizado em módulos e camadas para separar:
 - gameplay e lógica central

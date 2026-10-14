@@ -55,6 +55,8 @@ namespace Unice
                 var playerPrefab = Resources.Load<GameObject>("UniceNet/NetPlayer");
                 if (playerPrefab == null) throw new NetException("Falta o objeto de rede do jogador. No Unity, use o menu Unice > Configurar projeto.");
                 var managerObject = new GameObject("NetworkManager"); managerObject.SetActive(false); UnityEngine.Object.DontDestroyOnLoad(managerObject);
+                // no WebSocket setting for the web build: distributed authority swaps this for the SDK's own transport, which asks
+                // Relay for "wss" on WebGL (DTLS elsewhere), so browser and app players still share a room
                 var transport = managerObject.AddComponent<UnityTransport>();
                 var manager = managerObject.AddComponent<NetworkManager>();
                 manager.NetworkConfig = new NetworkConfig { NetworkTransport = transport, PlayerPrefab = playerPrefab, NetworkTopology = NetworkTopologyTypes.DistributedAuthority };
@@ -110,7 +112,7 @@ namespace Unice
             while (!(Network.IsConnectedClient && Local() != null))
             {
                 if (Time.realtimeSinceStartup - startedAt > ConnectTimeoutSeconds) { await LeaveAsync(); throw new NetException("A sala demorou demais para responder. Tente de novo."); }
-                await Task.Delay(50);
+                await Awaitable.WaitForSecondsAsync(.05f);   // Task.Delay relies on timer threads, which the web build doesn't have
             }
             ready = true;
         }

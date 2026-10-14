@@ -63,7 +63,9 @@ namespace Unice
             var footer = AddElement(Root, "menu-foot");
             ui.settings.AddSoundButton(footer, "mpill"); ui.settings.AddMicButton(footer, "mpill");
             ui.settings.AddWhisperButton(footer, "mpill"); ui.settings.AddLanguageButton(footer, "mpill");
-            LocalizedButton(Root, "menu.quit", () => Application.Quit(), "mbtn", "mexit");
+#if !UNITY_WEBGL
+            LocalizedButton(Root, "menu.quit", () => Application.Quit(), "mbtn", "mexit");   // a browser tab can't quit itself
+#endif
             ShowPage(Page.Main);
         }
 
