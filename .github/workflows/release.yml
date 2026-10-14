@@ -140,3 +140,14 @@ jobs:
           # Never "production" from CI. The very first upload of a new app must be done by hand in the Console.
           track: internal
           status: draft
+
+  # Web version (GitHub Pages) in its own pipeline, in parallel with the Android build, when targets.web.webgl is on.
+  web:
+    needs: [targets, tests]
+    if: needs.targets.outputs.webgl == 'true'
+    uses: ./.github/workflows/web.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
