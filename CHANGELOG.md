@@ -5,6 +5,7 @@ Todas as alterações relevantes do projeto serão documentadas neste arquivo.
 ## [Unreleased]
 
 ### Adicionado
+- Versão web (WebGL) publicada no GitHub Pages a cada release, com os mesmos assets, regras e salas online do app: quem está no navegador joga com quem está no celular. No navegador não há Firebase (analytics/Crashlytics) nem botão "Sair".
 - Google Analytics (GA4) e Crashlytics via Firebase: eventos de partida, sala e ações do jogador; erros tratados enviados como não-fatais (catálogo em `docs/ANALYTICS.md`).
 - Configuração do Claude Code para o time: plugin oficial da Unity habilitado em `.claude/settings.json` e skills do projeto em `.claude/skills/` (`unity-code`, `unice-test-design`, `unice-run-tests`).
 - Testes Edit Mode da regra de eleição de host (`HostElectionTests`) e do passo do host (`MatchHostTests`).

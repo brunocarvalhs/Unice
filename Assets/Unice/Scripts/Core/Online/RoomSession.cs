@@ -96,7 +96,7 @@ namespace Unice
             else
             {
                 float startedAt = Time.realtimeSinceStartup;
-                while (IsOnline && Time.realtimeSinceStartup - startedAt < JoinTimeoutSeconds && FindHost() == null) await Task.Delay(JoinPollMs);
+                while (IsOnline && Time.realtimeSinceStartup - startedAt < JoinTimeoutSeconds && FindHost() == null) await Awaitable.WaitForSecondsAsync(JoinPollMs / 1000f);
                 if (!IsOnline) { isBusy = false; return; }
                 if (FindHost() == null)
                 {

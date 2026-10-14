@@ -1,13 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+#if !UNITY_WEBGL
 using Firebase;
 using Firebase.Analytics;
 using Firebase.Crashlytics;
+#endif
 using UnityEngine;
 
 namespace Unice
 {
+#if UNITY_WEBGL
+    /// <summary>The web build has no Firebase (its Unity SDK doesn't support WebGL): errors only go to the browser console.</summary>
+    public static class Metrics
+    {
+        public static void Init() { }
+        public static void Log(string name, params (string key, object value)[] args) { }
+        public static void Screen(string name) { }
+        public static void Error(Exception error, string where = null) => Debug.LogWarning(where == null ? error.ToString() : where + ": " + error);
+        public static void SetLanguageProperty() { }
+    }
+#else
     /// <summary>
     /// Google Analytics (GA4) and Crashlytics through Firebase. Events and errors logged before Firebase is ready are queued, never lost;
     /// if Firebase can't start, everything is a no-op so the game never depends on it. Off in the Editor.
@@ -89,4 +102,5 @@ namespace Unice
             _ => new Parameter(key, value?.ToString() ?? ""),
         };
     }
+#endif
 }
